@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"msgraphtool/internal/common/logger"
@@ -17,6 +18,26 @@ type smtpSendRequest struct {
 	From    string   `json:"from,omitempty"` // optional override for SMTPFROM
 	Subject string   `json:"subject"`
 	Body    string   `json:"body,omitempty"`
+}
+
+func sanitizeEmailSubjectInput(subject string) string {
+	subject = strings.ReplaceAll(subject, "\r", "")
+	subject = strings.ReplaceAll(subject, "\n", "")
+	return strings.TrimSpace(subject)
+}
+
+func sanitizeEmailBodyInput(body string) string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	body = strings.ReplaceAll(body, "\r", "\n")
+
+	var b strings.Builder
+	b.Grow(len(body))
+	for _, r := range body {
+		if r == '\n' || r == '\t' || r >= 0x20 {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func (s *Server) handleSMTPSendMail(w http.ResponseWriter, r *http.Request) {
@@ -61,8 +82,8 @@ func (s *Server) handleSMTPSendMail(w http.ResponseWriter, r *http.Request) {
 	// Clone base config and overlay request content
 	cfg := *s.smtpBase
 	cfg.To = req.To
-	cfg.Subject = req.Subject
-	cfg.Body = req.Body
+	cfg.Subject = sanitizeEmailSubjectInput(req.Subject)
+	cfg.Body = sanitizeEmailBodyInput(req.Body)
 	cfg.Action = smtp.ActionSendMail
 	if req.From != "" {
 		cfg.From = req.From
