@@ -36,6 +36,7 @@ This document provides a comprehensive comparison of all tools in the gomailtest
 | LOGIN | ✅ | ✅ | - | - | - | - |
 | CRAM-MD5 | ✅ | - | - | - | - | - |
 | XOAUTH2 | ✅ | ✅ | ✅ | - | - | - |
+| OAUTHBEARER | ✅ | - | - | - | - | - |
 | USER/PASS | - | - | ✅ | - | - | - |
 | APOP | - | - | ✅ | - | - | - |
 | NTLM | ✅ | - | - | - | ✅ | - |
