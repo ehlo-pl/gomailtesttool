@@ -96,7 +96,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.String("username", "", "SMTP username for authentication (env: SMTPUSERNAME)")
 	f.String("password", "", "SMTP password for authentication (env: SMTPPASSWORD)")
 	f.String("accesstoken", "", "OAuth2 access token for XOAUTH2 authentication (env: SMTPACCESSTOKEN)")
-	f.String("authmethod", "auto", "Authentication method: PLAIN, LOGIN, CRAM-MD5, XOAUTH2, auto (env: SMTPAUTHMETHOD)")
+	f.String("authmethod", "auto", "Authentication method: PLAIN, LOGIN, CRAM-MD5, NTLM, XOAUTH2, auto (env: SMTPAUTHMETHOD)")
 
 	// TLS
 	f.Bool("starttls", false, "Force STARTTLS usage (env: SMTPSTARTTLS)")

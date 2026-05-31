@@ -50,7 +50,7 @@ gomailtest smtp teststarttls --host smtp.example.com --port 587 --tlsversion 1.3
 
 ### testauth — Authentication Testing
 
-Connects, negotiates STARTTLS, then authenticates. Supports PLAIN, LOGIN, CRAM-MD5.
+Connects, negotiates STARTTLS, then authenticates. Supports PLAIN, LOGIN, CRAM-MD5, NTLM, and XOAUTH2.
 
 ```powershell
 gomailtest smtp testauth --host smtp.example.com --port 587 \
@@ -59,6 +59,10 @@ gomailtest smtp testauth --host smtp.example.com --port 587 \
 # Specify auth method explicitly
 gomailtest smtp testauth --host smtp.example.com --port 587 \
   --username user@example.com --password "secret" --authmethod CRAM-MD5
+
+# NTLM (on-premises Exchange / Windows SMTP)
+gomailtest smtp testauth --host exchange.contoso.com --port 25 \
+  --username "CONTOSO\user" --password "secret" --authmethod NTLM
 ```
 
 ### sendmail — End-to-End Email Sending
@@ -85,7 +89,7 @@ gomailtest smtp sendmail \
 | `--timeout` | Connection timeout (seconds) | `SMTPTIMEOUT` | 30 |
 | `--username` | SMTP username | `SMTPUSERNAME` | — |
 | `--password` | SMTP password | `SMTPPASSWORD` | — |
-| `--authmethod` | Auth method: PLAIN, LOGIN, CRAM-MD5, auto | `SMTPAUTHMETHOD` | auto |
+| `--authmethod` | Auth method: PLAIN, LOGIN, CRAM-MD5, NTLM, XOAUTH2, auto | `SMTPAUTHMETHOD` | auto |
 | `--starttls` | Force STARTTLS usage | `SMTPSTARTTLS` | false |
 | `--smtps` | Use implicit TLS (port 465) | `SMTPSMTPS` | false |
 | `--skipverify` | Skip TLS certificate verification | `SMTPSKIPVERIFY` | false |

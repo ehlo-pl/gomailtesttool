@@ -10,6 +10,7 @@ import (
 	"net/textproto"
 	"strings"
 
+	"github.com/Azure/go-ntlmssp"
 	"msgraphtool/internal/common/ratelimit"
 	"msgraphtool/internal/smtp/protocol"
 	smtptls "msgraphtool/internal/smtp/tls"
@@ -306,6 +307,8 @@ func (c *SMTPClient) Auth(username, password, accessToken string, mechanisms []s
 		auth = smtp.CRAMMD5Auth(username, password)
 	case "XOAUTH2":
 		auth = &xoauth2Auth{username, accessToken}
+	case "NTLM":
+		auth = &ntlmAuth{username: username, password: password}
 	default:
 		return fmt.Errorf("unsupported authentication mechanism: %s", mechanism)
 	}
@@ -467,9 +470,9 @@ func selectAuthMechanism(requested []string, available []string, hasAccessToken 
 	// Auto-select: prefer XOAUTH2 if access token provided, otherwise prefer stronger mechanisms
 	var preferenceOrder []string
 	if hasAccessToken {
-		preferenceOrder = []string{"XOAUTH2", "CRAM-MD5", "PLAIN", "LOGIN"}
+		preferenceOrder = []string{"XOAUTH2", "CRAM-MD5", "NTLM", "PLAIN", "LOGIN"}
 	} else {
-		preferenceOrder = []string{"CRAM-MD5", "PLAIN", "LOGIN"}
+		preferenceOrder = []string{"CRAM-MD5", "NTLM", "PLAIN", "LOGIN"}
 	}
 
 	for _, preferred := range preferenceOrder {
@@ -541,4 +544,31 @@ func (a *xoauth2Auth) Next(fromServer []byte, more bool) ([]byte, error) {
 	// XOAUTH2 is single-step, but server may send error JSON on failure
 	// Return empty to signal we have nothing more to send
 	return nil, nil
+}
+
+// ntlmAuth implements NTLM (NTLMv2) authentication for SMTP.
+// The three-step exchange: negotiate (type 1) → challenge (type 2) → authenticate (type 3).
+// Username may be in DOMAIN\user format; the library handles domain extraction automatically.
+type ntlmAuth struct {
+	username string
+	password string
+}
+
+func (a *ntlmAuth) Start(_ *smtp.ServerInfo) (string, []byte, error) {
+	negotiate, err := ntlmssp.NewNegotiateMessage("", "")
+	if err != nil {
+		return "", nil, fmt.Errorf("NTLM negotiate: %w", err)
+	}
+	return "NTLM", negotiate, nil
+}
+
+func (a *ntlmAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if !more {
+		return nil, nil
+	}
+	authenticate, err := ntlmssp.NewAuthenticateMessage(fromServer, a.username, a.password, nil)
+	if err != nil {
+		return nil, fmt.Errorf("NTLM authenticate: %w", err)
+	}
+	return authenticate, nil
 }

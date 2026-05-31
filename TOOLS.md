@@ -38,7 +38,7 @@ This document provides a comprehensive comparison of all tools in the gomailtest
 | XOAUTH2 | ✅ | ✅ | ✅ | - | - | - |
 | USER/PASS | - | - | ✅ | - | - | - |
 | APOP | - | - | ✅ | - | - | - |
-| NTLM | - | - | - | - | ✅ | - |
+| NTLM | ✅ | - | - | - | ✅ | - |
 | Basic Auth | - | - | - | ✅ | ✅ | - |
 | Bearer Token | - | - | - | ✅ | ✅ | ✅ |
 | Client Secret | - | - | - | - | - | ✅ |

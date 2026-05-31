@@ -469,6 +469,36 @@ func TestSelectAuthMechanism(t *testing.T) {
 			expected:       "",
 		},
 
+		// NTLM auto-selection
+		{
+			name:           "Auto-select NTLM when available and no CRAM-MD5",
+			requested:      []string{"auto"},
+			available:      []string{"LOGIN", "PLAIN", "NTLM"},
+			hasAccessToken: false,
+			expected:       "NTLM",
+		},
+		{
+			name:           "Auto-select CRAM-MD5 over NTLM when both available",
+			requested:      []string{"auto"},
+			available:      []string{"LOGIN", "PLAIN", "NTLM", "CRAM-MD5"},
+			hasAccessToken: false,
+			expected:       "CRAM-MD5",
+		},
+		{
+			name:           "Explicit NTLM selection",
+			requested:      []string{"NTLM"},
+			available:      []string{"LOGIN", "PLAIN", "NTLM"},
+			hasAccessToken: false,
+			expected:       "NTLM",
+		},
+		{
+			name:           "Explicit NTLM not available returns empty",
+			requested:      []string{"NTLM"},
+			available:      []string{"LOGIN", "PLAIN"},
+			hasAccessToken: false,
+			expected:       "",
+		},
+
 		// Case insensitivity
 		{
 			name:           "Case insensitive - lowercase requested",
@@ -604,6 +634,76 @@ func TestXOAUTH2Auth_Next(t *testing.T) {
 	}
 	if resp != nil {
 		t.Errorf("xoauth2Auth.Next() should return nil, got %v", resp)
+	}
+}
+
+// TestNTLMAuth tests NTLM negotiate message generation
+func TestNTLMAuth(t *testing.T) {
+	tests := []struct {
+		name     string
+		username string
+		password string
+	}{
+		{
+			name:     "Plain username",
+			username: "user@example.com",
+			password: "secret",
+		},
+		{
+			name:     "Domain-prefixed username",
+			username: `CONTOSO\user`,
+			password: "secret",
+		},
+		{
+			name:     "Empty domain username",
+			username: "user",
+			password: "pass",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			auth := &ntlmAuth{
+				username: tt.username,
+				password: tt.password,
+			}
+
+			mechanism, resp, err := auth.Start(nil)
+			if err != nil {
+				t.Fatalf("ntlmAuth.Start() error = %v", err)
+			}
+
+			if mechanism != "NTLM" {
+				t.Errorf("ntlmAuth.Start() mechanism = %q, want NTLM", mechanism)
+			}
+
+			if len(resp) == 0 {
+				t.Fatal("ntlmAuth.Start() returned empty negotiate message")
+			}
+
+			// NTLM type-1 message starts with signature "NTLMSSP\x00" then type 1 (little-endian)
+			const ntlmSignature = "NTLMSSP\x00"
+			if len(resp) < len(ntlmSignature)+4 {
+				t.Fatalf("ntlmAuth.Start() response too short: %d bytes", len(resp))
+			}
+			if string(resp[:len(ntlmSignature)]) != ntlmSignature {
+				t.Errorf("ntlmAuth.Start() missing NTLMSSP signature, got: %x", resp[:8])
+			}
+			// Message type should be 1 (negotiate)
+			msgType := uint32(resp[8]) | uint32(resp[9])<<8 | uint32(resp[10])<<16 | uint32(resp[11])<<24
+			if msgType != 1 {
+				t.Errorf("ntlmAuth.Start() message type = %d, want 1", msgType)
+			}
+
+			// Next with more=false should return nil (auth complete)
+			resp2, err := auth.Next(nil, false)
+			if err != nil {
+				t.Errorf("ntlmAuth.Next(more=false) error = %v", err)
+			}
+			if resp2 != nil {
+				t.Errorf("ntlmAuth.Next(more=false) should return nil, got %v", resp2)
+			}
+		})
 	}
 }
 
