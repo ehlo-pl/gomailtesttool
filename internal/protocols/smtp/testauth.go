@@ -104,7 +104,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		}); logErr != nil {
 			logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 		}
-		return errors.New(msg)
+		return fmt.Errorf("server does not advertise AUTH capability")
 	}
 
 	fmt.Printf("✓ Server supports AUTH mechanisms: %s\n\n", strings.Join(authMechanisms, ", "))

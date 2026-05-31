@@ -3,7 +3,6 @@ package smtp
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -160,7 +159,7 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 			}); logErr != nil {
 				logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 			}
-			return errors.New(msg)
+			return fmt.Errorf("no compatible authentication mechanism found")
 		}
 
 		if err := client.Auth(config.Username, config.Password, config.AccessToken, []string{methodToUse}); err != nil {
@@ -302,22 +301,6 @@ func sanitizeEmailHeader(header string) string {
 	header = strings.ReplaceAll(header, "\r", "")
 	header = strings.ReplaceAll(header, "\n", "")
 	return header
-}
-
-// sanitizeEmailBody normalizes line endings and removes unsafe control
-// characters from body content while preserving regular text formatting.
-func sanitizeEmailBody(body string) string {
-	body = strings.ReplaceAll(body, "\r\n", "\n")
-	body = strings.ReplaceAll(body, "\r", "\n")
-
-	var b strings.Builder
-	b.Grow(len(body))
-	for _, r := range body {
-		if r == '\n' || r == '\t' || r >= 0x20 {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }
 
 // generateMessageID creates a unique message ID.
