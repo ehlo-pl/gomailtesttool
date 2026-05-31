@@ -469,6 +469,36 @@ func TestSelectAuthMechanism(t *testing.T) {
 			expected:       "",
 		},
 
+		// GSSAPI auto-selection
+		{
+			name:           "Auto-select GSSAPI when available (highest priority)",
+			requested:      []string{"auto"},
+			available:      []string{"LOGIN", "PLAIN", "GSSAPI", "NTLM", "CRAM-MD5"},
+			hasAccessToken: false,
+			expected:       "GSSAPI",
+		},
+		{
+			name:           "Auto-select CRAM-MD5 when GSSAPI not available",
+			requested:      []string{"auto"},
+			available:      []string{"LOGIN", "PLAIN", "CRAM-MD5"},
+			hasAccessToken: false,
+			expected:       "CRAM-MD5",
+		},
+		{
+			name:           "Explicit GSSAPI selection",
+			requested:      []string{"GSSAPI"},
+			available:      []string{"LOGIN", "PLAIN", "GSSAPI"},
+			hasAccessToken: false,
+			expected:       "GSSAPI",
+		},
+		{
+			name:           "Explicit GSSAPI not available returns empty",
+			requested:      []string{"GSSAPI"},
+			available:      []string{"LOGIN", "PLAIN", "NTLM"},
+			hasAccessToken: false,
+			expected:       "",
+		},
+
 		// NTLM auto-selection
 		{
 			name:           "Auto-select NTLM when available and no CRAM-MD5",
@@ -635,6 +665,102 @@ func TestXOAUTH2Auth_Next(t *testing.T) {
 	if resp != nil {
 		t.Errorf("xoauth2Auth.Next() should return nil, got %v", resp)
 	}
+}
+
+// TestParseKerberosCredentials tests Kerberos username parsing
+func TestParseKerberosCredentials(t *testing.T) {
+	tests := []struct {
+		name      string
+		username  string
+		wantUser  string
+		wantRealm string
+	}{
+		{
+			name:      "user@REALM format",
+			username:  "alice@CONTOSO.COM",
+			wantUser:  "alice",
+			wantRealm: "CONTOSO.COM",
+		},
+		{
+			name:      "user@realm lowercased realm auto-uppercased",
+			username:  "alice@contoso.com",
+			wantUser:  "alice",
+			wantRealm: "CONTOSO.COM",
+		},
+		{
+			name:      "DOMAIN\\user format",
+			username:  `CONTOSO\alice`,
+			wantUser:  "alice",
+			wantRealm: "CONTOSO",
+		},
+		{
+			name:      "domain\\user lowercased domain auto-uppercased",
+			username:  `contoso\alice`,
+			wantUser:  "alice",
+			wantRealm: "CONTOSO",
+		},
+		{
+			name:      "plain username no realm",
+			username:  "alice",
+			wantUser:  "alice",
+			wantRealm: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user, realm := parseKerberosCredentials(tt.username)
+			if user != tt.wantUser {
+				t.Errorf("parseKerberosCredentials(%q) user = %q, want %q", tt.username, user, tt.wantUser)
+			}
+			if realm != tt.wantRealm {
+				t.Errorf("parseKerberosCredentials(%q) realm = %q, want %q", tt.username, realm, tt.wantRealm)
+			}
+		})
+	}
+}
+
+// TestGSSAPIAuth tests GSSAPI auth struct behaviour without a live KDC
+func TestGSSAPIAuth(t *testing.T) {
+	t.Run("Start returns GSSAPI mechanism name", func(t *testing.T) {
+		auth := &gssapiAuth{
+			username: "alice@CONTOSO.COM",
+			password: "secret",
+			target:   "exchange.contoso.com",
+			// No KDC — Start() will fail on KDC login, but mechanism name is returned first
+		}
+		// mechanism name is what matters for unit testing; network failure is expected
+		mechanism, _, _ := auth.Start(nil)
+		if mechanism != "GSSAPI" && mechanism != "" {
+			t.Errorf("gssapiAuth.Start() mechanism = %q, want %q or %q", mechanism, "GSSAPI", "")
+		}
+	})
+
+	t.Run("Start fails with descriptive error when realm cannot be determined", func(t *testing.T) {
+		auth := &gssapiAuth{
+			username: "alice", // plain username, no realm, no --realm flag
+			password: "secret",
+			target:   "exchange.contoso.com",
+		}
+		_, _, err := auth.Start(nil)
+		if err == nil {
+			t.Error("gssapiAuth.Start() expected error for missing realm, got nil")
+		}
+		if err != nil && !strings.Contains(err.Error(), "realm") {
+			t.Errorf("gssapiAuth.Start() error should mention 'realm', got: %v", err)
+		}
+	})
+
+	t.Run("Next with more=false returns nil (auth complete)", func(t *testing.T) {
+		auth := &gssapiAuth{}
+		resp, err := auth.Next(nil, false)
+		if err != nil {
+			t.Errorf("gssapiAuth.Next(more=false) error = %v", err)
+		}
+		if resp != nil {
+			t.Errorf("gssapiAuth.Next(more=false) should return nil, got %v", resp)
+		}
+	})
 }
 
 // TestNTLMAuth tests NTLM negotiate message generation

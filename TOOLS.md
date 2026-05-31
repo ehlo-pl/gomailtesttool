@@ -39,6 +39,7 @@ This document provides a comprehensive comparison of all tools in the gomailtest
 | USER/PASS | - | - | ✅ | - | - | - |
 | APOP | - | - | ✅ | - | - | - |
 | NTLM | ✅ | - | - | - | ✅ | - |
+| GSSAPI (Kerberos) | ✅ | - | - | - | - | - |
 | Basic Auth | - | - | - | ✅ | ✅ | - |
 | Bearer Token | - | - | - | ✅ | ✅ | ✅ |
 | Client Secret | - | - | - | - | - | ✅ |

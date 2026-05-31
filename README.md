@@ -52,6 +52,10 @@ gomailtest smtp testauth --host smtp.example.com --port 587 \
 gomailtest smtp testauth --host exchange.contoso.com --port 25 \
   --username "CONTOSO\user" --password "..."
 
+# GSSAPI/Kerberos — on-premises Exchange / Active Directory
+gomailtest smtp testauth --host exchange.contoso.com --port 25 \
+  --username "alice@CONTOSO.COM" --password "..." --authmethod GSSAPI
+
 # XOAUTH2 — Microsoft 365 / Google Workspace
 gomailtest smtp testauth --host smtp.office365.com --port 587 \
   --username user@company.com --accesstoken "eyJ..."

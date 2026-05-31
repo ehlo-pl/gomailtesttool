@@ -11,6 +11,11 @@ import (
 	"strings"
 
 	"github.com/Azure/go-ntlmssp"
+	krb5client "github.com/jcmturner/gokrb5/v8/client"
+	krb5config "github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/gssapi"
+	"github.com/jcmturner/gokrb5/v8/spnego"
+	"github.com/jcmturner/gokrb5/v8/types"
 	"msgraphtool/internal/common/ratelimit"
 	"msgraphtool/internal/smtp/protocol"
 	smtptls "msgraphtool/internal/smtp/tls"
@@ -309,6 +314,14 @@ func (c *SMTPClient) Auth(username, password, accessToken string, mechanisms []s
 		auth = &xoauth2Auth{username, accessToken}
 	case "NTLM":
 		auth = &ntlmAuth{username: username, password: password}
+	case "GSSAPI":
+		auth = &gssapiAuth{
+			username:   username,
+			password:   password,
+			realm:      c.config.Realm,
+			kdcAddress: c.config.KDCAddress,
+			target:     c.host,
+		}
 	default:
 		return fmt.Errorf("unsupported authentication mechanism: %s", mechanism)
 	}
@@ -470,9 +483,9 @@ func selectAuthMechanism(requested []string, available []string, hasAccessToken 
 	// Auto-select: prefer XOAUTH2 if access token provided, otherwise prefer stronger mechanisms
 	var preferenceOrder []string
 	if hasAccessToken {
-		preferenceOrder = []string{"XOAUTH2", "CRAM-MD5", "NTLM", "PLAIN", "LOGIN"}
+		preferenceOrder = []string{"XOAUTH2", "GSSAPI", "CRAM-MD5", "NTLM", "PLAIN", "LOGIN"}
 	} else {
-		preferenceOrder = []string{"CRAM-MD5", "NTLM", "PLAIN", "LOGIN"}
+		preferenceOrder = []string{"GSSAPI", "CRAM-MD5", "NTLM", "PLAIN", "LOGIN"}
 	}
 
 	for _, preferred := range preferenceOrder {
@@ -571,4 +584,113 @@ func (a *ntlmAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		return nil, fmt.Errorf("NTLM authenticate: %w", err)
 	}
 	return authenticate, nil
+}
+
+// parseKerberosCredentials splits a Kerberos username into the user and realm parts.
+// Supports user@REALM.COM and DOMAIN\user formats.
+func parseKerberosCredentials(username string) (user, realm string) {
+	if idx := strings.Index(username, "@"); idx >= 0 {
+		return username[:idx], strings.ToUpper(username[idx+1:])
+	}
+	if idx := strings.Index(username, "\\"); idx >= 0 {
+		return username[idx+1:], strings.ToUpper(username[:idx])
+	}
+	return username, ""
+}
+
+// gssapiAuth implements SASL GSSAPI (RFC 4752) for SMTP using Kerberos 5.
+// Exchange: AP_REQ → [AP_REP] → security-layer negotiation (no-security-layer selected).
+// Username may be in user@REALM or DOMAIN\user format; realm is extracted automatically
+// or overridden via the Realm field. KDC is discovered via DNS SRV unless KDCAddress is set.
+type gssapiAuth struct {
+	username   string
+	password   string
+	realm      string // Kerberos realm override (e.g. CONTOSO.COM)
+	kdcAddress string // optional KDC host:port override
+	target     string // SMTP server hostname for SPN smtp/<target>
+
+	krb5Client *krb5client.Client
+	sessionKey types.EncryptionKey
+	step       int
+}
+
+func (a *gssapiAuth) Start(_ *smtp.ServerInfo) (string, []byte, error) {
+	user, realm := parseKerberosCredentials(a.username)
+	if a.realm != "" {
+		realm = a.realm
+	}
+	if realm == "" {
+		return "", nil, fmt.Errorf("GSSAPI: Kerberos realm required (use user@REALM format or --realm)")
+	}
+
+	krb5Cfg := krb5config.New()
+	krb5Cfg.LibDefaults.DefaultRealm = realm
+	if a.kdcAddress != "" {
+		krb5Cfg.Realms = []krb5config.Realm{{Realm: realm, KDC: []string{a.kdcAddress}}}
+	} else {
+		krb5Cfg.LibDefaults.DNSLookupKDC = true
+	}
+
+	a.krb5Client = krb5client.NewWithPassword(user, realm, a.password, krb5Cfg,
+		krb5client.DisablePAFXFAST(true))
+	if err := a.krb5Client.Login(); err != nil {
+		return "", nil, fmt.Errorf("GSSAPI: Kerberos login failed: %w", err)
+	}
+
+	spn := fmt.Sprintf("smtp/%s", a.target)
+	tkt, skey, err := a.krb5Client.GetServiceTicket(spn)
+	if err != nil {
+		a.krb5Client.Destroy()
+		return "", nil, fmt.Errorf("GSSAPI: service ticket for %s failed: %w", spn, err)
+	}
+	a.sessionKey = skey
+
+	gssToken, err := spnego.NewKRB5TokenAPREQ(a.krb5Client, tkt, skey,
+		[]int{gssapi.ContextFlagMutual}, []int{})
+	if err != nil {
+		a.krb5Client.Destroy()
+		return "", nil, fmt.Errorf("GSSAPI: AP_REQ token failed: %w", err)
+	}
+
+	b, err := gssToken.Marshal()
+	if err != nil {
+		a.krb5Client.Destroy()
+		return "", nil, fmt.Errorf("GSSAPI: AP_REQ marshal failed: %w", err)
+	}
+
+	a.step = 1
+	return "GSSAPI", b, nil
+}
+
+func (a *gssapiAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if !more {
+		if a.krb5Client != nil {
+			a.krb5Client.Destroy()
+		}
+		return nil, nil
+	}
+
+	switch a.step {
+	case 1:
+		// Server optionally sends AP_REP (mutual auth); skip verification (testing tool)
+		a.step = 2
+		return nil, nil
+
+	case 2:
+		// Server sends GSS-wrapped security layer options: [flags, buf_hi, buf_mid, buf_lo]
+		// Respond with no-security-layer: bitmask=1, max buf size=0
+		secLayer := []byte{0x01, 0x00, 0x00, 0x00}
+		wt, err := gssapi.NewInitiatorWrapToken(secLayer, a.sessionKey)
+		if err != nil {
+			return nil, fmt.Errorf("GSSAPI: security layer wrap failed: %w", err)
+		}
+		b, err := wt.Marshal()
+		if err != nil {
+			return nil, fmt.Errorf("GSSAPI: security layer marshal failed: %w", err)
+		}
+		a.step = 3
+		return b, nil
+	}
+
+	return nil, nil
 }

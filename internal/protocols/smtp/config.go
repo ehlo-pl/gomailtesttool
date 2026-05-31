@@ -25,7 +25,9 @@ type Config struct {
 	Username    string
 	Password    string
 	AccessToken string // OAuth2 access token for XOAUTH2 authentication
-	AuthMethod  string // PLAIN, LOGIN, CRAM-MD5, XOAUTH2, or "auto"
+	AuthMethod  string // PLAIN, LOGIN, CRAM-MD5, NTLM, GSSAPI, XOAUTH2, or "auto"
+	Realm       string // Kerberos realm for GSSAPI (auto-extracted from user@REALM if empty)
+	KDCAddress  string // KDC host:port override for GSSAPI (uses DNS SRV if empty)
 
 	// Email configuration (for sendmail)
 	From    string
@@ -96,7 +98,9 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.String("username", "", "SMTP username for authentication (env: SMTPUSERNAME)")
 	f.String("password", "", "SMTP password for authentication (env: SMTPPASSWORD)")
 	f.String("accesstoken", "", "OAuth2 access token for XOAUTH2 authentication (env: SMTPACCESSTOKEN)")
-	f.String("authmethod", "auto", "Authentication method: PLAIN, LOGIN, CRAM-MD5, NTLM, XOAUTH2, auto (env: SMTPAUTHMETHOD)")
+	f.String("authmethod", "auto", "Authentication method: PLAIN, LOGIN, CRAM-MD5, NTLM, GSSAPI, XOAUTH2, auto (env: SMTPAUTHMETHOD)")
+	f.String("realm", "", "Kerberos realm for GSSAPI (auto-extracted from user@REALM if omitted) (env: SMTPREALM)")
+	f.String("kdc", "", "KDC address override for GSSAPI (host or host:port; uses DNS SRV if omitted) (env: SMTPKDC)")
 
 	// TLS
 	f.Bool("starttls", false, "Force STARTTLS usage (env: SMTPSTARTTLS)")
@@ -129,6 +133,8 @@ func BindEnvs(v *viper.Viper) {
 		"password":    "SMTPPASSWORD",
 		"accesstoken": "SMTPACCESSTOKEN",
 		"authmethod":  "SMTPAUTHMETHOD",
+		"realm":       "SMTPREALM",
+		"kdc":         "SMTPKDC",
 		"from":        "SMTPFROM",
 		"to":          "SMTPTO",
 		"starttls":    "SMTPSTARTTLS",
@@ -226,6 +232,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Password:       v.GetString("password"),
 		AccessToken:    v.GetString("accesstoken"),
 		AuthMethod:     authMethod,
+		Realm:          strings.ToUpper(v.GetString("realm")),
+		KDCAddress:     v.GetString("kdc"),
 		From:           v.GetString("from"),
 		To:             toList,
 		Subject:        subject,
