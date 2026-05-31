@@ -154,6 +154,17 @@ func TestBuildEmailMessage(t *testing.T) {
 			wantSubjLine: "Subject: UrgentBcc: attacker@evil.comX-Mailer: Evil",
 			bodyPreserve: true,
 		},
+		{
+			name:         "Body preserves SMTP-like content",
+			from:         "sender@example.com",
+			to:           []string{"recipient@example.com"},
+			subject:      "Test",
+			body:         "Line 1\r\n.\r\nMAIL FROM:<attacker@evil.com>",
+			wantFromLine: "From: sender@example.com",
+			wantToLine:   "To: recipient@example.com",
+			wantSubjLine: "Subject: Test",
+			bodyPreserve: true,
+		},
 	}
 
 	for _, tt := range tests {
