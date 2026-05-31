@@ -24,8 +24,8 @@ type Config struct {
 	// Authentication
 	Username    string
 	Password    string
-	AccessToken string // OAuth2 access token for XOAUTH2 authentication
-	AuthMethod  string // PLAIN, LOGIN, CRAM-MD5, NTLM, GSSAPI, XOAUTH2, or "auto"
+	AccessToken string // OAuth2 bearer token for XOAUTH2 or OAUTHBEARER authentication
+	AuthMethod  string // PLAIN, LOGIN, CRAM-MD5, NTLM, GSSAPI, XOAUTH2, OAUTHBEARER, or "auto"
 	Realm       string // Kerberos realm for GSSAPI (auto-extracted from user@REALM if empty)
 	KDCAddress  string // KDC host:port override for GSSAPI (uses DNS SRV if empty)
 
@@ -97,8 +97,8 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	// Authentication
 	f.String("username", "", "SMTP username for authentication (env: SMTPUSERNAME)")
 	f.String("password", "", "SMTP password for authentication (env: SMTPPASSWORD)")
-	f.String("accesstoken", "", "OAuth2 access token for XOAUTH2 authentication (env: SMTPACCESSTOKEN)")
-	f.String("authmethod", "auto", "Authentication method: PLAIN, LOGIN, CRAM-MD5, NTLM, GSSAPI, XOAUTH2, auto (env: SMTPAUTHMETHOD)")
+	f.String("accesstoken", "", "OAuth2 bearer token for XOAUTH2 or OAUTHBEARER authentication (env: SMTPACCESSTOKEN)")
+	f.String("authmethod", "auto", "Authentication method: PLAIN, LOGIN, CRAM-MD5, NTLM, GSSAPI, XOAUTH2, OAUTHBEARER, auto (env: SMTPAUTHMETHOD)")
 	f.String("realm", "", "Kerberos realm for GSSAPI (auto-extracted from user@REALM if omitted) (env: SMTPREALM)")
 	f.String("kdc", "", "KDC address override for GSSAPI (host or host:port; uses DNS SRV if omitted) (env: SMTPKDC)")
 
@@ -334,22 +334,23 @@ func validateConfiguration(config *Config) error {
 		if config.Username == "" {
 			return fmt.Errorf("testauth requires -username")
 		}
-		// XOAUTH2 requires accesstoken instead of password
-		if strings.EqualFold(config.AuthMethod, "XOAUTH2") {
+		// Token-based mechanisms (XOAUTH2, OAUTHBEARER) require accesstoken instead of password
+		if strings.EqualFold(config.AuthMethod, "XOAUTH2") || strings.EqualFold(config.AuthMethod, "OAUTHBEARER") {
+			method := strings.ToUpper(config.AuthMethod)
 			if config.AccessToken == "" {
-				return fmt.Errorf("XOAUTH2 authentication requires -accesstoken")
+				return fmt.Errorf("%s authentication requires -accesstoken", method)
 			}
 			if config.Password != "" {
-				fmt.Println("Warning: both -password and -accesstoken provided; -password will be ignored for XOAUTH2")
+				fmt.Printf("Warning: both -password and -accesstoken provided; -password will be ignored for %s\n", method)
 			}
 		} else if config.AccessToken != "" {
-			// If accesstoken provided, assume XOAUTH2
+			// If accesstoken provided, a token-based mechanism (XOAUTH2/OAUTHBEARER) is used
 			// No password required
 			if config.Password != "" {
-				fmt.Println("Warning: both -password and -accesstoken provided; -password will be ignored (using XOAUTH2)")
+				fmt.Println("Warning: both -password and -accesstoken provided; -password will be ignored (using token-based auth)")
 			}
 		} else if config.Password == "" {
-			return fmt.Errorf("testauth requires -password (or -accesstoken for XOAUTH2)")
+			return fmt.Errorf("testauth requires -password (or -accesstoken for XOAUTH2/OAUTHBEARER)")
 		}
 
 	case ActionSendMail:

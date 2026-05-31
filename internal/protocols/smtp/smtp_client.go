@@ -312,6 +312,8 @@ func (c *SMTPClient) Auth(username, password, accessToken string, mechanisms []s
 		auth = smtp.CRAMMD5Auth(username, password)
 	case "XOAUTH2":
 		auth = &xoauth2Auth{username, accessToken}
+	case "OAUTHBEARER":
+		auth = &oauthbearerAuth{username: username, accessToken: accessToken, host: c.host, port: c.port}
 	case "NTLM":
 		auth = &ntlmAuth{username: username, password: password}
 	case "GSSAPI":
@@ -483,7 +485,7 @@ func selectAuthMechanism(requested []string, available []string, hasAccessToken 
 	// Auto-select: prefer XOAUTH2 if access token provided, otherwise prefer stronger mechanisms
 	var preferenceOrder []string
 	if hasAccessToken {
-		preferenceOrder = []string{"XOAUTH2", "GSSAPI", "CRAM-MD5", "NTLM", "PLAIN", "LOGIN"}
+		preferenceOrder = []string{"XOAUTH2", "OAUTHBEARER", "GSSAPI", "CRAM-MD5", "NTLM", "PLAIN", "LOGIN"}
 	} else {
 		preferenceOrder = []string{"GSSAPI", "CRAM-MD5", "NTLM", "PLAIN", "LOGIN"}
 	}
@@ -556,6 +558,37 @@ func (a *xoauth2Auth) Start(server *smtp.ServerInfo) (string, []byte, error) {
 func (a *xoauth2Auth) Next(fromServer []byte, more bool) ([]byte, error) {
 	// XOAUTH2 is single-step, but server may send error JSON on failure
 	// Return empty to signal we have nothing more to send
+	return nil, nil
+}
+
+// oauthbearerAuth implements SASL OAUTHBEARER (RFC 7628). It carries an OAuth 2.0/2.1
+// bearer access token (the SASL layer is identical for both OAuth versions; only token
+// acquisition differs, which is out of scope here). Initial response (full form):
+//
+//	n,a=<user>,\x01host=<host>\x01port=<port>\x01auth=Bearer <token>\x01\x01
+//
+// The host/port and authzid are included for maximum server compatibility.
+type oauthbearerAuth struct {
+	username    string
+	accessToken string
+	host        string
+	port        int
+}
+
+func (a *oauthbearerAuth) Start(_ *smtp.ServerInfo) (string, []byte, error) {
+	resp := fmt.Sprintf("n,a=%s,\x01host=%s\x01port=%d\x01auth=Bearer %s\x01\x01",
+		a.username, a.host, a.port, a.accessToken)
+	return "OAUTHBEARER", []byte(resp), nil
+}
+
+func (a *oauthbearerAuth) Next(_ []byte, more bool) ([]byte, error) {
+	// On failure the server sends a base64 JSON error as a continuation (more=true).
+	// RFC 7628 §3.2.3 requires the client to send a single kvsep (\x01) dummy response so
+	// the server can finish the exchange with a clean SASL failure instead of leaving the
+	// state machine hanging. (XOAUTH2 returns nil here; OAUTHBEARER differs by sending it.)
+	if more {
+		return []byte("\x01"), nil
+	}
 	return nil, nil
 }
 

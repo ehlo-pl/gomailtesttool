@@ -52,7 +52,7 @@ gomailtest smtp teststarttls --host smtp.example.com --port 587 --tlsversion 1.3
 
 Connects, negotiates STARTTLS, then authenticates. Auto-selects the strongest available method when `--authmethod auto` (default).
 
-**Supported methods and auto-select priority:** `GSSAPI` → `CRAM-MD5` → `NTLM` → `PLAIN` → `LOGIN` (or `XOAUTH2` first when `--accesstoken` provided).
+**Supported methods and auto-select priority:** `GSSAPI` → `CRAM-MD5` → `NTLM` → `PLAIN` → `LOGIN` (or `XOAUTH2` → `OAUTHBEARER` first when `--accesstoken` provided).
 
 | Method | Use case | Credentials |
 |--------|----------|-------------|
@@ -62,6 +62,7 @@ Connects, negotiates STARTTLS, then authenticates. Auto-selects the strongest av
 | `PLAIN` | Standard username/password over TLS | `--username`, `--password` |
 | `LOGIN` | Legacy username/password (two-step) | `--username`, `--password` |
 | `XOAUTH2` | Microsoft 365, Google Workspace | `--username`, `--accesstoken` |
+| `OAUTHBEARER` | RFC 7628 SASL OAuth (Dovecot, modern servers); OAuth 2.0/2.1 tokens | `--username`, `--accesstoken` |
 
 ```powershell
 # Auto-detect (picks strongest advertised method)
@@ -90,6 +91,11 @@ gomailtest smtp testauth --host exchange.contoso.com --port 25 \
 # XOAUTH2 (Microsoft 365 / Google Workspace)
 gomailtest smtp testauth --host smtp.office365.com --port 587 \
   --username user@company.com --accesstoken "eyJ..."
+
+# OAUTHBEARER (RFC 7628 — Dovecot and other modern servers)
+# The same token works whether obtained via an OAuth 2.0 or OAuth 2.1 flow.
+gomailtest smtp testauth --host smtp.example.com --port 587 \
+  --username user@example.com --accesstoken "eyJ..." --authmethod OAUTHBEARER
 ```
 
 ### sendmail — End-to-End Email Sending
@@ -116,8 +122,8 @@ gomailtest smtp sendmail \
 | `--timeout` | Connection timeout (seconds) | `SMTPTIMEOUT` | 30 |
 | `--username` | SMTP username (`DOMAIN\user` for NTLM, `user@REALM` for GSSAPI) | `SMTPUSERNAME` | — |
 | `--password` | SMTP password | `SMTPPASSWORD` | — |
-| `--accesstoken` | OAuth2 bearer token for XOAUTH2 | `SMTPACCESSTOKEN` | — |
-| `--authmethod` | Auth method: PLAIN, LOGIN, CRAM-MD5, NTLM, GSSAPI, XOAUTH2, auto | `SMTPAUTHMETHOD` | auto |
+| `--accesstoken` | OAuth2 bearer token for XOAUTH2 or OAUTHBEARER | `SMTPACCESSTOKEN` | — |
+| `--authmethod` | Auth method: PLAIN, LOGIN, CRAM-MD5, NTLM, GSSAPI, XOAUTH2, OAUTHBEARER, auto | `SMTPAUTHMETHOD` | auto |
 | `--realm` | Kerberos realm for GSSAPI (auto-extracted from `user@REALM` if omitted) | `SMTPREALM` | — |
 | `--kdc` | KDC address for GSSAPI (uses DNS SRV if omitted) | `SMTPKDC` | — |
 | `--starttls` | Force STARTTLS usage | `SMTPSTARTTLS` | false |

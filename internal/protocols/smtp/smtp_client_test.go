@@ -439,6 +439,36 @@ func TestSelectAuthMechanism(t *testing.T) {
 			expected:       "CRAM-MD5",
 		},
 
+		// OAUTHBEARER (RFC 7628) selection
+		{
+			name:           "Prefer XOAUTH2 over OAUTHBEARER when both advertised",
+			requested:      []string{"auto"},
+			available:      []string{"LOGIN", "PLAIN", "OAUTHBEARER", "XOAUTH2"},
+			hasAccessToken: true,
+			expected:       "XOAUTH2",
+		},
+		{
+			name:           "Auto-select OAUTHBEARER when XOAUTH2 not advertised but token provided",
+			requested:      []string{"auto"},
+			available:      []string{"LOGIN", "PLAIN", "OAUTHBEARER"},
+			hasAccessToken: true,
+			expected:       "OAUTHBEARER",
+		},
+		{
+			name:           "Explicit OAUTHBEARER selection",
+			requested:      []string{"OAUTHBEARER"},
+			available:      []string{"LOGIN", "PLAIN", "OAUTHBEARER"},
+			hasAccessToken: true,
+			expected:       "OAUTHBEARER",
+		},
+		{
+			name:           "Explicit OAUTHBEARER not available returns empty",
+			requested:      []string{"OAUTHBEARER"},
+			available:      []string{"LOGIN", "PLAIN", "XOAUTH2"},
+			hasAccessToken: true,
+			expected:       "",
+		},
+
 		// Explicit mechanism selection
 		{
 			name:           "Explicit PLAIN selection",
@@ -664,6 +694,105 @@ func TestXOAUTH2Auth_Next(t *testing.T) {
 	}
 	if resp != nil {
 		t.Errorf("xoauth2Auth.Next() should return nil, got %v", resp)
+	}
+}
+
+// TestOAUTHBEARERAuth tests OAUTHBEARER (RFC 7628) initial response generation
+func TestOAUTHBEARERAuth(t *testing.T) {
+	tests := []struct {
+		name        string
+		username    string
+		accessToken string
+		host        string
+		port        int
+		wantContain []string
+	}{
+		{
+			name:        "Standard form",
+			username:    "user@example.com",
+			accessToken: "ya29.token123",
+			host:        "smtp.example.com",
+			port:        587,
+			wantContain: []string{"n,a=user@example.com,", "host=smtp.example.com", "port=587", "auth=Bearer ya29.token123"},
+		},
+		{
+			name:        "Microsoft 365 form",
+			username:    "user@company.onmicrosoft.com",
+			accessToken: "eyJ0eXAi.jwt.token",
+			host:        "smtp.office365.com",
+			port:        587,
+			wantContain: []string{"n,a=user@company.onmicrosoft.com,", "host=smtp.office365.com", "port=587", "auth=Bearer eyJ0eXAi.jwt.token"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			auth := &oauthbearerAuth{
+				username:    tt.username,
+				accessToken: tt.accessToken,
+				host:        tt.host,
+				port:        tt.port,
+			}
+
+			mechanism, resp, err := auth.Start(nil)
+			if err != nil {
+				t.Fatalf("oauthbearerAuth.Start() error = %v", err)
+			}
+
+			if mechanism != "OAUTHBEARER" {
+				t.Errorf("oauthbearerAuth.Start() mechanism = %q, want OAUTHBEARER", mechanism)
+			}
+
+			respStr := string(resp)
+
+			// RFC 7628: must begin with the gs2-header "n,a=<user>,"
+			if !strings.HasPrefix(respStr, "n,a="+tt.username+",") {
+				t.Errorf("oauthbearerAuth.Start() response missing gs2-header prefix\ngot: %q", respStr)
+			}
+
+			for _, want := range tt.wantContain {
+				if !strings.Contains(respStr, want) {
+					t.Errorf("oauthbearerAuth.Start() response missing %q\ngot: %q", want, respStr)
+				}
+			}
+
+			// Verify SOH separators and the trailing double SOH
+			if !strings.Contains(respStr, "\x01") {
+				t.Error("oauthbearerAuth.Start() response missing SOH (\\x01) separators")
+			}
+			if !strings.HasSuffix(respStr, "\x01\x01") {
+				t.Error("oauthbearerAuth.Start() response should end with \\x01\\x01")
+			}
+		})
+	}
+}
+
+// TestOAUTHBEARERAuth_Next tests OAUTHBEARER failure handling (RFC 7628 §3.2.3)
+func TestOAUTHBEARERAuth_Next(t *testing.T) {
+	auth := &oauthbearerAuth{
+		username:    "user@example.com",
+		accessToken: "token123",
+		host:        "smtp.example.com",
+		port:        587,
+	}
+
+	// On a server error continuation (more=true), the client must send a single \x01 dummy
+	// so the exchange terminates cleanly with a SASL failure.
+	resp, err := auth.Next([]byte(`{"status":"invalid_token"}`), true)
+	if err != nil {
+		t.Errorf("oauthbearerAuth.Next() unexpected error = %v", err)
+	}
+	if string(resp) != "\x01" {
+		t.Errorf("oauthbearerAuth.Next(more=true) = %q, want \\x01", resp)
+	}
+
+	// With more=false there is nothing further to send.
+	resp, err = auth.Next(nil, false)
+	if err != nil {
+		t.Errorf("oauthbearerAuth.Next() unexpected error = %v", err)
+	}
+	if resp != nil {
+		t.Errorf("oauthbearerAuth.Next(more=false) should return nil, got %v", resp)
 	}
 }
 

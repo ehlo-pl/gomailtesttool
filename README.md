@@ -60,6 +60,10 @@ gomailtest smtp testauth --host exchange.contoso.com --port 25 \
 gomailtest smtp testauth --host smtp.office365.com --port 587 \
   --username user@company.com --accesstoken "eyJ..."
 
+# OAUTHBEARER — RFC 7628 SASL OAuth (OAuth 2.0/2.1 tokens)
+gomailtest smtp testauth --host smtp.example.com --port 587 \
+  --username user@example.com --accesstoken "eyJ..." --authmethod OAUTHBEARER
+
 # Send test email
 gomailtest smtp sendmail --host smtp.example.com --port 587 \
   --username user@example.com --password "..." \
