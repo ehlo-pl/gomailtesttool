@@ -269,25 +269,24 @@ func writeSMTPCSVRow(csvLogger logger.Logger, row []string) error {
 // buildEmailMessage constructs an RFC 5322 email message.
 // Defense-in-Depth: Email headers (From, To, Subject) are sanitized to remove
 // CRLF sequences that could be used for header injection attacks. The message
-// body is sanitized to normalize newlines and strip unsafe control characters.
+// body is written as provided after the header/body separator. Body safety
+// controls (e.g. DATA dot-stuffing) are handled at the SMTP transport layer.
 func buildEmailMessage(from string, to []string, subject, body string) []byte {
 	messageID := generateMessageID("")
 	date := time.Now().Format(time.RFC1123Z)
 
 	// Sanitize header fields to prevent header injection
-	from = sanitizeEmailHeader(from)
-	subject = sanitizeEmailHeader(subject)
+	sanitizedFrom := sanitizeEmailHeader(from)
+	sanitizedSubject := sanitizeEmailHeader(subject)
 	sanitizedTo := make([]string, len(to))
 	for i, addr := range to {
 		sanitizedTo[i] = sanitizeEmailHeader(addr)
 	}
-	body = sanitizeEmailBody(body)
-
 	message := fmt.Sprintf("Message-ID: <%s>\r\n", messageID)
 	message += fmt.Sprintf("Date: %s\r\n", date)
-	message += fmt.Sprintf("From: %s\r\n", from)
+	message += fmt.Sprintf("From: %s\r\n", sanitizedFrom)
 	message += fmt.Sprintf("To: %s\r\n", strings.Join(sanitizedTo, ", "))
-	message += fmt.Sprintf("Subject: %s\r\n", subject)
+	message += fmt.Sprintf("Subject: %s\r\n", sanitizedSubject)
 	message += "MIME-Version: 1.0\r\n"
 	message += "Content-Type: text/plain; charset=UTF-8\r\n"
 	message += "\r\n"
