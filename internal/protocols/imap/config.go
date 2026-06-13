@@ -51,9 +51,9 @@ type Config struct {
 
 // Action constants
 const (
-	ActionTestConnect  = "testconnect"
-	ActionTestAuth     = "testauth"
-	ActionListFolders  = "listfolders"
+	ActionTestConnect = "testconnect"
+	ActionTestAuth    = "testauth"
+	ActionListFolders = "listfolders"
 )
 
 // NewConfig creates a new Config with default values.

@@ -73,6 +73,8 @@ gomailtest imap listfolders --host imap.example.com --port 993 --imaps \
 | `--authmethod` | Auth method: auto, PLAIN, LOGIN, XOAUTH2 | `IMAPAUTHMETHOD` | auto |
 | `--imaps` | Use IMAPS (implicit TLS on port 993) | `IMAPIMAPS` | false |
 | `--starttls` | Force STARTTLS upgrade | `IMAPSTARTTLS` | false |
+| `--no-imaps` | Force plain connection: errors if `--imaps` is also set | `IMAPNOIMAPS` | false |
+| `--no-starttls` | Force plain connection: errors if `--starttls` is also set | `IMAPNOSTARTTLS` | false |
 | `--skipverify` | Skip TLS certificate verification | `IMAPSKIPVERIFY` | false |
 | `--tlsversion` | TLS version: 1.2, 1.3 | `IMAPTLSVERSION` | 1.2 |
 | `--address` | Override connection address (uses --host for SNI) | `IMAPADDRESS` | — |
@@ -85,7 +87,7 @@ gomailtest imap listfolders --host imap.example.com --port 993 --imaps \
 | `--output` | Output format: text, json | `IMAPOUTPUT` | text |
 | `--logformat` | Log file format: csv, json | `IMAPLOGFORMAT` | csv |
 
-**Note:** `--imaps` and `--starttls` cannot be used together. When `--imaps` is set and port is the default 143, the port automatically changes to 993.
+**Note:** `--imaps` and `--starttls` cannot be used together. When `--imaps` is set and port is the default 143, the port automatically changes to 993. `--no-imaps`+`--imaps` and `--no-starttls`+`--starttls` are each mutually exclusive (useful to catch conflicting defaults from `--config`/env vars).
 
 ## Environment Variables
 

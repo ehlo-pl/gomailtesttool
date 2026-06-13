@@ -80,6 +80,8 @@ gomailtest pop3 listmail --host pop.example.com --port 995 --pop3s \
 | `--authmethod` | Auth method: auto, USER, APOP, XOAUTH2 | `POP3AUTHMETHOD` | auto |
 | `--pop3s` | Use POP3S (implicit TLS on port 995) | `POP3POP3S` | false |
 | `--starttls` | Force STLS upgrade | `POP3STARTTLS` | false |
+| `--no-pop3s` | Force plain connection: errors if `--pop3s` is also set | `POP3NOPOP3S` | false |
+| `--no-starttls` | Force plain connection: errors if `--starttls` is also set | `POP3NOSTARTTLS` | false |
 | `--skipverify` | Skip TLS certificate verification | `POP3SKIPVERIFY` | false |
 | `--tlsversion` | TLS version: 1.2, 1.3 | `POP3TLSVERSION` | 1.2 |
 | `--address` | Override connection address (uses --host for SNI) | `POP3ADDRESS` | — |
@@ -90,6 +92,8 @@ gomailtest pop3 listmail --host pop.example.com --port 995 --pop3s \
 | `--verbose` | Enable verbose output | — | false |
 | `--loglevel` | Log level: DEBUG, INFO, WARN, ERROR | — | INFO |
 | `--logformat` | Log file format: csv, json | `POP3LOGFORMAT` | csv |
+
+**Note:** `--pop3s` and `--starttls` cannot be used together. `--no-pop3s`+`--pop3s` and `--no-starttls`+`--starttls` are each mutually exclusive (useful to catch conflicting defaults from `--config`/env vars).
 
 ### listmail-only flags
 

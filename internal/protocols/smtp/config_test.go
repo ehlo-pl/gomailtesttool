@@ -69,6 +69,97 @@ func TestValidateConfiguration_SMTPSAndSTARTTLS(t *testing.T) {
 	}
 }
 
+// TestValidateConfiguration_NoTLSFlags tests --no-smtps/--no-starttls mutual exclusion
+// with --smtps/--starttls, and the teststarttls/--no-starttls restriction.
+func TestValidateConfiguration_NoTLSFlags(t *testing.T) {
+	tests := []struct {
+		name       string
+		action     string
+		smtps      bool
+		starttls   bool
+		noSMTPS    bool
+		noStartTLS bool
+		wantError  bool
+		errorMsg   string
+	}{
+		{
+			name:       "no-starttls alone is fine",
+			action:     ActionTestConnect,
+			noStartTLS: true,
+			wantError:  false,
+		},
+		{
+			name:      "no-smtps alone is fine",
+			action:    ActionTestConnect,
+			noSMTPS:   true,
+			wantError: false,
+		},
+		{
+			name:      "smtps and no-smtps conflict",
+			action:    ActionTestConnect,
+			smtps:     true,
+			noSMTPS:   true,
+			wantError: true,
+			errorMsg:  "cannot use both -smtps and -no-smtps",
+		},
+		{
+			name:       "starttls and no-starttls conflict",
+			action:     ActionTestConnect,
+			starttls:   true,
+			noStartTLS: true,
+			wantError:  true,
+			errorMsg:   "cannot use both -starttls and -no-starttls",
+		},
+		{
+			name:       "teststarttls with no-starttls and no smtps errors",
+			action:     ActionTestStartTLS,
+			noStartTLS: true,
+			wantError:  true,
+			errorMsg:   "teststarttls requires STARTTLS or -smtps",
+		},
+		{
+			name:       "teststarttls with no-starttls and smtps and no-smtps errors via mutual exclusion",
+			action:     ActionTestStartTLS,
+			smtps:      true,
+			noSMTPS:    true,
+			noStartTLS: true,
+			wantError:  true,
+			errorMsg:   "cannot use both -smtps and -no-smtps",
+		},
+		{
+			name:      "teststarttls without no-starttls is fine",
+			action:    ActionTestStartTLS,
+			wantError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := NewConfig()
+			config.Action = tt.action
+			config.Host = "smtp.example.com"
+			config.SMTPS = tt.smtps
+			config.StartTLS = tt.starttls
+			config.NoSMTPS = tt.noSMTPS
+			config.NoStartTLS = tt.noStartTLS
+
+			err := validateConfiguration(config)
+
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("validateConfiguration() expected error, got nil")
+				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("validateConfiguration() error = %v, want error containing %q", err, tt.errorMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("validateConfiguration() unexpected error = %v", err)
+				}
+			}
+		})
+	}
+}
+
 // TestValidateConfiguration_SMTPSPortDefault tests smart port defaulting for SMTPS
 func TestValidateConfiguration_SMTPSPortDefault(t *testing.T) {
 	tests := []struct {

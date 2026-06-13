@@ -148,6 +148,8 @@ gomailtest smtp sendmail \
 | `--kdc` | KDC address for GSSAPI (uses DNS SRV if omitted) | `SMTPKDC` | — |
 | `--starttls` | Force STARTTLS usage | `SMTPSTARTTLS` | false |
 | `--smtps` | Use implicit TLS (port 465) | `SMTPSMTPS` | false |
+| `--no-starttls` | Force plain connection: disable STARTTLS (including the automatic upgrade `sendmail`/`testauth` perform when the server advertises it); errors if `--starttls` is also set | `SMTPNOSTARTTLS` | false |
+| `--no-smtps` | Force plain connection: errors if `--smtps` is also set | `SMTPNOSMTPS` | false |
 | `--skipverify` | Skip TLS certificate verification | `SMTPSKIPVERIFY` | false |
 | `--tlsversion` | Minimum TLS version: 1.2, 1.3 | `SMTPTLSVERSION` | 1.2 |
 | `--address` | Override connection address (uses --host for SNI) | `SMTPADDRESS` | — |
@@ -156,6 +158,11 @@ gomailtest smtp sendmail \
 | `--verbose` | Enable verbose output | `SMTPVERBOSE` | false |
 | `--loglevel` | Log level: DEBUG, INFO, WARN, ERROR | `SMTPLOGLEVEL` | INFO |
 | `--logformat` | Log file format: csv, json | `SMTPLOGFORMAT` | csv |
+
+**Note:** `--smtps`+`--no-smtps` and `--starttls`+`--no-starttls` are each
+mutually exclusive (useful to catch conflicting defaults from `--config`/env
+vars). `teststarttls` requires either STARTTLS or `--smtps` to test, so
+`--no-starttls` without `--smtps` is rejected for that action.
 
 ### sendmail-only flags
 
