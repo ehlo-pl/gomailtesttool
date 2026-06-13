@@ -415,9 +415,12 @@ func buildMIMEMessage(config *Config, slogLogger *slog.Logger) ([]byte, error) {
 //
 // It returns the Content-Type header value and body bytes for the outermost part.
 func buildMIMEBody(textBody, htmlBody string, inline, attachments []email.Attachment) (string, []byte, error) {
-	contentType, body := textOrAlternativePart(textBody, htmlBody)
+	contentType, body, err := textOrAlternativePart(textBody, htmlBody)
+	if err != nil {
+		return "", nil, err
+	}
 
-	contentType, body, err := wrapRelatedPart(contentType, body, inline)
+	contentType, body, err = wrapRelatedPart(contentType, body, inline)
 	if err != nil {
 		return "", nil, err
 	}
@@ -427,30 +430,40 @@ func buildMIMEBody(textBody, htmlBody string, inline, attachments []email.Attach
 
 // textOrAlternativePart returns a single text/plain or text/html part, or
 // (if both bodies are provided) a multipart/alternative wrapping both.
-func textOrAlternativePart(textBody, htmlBody string) (string, []byte) {
+func textOrAlternativePart(textBody, htmlBody string) (string, []byte, error) {
 	if textBody != "" && htmlBody != "" {
 		var buf bytes.Buffer
 		mw := multipart.NewWriter(&buf)
 
 		textHeader := textproto.MIMEHeader{"Content-Type": {"text/plain; charset=UTF-8"}}
-		if pw, err := mw.CreatePart(textHeader); err == nil {
-			pw.Write([]byte(textBody))
+		pw, err := mw.CreatePart(textHeader)
+		if err != nil {
+			return "", nil, err
+		}
+		if _, err := pw.Write([]byte(textBody)); err != nil {
+			return "", nil, err
 		}
 
 		htmlHeader := textproto.MIMEHeader{"Content-Type": {"text/html; charset=UTF-8"}}
-		if pw, err := mw.CreatePart(htmlHeader); err == nil {
-			pw.Write([]byte(htmlBody))
+		pw, err = mw.CreatePart(htmlHeader)
+		if err != nil {
+			return "", nil, err
+		}
+		if _, err := pw.Write([]byte(htmlBody)); err != nil {
+			return "", nil, err
 		}
 
-		mw.Close()
-		return fmt.Sprintf("multipart/alternative; boundary=%s", mw.Boundary()), buf.Bytes()
+		if err := mw.Close(); err != nil {
+			return "", nil, err
+		}
+		return fmt.Sprintf("multipart/alternative; boundary=%s", mw.Boundary()), buf.Bytes(), nil
 	}
 
 	if htmlBody != "" {
-		return "text/html; charset=UTF-8", []byte(htmlBody)
+		return "text/html; charset=UTF-8", []byte(htmlBody), nil
 	}
 
-	return "text/plain; charset=UTF-8", []byte(textBody)
+	return "text/plain; charset=UTF-8", []byte(textBody), nil
 }
 
 // wrapRelatedPart wraps the given part in a multipart/related part alongside
