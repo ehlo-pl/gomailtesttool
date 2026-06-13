@@ -183,6 +183,7 @@ The individual tool binaries (`smtptool`, `imaptool`, `pop3tool`, `jmaptool`, `m
 - [docs/protocols/serve.md](docs/protocols/serve.md) — HTTP serve mode (REST API with X-API-Key)
 
 ### General Docs
+- [docs/config-file.md](docs/config-file.md) — `--config` YAML config file (defaults for any protocol/action)
 - [BUILD.md](BUILD.md) — Build instructions
 - [docs/protocols/msgraph.md](docs/protocols/msgraph.md) — Microsoft Graph examples, CSV schemas, and tips
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — Common errors and solutions

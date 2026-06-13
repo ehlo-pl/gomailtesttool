@@ -111,13 +111,35 @@ gomailtest smtp sendmail \
   --subject "Test Email" --body "This is a test message"
 ```
 
+#### HTML body, attachments, inline images, and custom headers
+
+```powershell
+gomailtest smtp sendmail \
+  --host smtp.example.com --port 587 \
+  --username user@example.com --password "yourpassword" \
+  --from sender@example.com --to recipient@example.com \
+  --subject "Test Email" \
+  --body "Plain text fallback" \
+  --bodyhtml '<p>Hello! Here is our logo: <img src="cid:logo.png"></p>' \
+  --inline-attachments ./logo.png \
+  --attachments ./report.pdf,./data.csv \
+  --header "X-Custom-Header: example-value"
+```
+
+- `--bodyhtml` alone sends an HTML-only message; combined with `--body` it sends a `multipart/alternative` message with both a plain-text and HTML version.
+- `--inline-attachments` embeds files as `multipart/related` parts referenced from `--bodyhtml` via `cid:<filename>` (e.g. `cid:logo.png` for `./logo.png`).
+- `--attachments` adds regular file attachments (MIME type detected from file extension).
+- `--header` adds a custom header in `"Name: Value"` form; repeat the flag for multiple headers. Standard headers (`From`, `To`, `Subject`, `Date`, `Message-ID`, `MIME-Version`, `Content-Type`, etc.) cannot be overridden this way.
+- `--cc` recipients receive the message via `RCPT TO` and appear in the `Cc:` header (visible to all recipients). `--bcc` recipients receive the message via `RCPT TO` but are never written to any message header.
+- `--priority high` or `--priority low` add the `X-Priority`, `Importance`, and `Priority` headers recognized by most mail clients; `--priority normal` (the default) adds none of these headers.
+
 ## Flags
 
 ### Persistent (all subcommands)
 
 | Flag | Description | Environment Variable | Default |
 |------|-------------|---------------------|---------|
-| `--host` | SMTP server hostname or IP | `SMTPHOST` | — |
+| `--host` | SMTP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and auth | `SMTPHOST` | — |
 | `--port` | SMTP server port | `SMTPPORT` | 25 |
 | `--timeout` | Connection timeout (seconds) | `SMTPTIMEOUT` | 30 |
 | `--username` | SMTP username (`DOMAIN\user` for NTLM, `user@REALM` for GSSAPI) | `SMTPUSERNAME` | — |
@@ -128,14 +150,24 @@ gomailtest smtp sendmail \
 | `--kdc` | KDC address for GSSAPI (uses DNS SRV if omitted) | `SMTPKDC` | — |
 | `--starttls` | Force STARTTLS usage | `SMTPSTARTTLS` | false |
 | `--smtps` | Use implicit TLS (port 465) | `SMTPSMTPS` | false |
+| `--no-starttls` | Force plain connection: disable STARTTLS (including the automatic upgrade `sendmail`/`testauth` perform when the server advertises it); errors if `--starttls` is also set | `SMTPNOSTARTTLS` | false |
+| `--no-smtps` | Force plain connection: errors if `--smtps` is also set | `SMTPNOSMTPS` | false |
 | `--skipverify` | Skip TLS certificate verification | `SMTPSKIPVERIFY` | false |
 | `--tlsversion` | Minimum TLS version: 1.2, 1.3 | `SMTPTLSVERSION` | 1.2 |
-| `--address` | Override connection address (uses --host for SNI) | `SMTPADDRESS` | — |
+| `--address` | Optional: connect to this IP/host instead of --host (e.g. behind a load balancer); --host is still used for SNI/certificate checks and auth | `SMTPADDRESS` | — |
+| `--ipv4` | Force IPv4: resolve --host/--address to an A record and connect over IPv4 | `SMTPIPV4` | false |
+| `--ipv6` | Force IPv6: resolve --host/--address to an AAAA record and connect over IPv6 | `SMTPIPV6` | false |
+| `--use-mx` | Treat --host as a domain name and connect to its MX record instead; mutually exclusive with --address. The resolved MX hostname is also used for TLS SNI/certificate checks. For `sendmail`, also mutually exclusive with --host — the MX lookup domain is instead derived from the first `--to` recipient | `SMTPUSEMX` | false |
 | `--proxy` | HTTP/HTTPS/SOCKS5 proxy URL | `SMTPPROXY` | — |
 | `--ratelimit` | Max requests per second (0 = unlimited) | `SMTPRATELIMIT` | 0 |
 | `--verbose` | Enable verbose output | `SMTPVERBOSE` | false |
 | `--loglevel` | Log level: DEBUG, INFO, WARN, ERROR | `SMTPLOGLEVEL` | INFO |
 | `--logformat` | Log file format: csv, json | `SMTPLOGFORMAT` | csv |
+
+**Note:** `--smtps`+`--no-smtps` and `--starttls`+`--no-starttls` are each
+mutually exclusive (useful to catch conflicting defaults from `--config`/env
+vars). `teststarttls` requires either STARTTLS or `--smtps` to test, so
+`--no-starttls` without `--smtps` is rejected for that action.
 
 ### sendmail-only flags
 
@@ -143,8 +175,15 @@ gomailtest smtp sendmail \
 |------|-------------|---------------------|
 | `--from` | Sender email address | `SMTPFROM` |
 | `--to` | Comma-separated TO recipients | `SMTPTO` |
+| `--cc` | Comma-separated CC recipients; included in the `Cc:` header and the SMTP envelope | `SMTPCC` |
+| `--bcc` | Comma-separated BCC recipients; included in the SMTP envelope only, never in message headers | `SMTPBCC` |
 | `--subject` | Email subject | `SMTPSUBJECT` |
 | `--body` | Email body text | `SMTPBODY` |
+| `--bodyhtml` | HTML body content; combine with `--body` for `multipart/alternative` | `SMTPBODYHTML` |
+| `--attachments` | Comma-separated file paths to attach | `SMTPATTACHMENTS` |
+| `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` | `SMTPINLINEATTACHMENTS` |
+| `--header` | Custom header in `"Name: Value"` form (repeatable) | — (CLI only) |
+| `--priority` | Email priority: `high`, `normal`, `low`. `high`/`low` add `X-Priority`, `Importance`, and `Priority` headers; `normal` (default) adds no extra headers | `SMTPPRIORITY` |
 
 ## Environment Variables
 

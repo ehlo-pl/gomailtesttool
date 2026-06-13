@@ -47,6 +47,10 @@ and (for IMAPS/STARTTLS) TLS state.`,
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
 			config := ConfigFromViper(v)
 			config.Action = ActionTestConnect
 
@@ -89,6 +93,10 @@ Use --starttls or --imaps to establish TLS before authenticating.`,
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
 			config := ConfigFromViper(v)
 			config.Action = ActionTestAuth
 
@@ -129,6 +137,10 @@ Shows folder name, attributes, message count, and unseen count for each folder.`
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
 
 			config := ConfigFromViper(v)
 			config.Action = ActionListFolders

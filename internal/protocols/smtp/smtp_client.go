@@ -16,6 +16,7 @@ import (
 	"github.com/jcmturner/gokrb5/v8/gssapi"
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"github.com/jcmturner/gokrb5/v8/types"
+	"github.com/ziembor/gomailtesttool/internal/common/network"
 	"github.com/ziembor/gomailtesttool/internal/common/ratelimit"
 	"github.com/ziembor/gomailtesttool/internal/smtp/protocol"
 	smtptls "github.com/ziembor/gomailtesttool/internal/smtp/tls"
@@ -88,11 +89,29 @@ func (c *SMTPClient) Connect(ctx context.Context) error {
 		return fmt.Errorf("rate limit wait failed: %w", err)
 	}
 
+	// If -use-mx is set, treat c.host as a domain and connect to its MX
+	// record instead. The resolved MX hostname also becomes the SNI/TLS
+	// ServerName, since that's the certificate the MX server will present.
+	if c.config.UseMX {
+		mxHost, err := network.LookupMX(ctx, c.host)
+		if err != nil {
+			return fmt.Errorf("MX lookup failed: %w", err)
+		}
+		c.debugLogMessage(fmt.Sprintf("Using MX record %s for domain %s", mxHost, c.host))
+		c.host = mxHost
+	}
+
 	// Determine connection address (override or default to host)
 	connectHost := c.host
 	if c.config.ConnectAddress != "" {
 		connectHost = c.config.ConnectAddress
 		c.debugLogMessage(fmt.Sprintf("Using override connection address: %s (SNI will use: %s)", connectHost, c.host))
+	}
+
+	// Resolve to a specific address family if -ipv4/-ipv6 was requested
+	connectHost, err := network.ResolveForDial(ctx, connectHost, c.config.IPv4Only, c.config.IPv6Only)
+	if err != nil {
+		return err
 	}
 	addr := net.JoinHostPort(connectHost, fmt.Sprintf("%d", c.port))
 
@@ -143,7 +162,7 @@ func (c *SMTPClient) Connect(ctx context.Context) error {
 	c.reader = bufio.NewReader(conn)
 
 	// Read banner (220 response) with timeout
-	resp, err := protocol.ReadResponseWithTimeout(c.reader, protocol.DefaultResponseTimeout)
+	resp, err := protocol.ReadResponseWithTimeout(c.conn, c.reader, protocol.DefaultResponseTimeout)
 	if err != nil {
 		c.conn.Close()
 		return fmt.Errorf("failed to read banner: %w", err)
@@ -184,7 +203,7 @@ func (c *SMTPClient) EHLO(hostname string) (protocol.Capabilities, error) {
 	}
 
 	// Read response with timeout
-	resp, err := protocol.ReadResponseWithTimeout(c.reader, protocol.DefaultResponseTimeout)
+	resp, err := protocol.ReadResponseWithTimeout(c.conn, c.reader, protocol.DefaultResponseTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read EHLO response: %w", err)
 	}
@@ -220,7 +239,7 @@ func (c *SMTPClient) StartTLS(tlsConfig *tls.Config) (*tls.ConnectionState, erro
 	}
 
 	// Read response (expect 220) with timeout
-	resp, err := protocol.ReadResponseWithTimeout(c.reader, protocol.DefaultResponseTimeout)
+	resp, err := protocol.ReadResponseWithTimeout(c.conn, c.reader, protocol.DefaultResponseTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read STARTTLS response: %w", err)
 	}
@@ -450,6 +469,13 @@ func (c *SMTPClient) Close() error {
 // GetBanner returns the server banner.
 func (c *SMTPClient) GetBanner() string {
 	return c.banner
+}
+
+// GetHost returns the effective server hostname used for this connection —
+// the resolved MX hostname if --use-mx was set, otherwise --host. This is
+// the hostname that should be used for TLS SNI/certificate validation.
+func (c *SMTPClient) GetHost() string {
+	return c.host
 }
 
 // GetCapabilities returns the server capabilities.

@@ -31,11 +31,12 @@ func TestMaskPassword(t *testing.T) {
 		expected string
 	}{
 		{"secretpassword", "se****rd"},
-		{"password", "pa****rd"},
+		{"123456789", "12****89"},
+		{"password", "****"},
 		{"test", "****"},
 		{"ab", "****"},
 		{"", ""},
-		{"abcde", "ab****de"},
+		{"abcde", "****"},
 	}
 
 	for _, tt := range tests {
@@ -52,11 +53,12 @@ func TestMaskAccessToken(t *testing.T) {
 		expected string
 	}{
 		{"ya29.a0ARrdaM_1234567890abcdefghij", "ya29.a0A...ghij"},
-		{"short", "sh...ort"},
-		{"1234", "12...34"},
-		{"abc", "a...bc"},
-		{"ab", "a...b"},
-		{"a", "...a"},
+		{"1234567890123456", "12****56"},
+		{"short", "****"},
+		{"1234", "****"},
+		{"abc", "****"},
+		{"ab", "****"},
+		{"a", "****"},
 		{"", ""},
 		{"12345678901234567", "12345678...4567"},
 	}

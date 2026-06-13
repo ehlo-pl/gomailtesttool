@@ -2,7 +2,9 @@ package protocol
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -90,36 +92,32 @@ func ReadResponse(reader *bufio.Reader) (*SMTPResponse, error) {
 // ReadResponseWithTimeout reads and parses an SMTP response with a timeout.
 // This prevents indefinite hangs when communicating with misbehaving SMTP servers.
 //
-// The timeout parameter specifies the maximum time to wait for a complete response.
-// If the timeout is exceeded, an error is returned.
+// The timeout is enforced via conn.SetReadDeadline rather than a goroutine, so
+// no goroutine is left blocked on a read after this function returns. The read
+// deadline is cleared before returning so it doesn't affect later operations
+// on conn (e.g. a subsequent TLS handshake).
 //
 // Example usage:
 //
-//	resp, err := protocol.ReadResponseWithTimeout(reader, 30*time.Second)
+//	resp, err := protocol.ReadResponseWithTimeout(conn, reader, 30*time.Second)
 //	if err != nil {
 //	    // Handle timeout or read error
 //	}
-func ReadResponseWithTimeout(reader *bufio.Reader, timeout time.Duration) (*SMTPResponse, error) {
-	type result struct {
-		resp *SMTPResponse
-		err  error
+func ReadResponseWithTimeout(conn net.Conn, reader *bufio.Reader, timeout time.Duration) (*SMTPResponse, error) {
+	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		return nil, fmt.Errorf("failed to set read deadline: %w", err)
 	}
+	defer conn.SetReadDeadline(time.Time{}) //nolint:errcheck
 
-	resultCh := make(chan result, 1)
-
-	// Read response in goroutine
-	go func() {
-		resp, err := ReadResponse(reader)
-		resultCh <- result{resp, err}
-	}()
-
-	// Wait for response or timeout
-	select {
-	case r := <-resultCh:
-		return r.resp, r.err
-	case <-time.After(timeout):
-		return nil, fmt.Errorf("timeout waiting for SMTP response after %v", timeout)
+	resp, err := ReadResponse(reader)
+	if err != nil {
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return nil, fmt.Errorf("timeout waiting for SMTP response after %v", timeout)
+		}
+		return nil, err
 	}
+	return resp, nil
 }
 
 // IsSuccess checks if the response code indicates success (2xx).

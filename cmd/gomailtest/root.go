@@ -32,6 +32,8 @@ Run 'gomailtest <protocol> --help' for protocol-specific usage.`,
 }
 
 func init() {
+	rootCmd.PersistentFlags().String("config", "", "Path to a YAML config file providing default flag values (CLI flags and env vars still take precedence)")
+
 	rootCmd.AddCommand(msgraph.NewCmd())
 	rootCmd.AddCommand(smtp.NewCmd())
 	rootCmd.AddCommand(pop3.NewCmd())

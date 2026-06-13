@@ -9,9 +9,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ziembor/gomailtesttool/internal/common/network"
 	"github.com/ziembor/gomailtesttool/internal/jmap/protocol"
 )
 
@@ -31,18 +33,24 @@ func NewJMAPClient(config *Config) *JMAPClient {
 		},
 	}
 
-	// If ConnectAddress is set, use custom dialer to override the connection address
-	if config.ConnectAddress != "" {
+	// Override the dial address if --address was given and/or resolve to a
+	// specific address family if --ipv4/--ipv6 was requested.
+	if config.ConnectAddress != "" || config.IPv4Only || config.IPv6Only {
 		dialer := &net.Dialer{}
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Replace host portion with override address, keep the port
-			_, port, err := net.SplitHostPort(addr)
+		transport.DialContext = func(ctx context.Context, dialNetwork, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				// If no port in address, use original
-				return dialer.DialContext(ctx, network, addr)
+				return dialer.DialContext(ctx, dialNetwork, addr)
 			}
-			overrideAddr := net.JoinHostPort(config.ConnectAddress, port)
-			return dialer.DialContext(ctx, network, overrideAddr)
+			if config.ConnectAddress != "" {
+				host = config.ConnectAddress
+			}
+			host, err = network.ResolveForDial(ctx, host, config.IPv4Only, config.IPv6Only)
+			if err != nil {
+				return nil, err
+			}
+			return dialer.DialContext(ctx, dialNetwork, net.JoinHostPort(host, port))
 		}
 	}
 
@@ -60,12 +68,21 @@ func (c *JMAPClient) GetDiscoveryURL() string {
 	host := c.config.Host
 	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
 		if c.config.Port == 443 {
-			host = "https://" + host
+			host = "https://" + bracketIPv6(host)
 		} else {
-			host = fmt.Sprintf("https://%s:%d", host, c.config.Port)
+			host = "https://" + net.JoinHostPort(host, strconv.Itoa(c.config.Port))
 		}
 	}
 	return protocol.DiscoveryURL(host)
+}
+
+// bracketIPv6 wraps host in [] if it's a literal IPv6 address, as required
+// for use in a URL authority component. Other hosts are returned unchanged.
+func bracketIPv6(host string) string {
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		return "[" + host + "]"
+	}
+	return host
 }
 
 // Discover fetches the JMAP session from the well-known URL.

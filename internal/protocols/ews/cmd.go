@@ -48,6 +48,10 @@ Reports TLS version, cipher suite, and certificate details.`,
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
 			config := ConfigFromViper(v)
 			config.Action = ActionTestConnect
 
@@ -90,6 +94,10 @@ Auth method is auto-detected: NTLM if username contains backslash, Bearer if acc
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
 			config := ConfigFromViper(v)
 			config.Action = ActionTestAuth
 
@@ -130,6 +138,10 @@ total item count, unread count, and folder ID.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
 
 			config := ConfigFromViper(v)
 			config.Action = ActionGetFolder
@@ -172,6 +184,10 @@ Useful for diagnosing Exchange client configuration issues.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
 
 			config := ConfigFromViper(v)
 			config.Action = ActionAutodiscover

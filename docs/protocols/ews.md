@@ -134,6 +134,8 @@ gomailtest ews autodiscover --host mail.example.com \
 | `--skipverify` | `false` | Skip TLS certificate verification (self-signed certs) |
 | `--tlsversion` | `1.2` | Minimum TLS version: `1.2`, `1.3` |
 | `--proxy` | | HTTP/HTTPS or SOCKS5 proxy URL |
+| `--ipv4` | `false` | Force IPv4: resolve --host to an A record and connect over IPv4 |
+| `--ipv6` | `false` | Force IPv6: resolve --host to an AAAA record and connect over IPv6 |
 | `--verbose` | `false` | Enable verbose output |
 | `--loglevel` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARN`, `ERROR` |
 | `--logformat` | `csv` | Log file format: `csv`, `json` |

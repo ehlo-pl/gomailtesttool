@@ -64,7 +64,7 @@ gomailtest imap listfolders --host imap.example.com --port 993 --imaps \
 
 | Flag | Description | Environment Variable | Default |
 |------|-------------|---------------------|---------|
-| `--host` | IMAP server hostname or IP | `IMAPHOST` | — |
+| `--host` | IMAP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and auth | `IMAPHOST` | — |
 | `--port` | IMAP server port | `IMAPPORT` | 143 |
 | `--timeout` | Connection timeout (seconds) | `IMAPTIMEOUT` | 30 |
 | `--username` | Username for authentication | `IMAPUSERNAME` | — |
@@ -73,9 +73,13 @@ gomailtest imap listfolders --host imap.example.com --port 993 --imaps \
 | `--authmethod` | Auth method: auto, PLAIN, LOGIN, XOAUTH2 | `IMAPAUTHMETHOD` | auto |
 | `--imaps` | Use IMAPS (implicit TLS on port 993) | `IMAPIMAPS` | false |
 | `--starttls` | Force STARTTLS upgrade | `IMAPSTARTTLS` | false |
+| `--no-imaps` | Force plain connection: errors if `--imaps` is also set | `IMAPNOIMAPS` | false |
+| `--no-starttls` | Force plain connection: errors if `--starttls` is also set | `IMAPNOSTARTTLS` | false |
 | `--skipverify` | Skip TLS certificate verification | `IMAPSKIPVERIFY` | false |
 | `--tlsversion` | TLS version: 1.2, 1.3 | `IMAPTLSVERSION` | 1.2 |
-| `--address` | Override connection address (uses --host for SNI) | `IMAPADDRESS` | — |
+| `--address` | Optional: connect to this IP/host instead of --host (e.g. behind a load balancer); --host is still used for SNI/certificate checks and auth | `IMAPADDRESS` | — |
+| `--ipv4` | Force IPv4: resolve --host/--address to an A record and connect over IPv4 | `IMAPIPV4` | false |
+| `--ipv6` | Force IPv6: resolve --host/--address to an AAAA record and connect over IPv6 | `IMAPIPV6` | false |
 | `--proxy` | HTTP/HTTPS proxy URL | `IMAPPROXY` | — |
 | `--maxretries` | Maximum retry attempts | `IMAPMAXRETRIES` | 3 |
 | `--retrydelay` | Retry delay (milliseconds) | `IMAPRETRYDELAY` | 2000 |
@@ -85,7 +89,7 @@ gomailtest imap listfolders --host imap.example.com --port 993 --imaps \
 | `--output` | Output format: text, json | `IMAPOUTPUT` | text |
 | `--logformat` | Log file format: csv, json | `IMAPLOGFORMAT` | csv |
 
-**Note:** `--imaps` and `--starttls` cannot be used together. When `--imaps` is set and port is the default 143, the port automatically changes to 993.
+**Note:** `--imaps` and `--starttls` cannot be used together. When `--imaps` is set and port is the default 143, the port automatically changes to 993. `--no-imaps`+`--imaps` and `--no-starttls`+`--starttls` are each mutually exclusive (useful to catch conflicting defaults from `--config`/env vars).
 
 ## Environment Variables
 

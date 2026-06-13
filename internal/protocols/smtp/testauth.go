@@ -115,14 +115,14 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		// For SMTPS, TLS is already established
 		tlsState = client.GetTLSState()
 		if config.VerboseMode && tlsState != nil {
-			displayComprehensiveTLSInfo(tlsState, config.Host, config.VerboseMode)
+			displayComprehensiveTLSInfo(tlsState, client.GetHost(), config.VerboseMode)
 		}
-	} else if (config.Port == 25 || config.Port == 587) && caps.SupportsSTARTTLS() {
+	} else if !config.NoStartTLS && (config.Port == 25 || config.Port == 587) && caps.SupportsSTARTTLS() {
 		// STARTTLS if on port 25/587 and available
 		fmt.Println("Upgrading to TLS before authentication...")
 		tlsVersion := smtptls.ParseTLSVersion(config.TLSVersion)
 		tlsConfig := &tls.Config{
-			ServerName:         config.Host,
+			ServerName:         client.GetHost(), // resolved MX hostname if --use-mx, otherwise --host
 			InsecureSkipVerify: config.SkipVerify,
 			MinVersion:         tlsVersion,
 			MaxVersion:         tlsVersion, // Force exact TLS version
@@ -146,7 +146,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 
 		// Show TLS cipher information in verbose mode
 		if config.VerboseMode {
-			displayComprehensiveTLSInfo(tlsState, config.Host, config.VerboseMode)
+			displayComprehensiveTLSInfo(tlsState, client.GetHost(), config.VerboseMode)
 		}
 
 		// Re-run EHLO on encrypted connection
@@ -170,7 +170,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		msg := fmt.Sprintf("No compatible authentication mechanism found (requested: %s, available: %s)",
 			config.AuthMethod, strings.Join(authMechanisms, ", "))
 		fmt.Printf("✗ %s\n", msg)
-		tlsData := formatTLSInfoForCSV(tlsState, config.Host)
+		tlsData := formatTLSInfoForCSV(tlsState, client.GetHost())
 		if logErr := csvLogger.WriteRow([]string{
 			config.Action, "FAILURE", config.Host, fmt.Sprintf("%d", config.Port),
 			config.ConnectAddress, config.Username, strings.Join(authMechanisms, ", "), "", "FAILURE",
@@ -209,7 +209,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		// Show TLS cipher information on auth failure if verbose and TLS was used
 		if config.VerboseMode && tlsState != nil {
 			fmt.Println("\nAuthentication failed. TLS Connection Details:")
-			displayComprehensiveTLSInfo(tlsState, config.Host, config.VerboseMode)
+			displayComprehensiveTLSInfo(tlsState, client.GetHost(), config.VerboseMode)
 		}
 	} else {
 		fmt.Printf("\n✓ Authentication successful\n")
@@ -217,7 +217,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	}
 
 	// Log to CSV
-	tlsData := formatTLSInfoForCSV(tlsState, config.Host)
+	tlsData := formatTLSInfoForCSV(tlsState, client.GetHost())
 	if logErr := csvLogger.WriteRow([]string{
 		config.Action, status, config.Host, fmt.Sprintf("%d", config.Port),
 		config.ConnectAddress, config.Username, strings.Join(authMechanisms, ", "),

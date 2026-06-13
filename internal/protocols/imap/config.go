@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/ziembor/gomailtesttool/internal/common/network"
 	"github.com/ziembor/gomailtesttool/internal/common/validation"
 )
 
@@ -30,11 +31,15 @@ type Config struct {
 	// TLS configuration
 	IMAPS      bool   // Use IMAPS (implicit TLS on port 993)
 	StartTLS   bool   // Force STARTTLS
+	NoStartTLS bool   // Force plain connection: disable STARTTLS; error if --starttls is also set
+	NoIMAPS    bool   // Force plain connection: error if --imaps is also set
 	SkipVerify bool   // Skip TLS certificate verification
 	TLSVersion string // TLS version to use: 1.2, 1.3
 
 	// Network configuration
 	ConnectAddress string // Override address for TCP connection (IP or hostname)
+	IPv4Only       bool   // Force resolving --host/--address to an IPv4 (A record) address
+	IPv6Only       bool   // Force resolving --host/--address to an IPv6 (AAAA record) address
 	ProxyURL       string
 	MaxRetries     int
 	RetryDelay     time.Duration
@@ -49,9 +54,9 @@ type Config struct {
 
 // Action constants
 const (
-	ActionTestConnect  = "testconnect"
-	ActionTestAuth     = "testauth"
-	ActionListFolders  = "listfolders"
+	ActionTestConnect = "testconnect"
+	ActionTestAuth    = "testauth"
+	ActionListFolders = "listfolders"
 )
 
 // NewConfig creates a new Config with default values.
@@ -80,7 +85,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f := cmd.PersistentFlags()
 
 	// IMAP server
-	f.String("host", "", "IMAP server hostname or IP address (env: IMAPHOST)")
+	f.String("host", "", "IMAP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and authentication (env: IMAPHOST)")
 	f.Int("port", 143, "IMAP server port (env: IMAPPORT)")
 	f.Int("timeout", 30, "Connection timeout in seconds (env: IMAPTIMEOUT)")
 
@@ -93,11 +98,15 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	// TLS
 	f.Bool("starttls", false, "Force STARTTLS usage (env: IMAPSTARTTLS)")
 	f.Bool("imaps", false, "Use IMAPS (implicit TLS), typically on port 993 (env: IMAPIMAPS)")
+	f.Bool("no-starttls", false, "Force plain connection: disable STARTTLS; error if --starttls is also set (env: IMAPNOSTARTTLS)")
+	f.Bool("no-imaps", false, "Force plain connection: error if --imaps is also set (env: IMAPNOIMAPS)")
 	f.Bool("skipverify", false, "Skip TLS certificate verification (insecure) (env: IMAPSKIPVERIFY)")
 	f.String("tlsversion", "1.2", "TLS version to use (exact): 1.2, 1.3 (env: IMAPTLSVERSION)")
 
 	// Network
-	f.String("address", "", "Override IP address or hostname for TCP connection (env: IMAPADDRESS)")
+	f.String("address", "", "Optional: connect to this IP/hostname instead of --host (e.g. to test a specific server behind a load balancer); --host is still used for SNI, certificate checks, and authentication (env: IMAPADDRESS)")
+	f.Bool("ipv4", false, "Force IPv4: resolve --host/--address to an A record and connect over IPv4 (env: IMAPIPV4)")
+	f.Bool("ipv6", false, "Force IPv6: resolve --host/--address to an AAAA record and connect over IPv6 (env: IMAPIPV6)")
 	f.String("proxy", "", "HTTP/HTTPS proxy URL (env: IMAPPROXY)")
 	f.Int("maxretries", 3, "Maximum retry attempts (env: IMAPMAXRETRIES)")
 	f.Int("retrydelay", 2000, "Retry delay in milliseconds (env: IMAPRETRYDELAY)")
@@ -123,9 +132,13 @@ func BindEnvs(v *viper.Viper) {
 		"authmethod":  "IMAPAUTHMETHOD",
 		"starttls":    "IMAPSTARTTLS",
 		"imaps":       "IMAPIMAPS",
+		"no-starttls": "IMAPNOSTARTTLS",
+		"no-imaps":    "IMAPNOIMAPS",
 		"skipverify":  "IMAPSKIPVERIFY",
 		"tlsversion":  "IMAPTLSVERSION",
 		"address":     "IMAPADDRESS",
+		"ipv4":        "IMAPIPV4",
+		"ipv6":        "IMAPIPV6",
 		"proxy":       "IMAPPROXY",
 		"maxretries":  "IMAPMAXRETRIES",
 		"retrydelay":  "IMAPRETRYDELAY",
@@ -198,9 +211,13 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		AuthMethod:     authMethod,
 		IMAPS:          v.GetBool("imaps"),
 		StartTLS:       v.GetBool("starttls"),
+		NoStartTLS:     v.GetBool("no-starttls"),
+		NoIMAPS:        v.GetBool("no-imaps"),
 		SkipVerify:     v.GetBool("skipverify"),
 		TLSVersion:     tlsVersion,
 		ConnectAddress: v.GetString("address"),
+		IPv4Only:       v.GetBool("ipv4"),
+		IPv6Only:       v.GetBool("ipv6"),
 		ProxyURL:       v.GetString("proxy"),
 		MaxRetries:     maxRetries,
 		RetryDelay:     time.Duration(retryDelayMs) * time.Millisecond,
@@ -244,6 +261,15 @@ func validateConfiguration(config *Config) error {
 		return fmt.Errorf("cannot use both --imaps and --starttls flags simultaneously")
 	}
 
+	// Validate mutual exclusion: --no-imaps/--no-starttls cannot be combined
+	// with the flags they negate
+	if config.IMAPS && config.NoIMAPS {
+		return fmt.Errorf("cannot use both --imaps and --no-imaps flags simultaneously")
+	}
+	if config.StartTLS && config.NoStartTLS {
+		return fmt.Errorf("cannot use both --starttls and --no-starttls flags simultaneously")
+	}
+
 	// Smart port default: if --imaps is set and port is 143 (default), change to 993
 	if config.IMAPS && config.Port == 143 {
 		config.Port = 993
@@ -265,6 +291,11 @@ func validateConfiguration(config *Config) error {
 	// Validate proxy URL (if provided)
 	if err := validation.ValidateProxyURL(config.ProxyURL); err != nil {
 		return fmt.Errorf("invalid proxy URL: %w", err)
+	}
+
+	// Validate mutual exclusion: --ipv4 and --ipv6 cannot be used together
+	if err := network.ValidateIPVersionFlags(config.IPv4Only, config.IPv6Only); err != nil {
+		return err
 	}
 
 	// Validate connect address (if provided)

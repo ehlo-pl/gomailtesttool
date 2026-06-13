@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/ziembor/gomailtesttool/internal/common/network"
 	"github.com/ziembor/gomailtesttool/internal/common/validation"
 )
 
@@ -18,6 +19,8 @@ type Config struct {
 	Host           string
 	Port           int
 	ConnectAddress string // Override address for TCP connection (IP or hostname)
+	IPv4Only       bool   // Force resolving --host/--address to an IPv4 (A record) address
+	IPv6Only       bool   // Force resolving --host/--address to an IPv6 (AAAA record) address
 
 	// Authentication
 	Username    string
@@ -57,9 +60,11 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f := cmd.PersistentFlags()
 
 	// JMAP server
-	f.String("host", "", "JMAP server hostname (env: JMAPHOST)")
+	f.String("host", "", "JMAP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and authentication (env: JMAPHOST)")
 	f.Int("port", 443, "JMAP server port (env: JMAPPORT)")
-	f.String("address", "", "Override IP address or hostname for TCP connection (env: JMAPADDRESS)")
+	f.String("address", "", "Optional: connect to this IP/hostname instead of --host (e.g. to test a specific server behind a load balancer); --host is still used for SNI, certificate checks, and authentication (env: JMAPADDRESS)")
+	f.Bool("ipv4", false, "Force IPv4: resolve --host/--address to an A record and connect over IPv4 (env: JMAPIPV4)")
+	f.Bool("ipv6", false, "Force IPv6: resolve --host/--address to an AAAA record and connect over IPv6 (env: JMAPIPV6)")
 
 	// Authentication
 	f.String("username", "", "Username for authentication (env: JMAPUSERNAME)")
@@ -83,6 +88,8 @@ func BindEnvs(v *viper.Viper) {
 		"host":        "JMAPHOST",
 		"port":        "JMAPPORT",
 		"address":     "JMAPADDRESS",
+		"ipv4":        "JMAPIPV4",
+		"ipv6":        "JMAPIPV6",
 		"username":    "JMAPUSERNAME",
 		"password":    "JMAPPASSWORD",
 		"accesstoken": "JMAPACCESSTOKEN",
@@ -126,6 +133,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Host:           v.GetString("host"),
 		Port:           port,
 		ConnectAddress: v.GetString("address"),
+		IPv4Only:       v.GetBool("ipv4"),
+		IPv6Only:       v.GetBool("ipv6"),
 		Username:       v.GetString("username"),
 		Password:       v.GetString("password"),
 		AccessToken:    v.GetString("accesstoken"),
@@ -167,6 +176,11 @@ func validateConfiguration(config *Config) error {
 		if err := validation.ValidateHostname(config.ConnectAddress); err != nil {
 			return fmt.Errorf("invalid connect address: %w", err)
 		}
+	}
+
+	// Validate mutual exclusion: --ipv4 and --ipv6 cannot be used together
+	if err := network.ValidateIPVersionFlags(config.IPv4Only, config.IPv6Only); err != nil {
+		return err
 	}
 
 	// Validate auth method

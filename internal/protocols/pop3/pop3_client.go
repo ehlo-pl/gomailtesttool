@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ziembor/gomailtesttool/internal/common/network"
 	"github.com/ziembor/gomailtesttool/internal/common/ratelimit"
 	"github.com/ziembor/gomailtesttool/internal/pop3/protocol"
 )
@@ -55,10 +56,15 @@ func (c *POP3Client) Connect(ctx context.Context) error {
 	if c.config.ConnectAddress != "" {
 		connectHost = c.config.ConnectAddress
 	}
+
+	// Resolve to a specific address family if --ipv4/--ipv6 was requested
+	connectHost, err := network.ResolveForDial(ctx, connectHost, c.config.IPv4Only, c.config.IPv6Only)
+	if err != nil {
+		return err
+	}
 	address := net.JoinHostPort(connectHost, fmt.Sprintf("%d", c.port))
 
 	var conn net.Conn
-	var err error
 
 	dialer := &net.Dialer{
 		Timeout: c.config.Timeout,

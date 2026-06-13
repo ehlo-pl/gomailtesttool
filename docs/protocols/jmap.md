@@ -69,9 +69,11 @@ gomailtest jmap getmailboxes --host jmap.fastmail.com \
 
 | Flag | Description | Environment Variable | Default |
 |------|-------------|---------------------|---------|
-| `--host` | JMAP server hostname | `JMAPHOST` | — |
+| `--host` | JMAP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and auth | `JMAPHOST` | — |
 | `--port` | JMAP server port | `JMAPPORT` | 443 |
-| `--address` | Override connection address (uses --host for SNI) | `JMAPADDRESS` | — |
+| `--address` | Optional: connect to this IP/host instead of --host (e.g. behind a load balancer); --host is still used for SNI/certificate checks and auth | `JMAPADDRESS` | — |
+| `--ipv4` | Force IPv4: resolve --host/--address to an A record and connect over IPv4 | `JMAPIPV4` | false |
+| `--ipv6` | Force IPv6: resolve --host/--address to an AAAA record and connect over IPv6 | `JMAPIPV6` | false |
 | `--username` | Username for authentication | `JMAPUSERNAME` | — |
 | `--password` | Password for Basic authentication | `JMAPPASSWORD` | — |
 | `--accesstoken` | Access token for Bearer authentication | `JMAPACCESSTOKEN` | — |

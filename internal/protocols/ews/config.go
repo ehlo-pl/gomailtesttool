@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/ziembor/gomailtesttool/internal/common/network"
 	"github.com/ziembor/gomailtesttool/internal/common/validation"
 )
 
@@ -36,6 +37,8 @@ type Config struct {
 
 	// Network configuration
 	ProxyURL string
+	IPv4Only bool // Force resolving --host to an IPv4 (A record) address
+	IPv6Only bool // Force resolving --host to an IPv6 (AAAA record) address
 
 	// Runtime configuration
 	VerboseMode bool
@@ -92,6 +95,8 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 
 	// Network
 	f.String("proxy", "", "HTTP/HTTPS proxy URL (env: EWSPROXY)")
+	f.Bool("ipv4", false, "Force IPv4: resolve --host to an A record and connect over IPv4 (env: EWSIPV4)")
+	f.Bool("ipv6", false, "Force IPv6: resolve --host to an AAAA record and connect over IPv6 (env: EWSIPV6)")
 
 	// Output
 	f.Bool("verbose", false, "Enable verbose output")
@@ -116,6 +121,8 @@ func BindEnvs(v *viper.Viper) {
 		"skipverify":       "EWSSKIPVERIFY",
 		"tlsversion":       "EWSTLSVERSION",
 		"proxy":            "EWSPROXY",
+		"ipv4":             "EWSIPV4",
+		"ipv6":             "EWSIPV6",
 		"logformat":        "EWSLOGFORMAT",
 	}
 	for key, env := range bindings {
@@ -182,6 +189,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		SkipVerify:       v.GetBool("skipverify"),
 		TLSVersion:       tlsVersion,
 		ProxyURL:         v.GetString("proxy"),
+		IPv4Only:         v.GetBool("ipv4"),
+		IPv6Only:         v.GetBool("ipv6"),
 		VerboseMode:      v.GetBool("verbose"),
 		LogLevel:         logLevel,
 		LogFormat:        logFormat,
@@ -224,6 +233,11 @@ func validateConfiguration(config *Config) error {
 	}
 	if err := validation.ValidateProxyURL(config.ProxyURL); err != nil {
 		return fmt.Errorf("invalid proxy URL: %w", err)
+	}
+
+	// Validate mutual exclusion: --ipv4 and --ipv6 cannot be used together
+	if err := network.ValidateIPVersionFlags(config.IPv4Only, config.IPv6Only); err != nil {
+		return err
 	}
 
 	// Resolve "auto" auth method

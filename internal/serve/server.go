@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
-	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
@@ -45,12 +46,13 @@ func (s *Server) Run(ctx context.Context) error {
 	mux.HandleFunc("POST /msgraph/sendmail", s.handleMsgraphSendMail)
 	mux.HandleFunc("POST /ews/sendmail", s.handleEWSSendMail)
 
-	addr := fmt.Sprintf("%s:%d", s.config.Listen, s.config.Port)
+	addr := net.JoinHostPort(s.config.Listen, strconv.Itoa(s.config.Port))
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      s.apiKeyMiddleware(mux),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 70 * time.Second, // handler timeout is 60s; extra 10s for response flush
+		IdleTimeout:  60 * time.Second, // keep-alive connections closed after 60s of inactivity
 	}
 
 	s.logger.Info("HTTP server listening", "addr", addr)
@@ -77,7 +79,10 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) apiKeyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		exempt := r.URL.Path == "/health" || (r.URL.Path == "/" && r.Method == http.MethodGet)
-		if !exempt && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-API-Key")), []byte(s.config.APIKey)) != 1 {
+		provided := r.Header.Get("X-API-Key")
+		// Fail closed: an empty configured key must never authenticate a request,
+		// even one sent without an X-API-Key header.
+		if !exempt && (s.config.APIKey == "" || provided == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(s.config.APIKey)) != 1) {
 			writeJSON(w, http.StatusUnauthorized, apiResponse{Status: "error", Message: "missing or invalid X-API-Key"})
 			return
 		}

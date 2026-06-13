@@ -34,7 +34,7 @@ gomailtest serve --api-key <secret> [--port 8080] [--listen 127.0.0.1]
 |------|---------------------|---------|-------------|
 | `--api-key` | `SERVE_API_KEY` | — | **Required.** Value expected in the `X-API-Key` request header |
 | `--port` | `SERVE_PORT` | `8080` | HTTP listen port |
-| `--listen` | `SERVE_LISTEN` | all interfaces | Bind address (e.g., `127.0.0.1` to restrict to localhost) |
+| `--listen` | `SERVE_LISTEN` | `127.0.0.1` | Bind address (e.g., `0.0.0.0` to listen on all interfaces) |
 
 ## Authentication
 
@@ -100,9 +100,12 @@ Send an email via SMTP. SMTP connection credentials are taken from the `SMTP*` e
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `to` | `[]string` | Yes | List of TO recipient addresses |
+| `cc` | `[]string` | No | List of CC recipient addresses; included in the `Cc:` header and the SMTP envelope |
+| `bcc` | `[]string` | No | List of BCC recipient addresses; included in the SMTP envelope only, never in message headers |
 | `subject` | `string` | Yes | Email subject |
 | `from` | `string` | No | Sender address (overrides `SMTPFROM`; required if `SMTPFROM` is not set) |
 | `body` | `string` | No | Plain-text email body |
+| `priority` | `string` | No | Email priority: `high`, `normal`, `low` (default: `normal`). `high`/`low` add `X-Priority`, `Importance`, and `Priority` headers |
 
 **Example:**
 
@@ -165,6 +168,7 @@ Send an email via Microsoft Graph (Exchange Online). MS Graph credentials are ta
 | `subject` | `string` | Yes | Email subject |
 | `body` | `string` | No | Plain-text email body |
 | `bodyHTML` | `string` | No | HTML email body (takes precedence over `body` if both provided) |
+| `priority` | `string` | No | Email priority/importance: `high`, `normal`, `low` (default: `normal`) |
 
 \* At least one of `to`, `cc`, or `bcc` is required.
 

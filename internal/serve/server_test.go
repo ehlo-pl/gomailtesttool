@@ -128,6 +128,16 @@ func TestAPIKeyMiddleware(t *testing.T) {
 	}
 }
 
+func TestAPIKeyMiddleware_EmptyConfiguredKeyDeniesAll(t *testing.T) {
+	srv := newTestServer(nil, nil)
+	srv.config.APIKey = ""
+
+	rr := serve(t, srv, http.MethodPost, "/smtp/sendmail", map[string]any{}, "")
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401 when configured API key is empty (body: %s)", rr.Code, rr.Body)
+	}
+}
+
 func TestAPIKeyMiddleware_401Body(t *testing.T) {
 	srv := newTestServer(nil, nil)
 	rr := serve(t, srv, http.MethodPost, "/smtp/sendmail", nil, "bad")

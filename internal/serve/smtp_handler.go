@@ -14,10 +14,13 @@ import (
 
 // smtpSendRequest is the JSON body for POST /smtp/sendmail.
 type smtpSendRequest struct {
-	To      []string `json:"to"`
-	From    string   `json:"from,omitempty"` // optional override for SMTPFROM
-	Subject string   `json:"subject"`
-	Body    string   `json:"body,omitempty"`
+	To       []string `json:"to"`
+	Cc       []string `json:"cc,omitempty"`
+	Bcc      []string `json:"bcc,omitempty"`
+	From     string   `json:"from,omitempty"` // optional override for SMTPFROM
+	Subject  string   `json:"subject"`
+	Body     string   `json:"body,omitempty"`
+	Priority string   `json:"priority,omitempty"` // high, normal, low (default: normal)
 }
 
 func sanitizeEmailSubjectInput(subject string) string {
@@ -78,15 +81,40 @@ func (s *Server) handleSMTPSendMail(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	for _, addr := range req.Cc {
+		if err := validation.ValidateEmail(addr); err != nil {
+			writeJSON(w, http.StatusBadRequest, apiResponse{Status: "error", Message: "invalid cc address " + addr + ": " + err.Error()})
+			return
+		}
+	}
+	for _, addr := range req.Bcc {
+		if err := validation.ValidateEmail(addr); err != nil {
+			writeJSON(w, http.StatusBadRequest, apiResponse{Status: "error", Message: "invalid bcc address " + addr + ": " + err.Error()})
+			return
+		}
+	}
+	if req.Priority != "" {
+		switch strings.ToLower(req.Priority) {
+		case "high", "normal", "low":
+		default:
+			writeJSON(w, http.StatusBadRequest, apiResponse{Status: "error", Message: "invalid priority: " + req.Priority + " (must be one of: high, normal, low)"})
+			return
+		}
+	}
 
 	// Clone base config and overlay request content
 	cfg := *s.smtpBase
 	cfg.To = req.To
+	cfg.Cc = req.Cc
+	cfg.Bcc = req.Bcc
 	cfg.Subject = sanitizeEmailSubjectInput(req.Subject)
 	cfg.Body = sanitizeEmailBodyInput(req.Body)
 	cfg.Action = smtp.ActionSendMail
 	if req.From != "" {
 		cfg.From = req.From
+	}
+	if req.Priority != "" {
+		cfg.Priority = strings.ToLower(req.Priority)
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)

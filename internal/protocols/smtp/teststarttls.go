@@ -124,7 +124,7 @@ func testStartTLS(ctx context.Context, config *Config, csvLogger logger.Logger, 
 		fmt.Println("Performing TLS handshake...")
 		tlsVersion := smtptls.ParseTLSVersion(config.TLSVersion)
 		tlsConfig := &tls.Config{
-			ServerName:         config.Host,
+			ServerName:         client.GetHost(), // resolved MX hostname if --use-mx, otherwise --host
 			InsecureSkipVerify: config.SkipVerify,
 			MinVersion:         tlsVersion,
 			MaxVersion:         tlsVersion, // Force exact TLS version
@@ -155,7 +155,7 @@ func testStartTLS(ctx context.Context, config *Config, csvLogger logger.Logger, 
 	printTLSInfo(tlsInfo)
 
 	// Analyze certificate chain
-	certInfo := smtptls.AnalyzeCertificateChain(connState.PeerCertificates, config.Host)
+	certInfo := smtptls.AnalyzeCertificateChain(connState.PeerCertificates, client.GetHost())
 	printCertificateInfo(certInfo)
 
 	// Check for warnings

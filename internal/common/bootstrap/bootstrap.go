@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/viper"
 	"github.com/ziembor/gomailtesttool/internal/common/logger"
 )
 
@@ -49,4 +50,51 @@ func InitLoggers(toolName, action string, verbose bool, logLevel, logFormat stri
 	}
 
 	return slogLogger, fileLogger, nil
+}
+
+// LoadConfigFile loads a YAML configuration file into v, if path is non-empty.
+// Keys in the file correspond to flag names (e.g. "host", "port", "bodyhtml"),
+// and act as defaults: explicit CLI flags and environment variables still take
+// precedence over values loaded from the file. If path is empty, this is a no-op.
+// If path is non-empty and the file cannot be read or parsed, an error is returned.
+func LoadConfigFile(v *viper.Viper, path string) error {
+	if path == "" {
+		return nil
+	}
+
+	v.SetConfigFile(path)
+	v.SetConfigType("yaml")
+
+	if err := v.ReadInConfig(); err != nil {
+		return fmt.Errorf("failed to read config file %q: %w", path, err)
+	}
+
+	return nil
+}
+
+// LoadConfigFileSection loads the values nested under the given top-level
+// section key (e.g. "smtp", "msgraph") of a YAML configuration file and
+// merges them into v as config-level defaults — env vars and any flags
+// bound on v still take precedence. If path is empty or the section is
+// absent from the file, this is a no-op. If path is non-empty and the file
+// cannot be read or parsed, an error is returned.
+func LoadConfigFileSection(v *viper.Viper, path, section string) error {
+	if path == "" {
+		return nil
+	}
+
+	fileViper := viper.New()
+	fileViper.SetConfigFile(path)
+	fileViper.SetConfigType("yaml")
+
+	if err := fileViper.ReadInConfig(); err != nil {
+		return fmt.Errorf("failed to read config file %q: %w", path, err)
+	}
+
+	sub := fileViper.Sub(section)
+	if sub == nil {
+		return nil
+	}
+
+	return v.MergeConfigMap(sub.AllSettings())
 }

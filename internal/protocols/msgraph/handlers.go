@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"mime"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/users"
+	"github.com/ziembor/gomailtesttool/internal/common/email"
 	"github.com/ziembor/gomailtesttool/internal/common/logger"
 )
 
@@ -111,6 +111,13 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 	// Set Subject
 	message.SetSubject(&subject)
 
+	// Set Importance (high/normal/low); defaults to normal
+	if importance, err := models.ParseImportance(config.Priority); err == nil && importance != nil {
+		imp := importance.(*models.Importance)
+		message.SetImportance(imp)
+		logVerbose(config.VerboseMode, "Email importance: %s", config.Priority)
+	}
+
 	// Set body - prefer HTML if provided, otherwise use text
 	body := models.NewItemBody()
 	if htmlContent != "" {
@@ -137,14 +144,32 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 		message.SetBccRecipients(createRecipients(bcc))
 	}
 
-	// Add Attachments
-	if len(attachmentPaths) > 0 {
-		fileAttachments, err := createFileAttachments(attachmentPaths, config)
+	// Add Attachments (regular + inline)
+	if len(attachmentPaths) > 0 || len(config.InlineAttachmentFiles) > 0 {
+		fileAttachments, err := createFileAttachments(attachmentPaths, config.InlineAttachmentFiles, config)
 		if err != nil {
 			log.Printf("Error creating attachments: %v", err)
 		} else if len(fileAttachments) > 0 {
 			message.SetAttachments(fileAttachments)
 			logVerbose(config.VerboseMode, "Attachments added: %d file(s)", len(fileAttachments))
+		}
+	}
+
+	// Add custom headers
+	if len(config.Headers) > 0 {
+		if headers, err := email.ParseHeaders(config.Headers); err != nil {
+			log.Printf("Error parsing custom headers: %v", err)
+		} else if len(headers) > 0 {
+			msgHeaders := make([]models.InternetMessageHeaderable, 0, len(headers))
+			for _, h := range headers {
+				header := models.NewInternetMessageHeader()
+				name, value := h.Name, h.Value
+				header.SetName(&name)
+				header.SetValue(&value)
+				msgHeaders = append(msgHeaders, header)
+			}
+			message.SetInternetMessageHeaders(msgHeaders)
+			logVerbose(config.VerboseMode, "Custom headers added: %d", len(msgHeaders))
 		}
 	}
 
@@ -156,7 +181,7 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 	err := client.Users().ByUserId(senderMailbox).SendMail().Post(ctx, requestBody, nil)
 
 	status := StatusSuccess
-	attachmentCount := len(attachmentPaths)
+	attachmentCount := len(attachmentPaths) + len(config.InlineAttachmentFiles)
 	var returnErr error
 	if err != nil {
 		// Enrich error with rate limit and service error details
@@ -813,45 +838,49 @@ func interpretAvailability(view string) string {
 	}
 }
 
-// createFileAttachments reads files and creates Graph API attachment objects
-func createFileAttachments(filePaths []string, config *Config) ([]models.Attachmentable, error) {
+// createFileAttachments reads files and creates Graph API attachment objects.
+// Files in inlinePaths are embedded inline (IsInline=true, ContentId set to
+// their filename) so they can be referenced from HTML bodies via "cid:<filename>".
+func createFileAttachments(filePaths, inlinePaths []string, config *Config) ([]models.Attachmentable, error) {
+	onSkip := func(path string, err error) {
+		log.Printf("Warning: Could not read attachment file %s: %v", path, err)
+	}
+
+	regular, err := email.LoadAttachments(filePaths, onSkip)
+	if err != nil {
+		return nil, err
+	}
+	inline, err := email.LoadInlineAttachments(inlinePaths, onSkip)
+	if err != nil {
+		return nil, err
+	}
+
 	var attachments []models.Attachmentable
-
-	for _, filePath := range filePaths {
-		// Read file content
-		fileData, err := os.ReadFile(filePath)
-		if err != nil {
-			log.Printf("Warning: Could not read attachment file %s: %v", filePath, err)
-			continue
-		}
-
-		// Create file attachment
+	for _, att := range append(regular, inline...) {
 		attachment := models.NewFileAttachment()
 
 		// Set the OData type for file attachment
 		odataType := "#microsoft.graph.fileAttachment"
 		attachment.SetOdataType(&odataType)
 
-		// Set file name (just the base name, not full path)
-		fileName := filepath.Base(filePath)
-		attachment.SetName(&fileName)
+		name := att.Name
+		attachment.SetName(&name)
 
-		// Detect content type from file extension
-		contentType := mime.TypeByExtension(filepath.Ext(filePath))
-		if contentType == "" {
-			contentType = "application/octet-stream"
-		}
+		contentType := att.ContentType
 		attachment.SetContentType(&contentType)
 
 		// Set content as base64 encoded bytes
-		attachment.SetContentBytes(fileData)
+		attachment.SetContentBytes(att.Data)
 
-		logVerbose(config.VerboseMode, "Attachment: %s (%s, %d bytes)", fileName, contentType, len(fileData))
+		if att.Inline {
+			isInline := true
+			attachment.SetIsInline(&isInline)
+			contentID := att.ContentID
+			attachment.SetContentId(&contentID)
+		}
+
+		logVerbose(config.VerboseMode, "Attachment: %s (%s, %d bytes, inline=%v)", att.Name, att.ContentType, len(att.Data), att.Inline)
 		attachments = append(attachments, attachment)
-	}
-
-	if len(attachments) == 0 && len(filePaths) > 0 {
-		return nil, fmt.Errorf("no valid attachments could be processed")
 	}
 
 	return attachments, nil

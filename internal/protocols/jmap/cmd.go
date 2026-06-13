@@ -47,6 +47,10 @@ the JMAP session object from the well-known discovery URL (/.well-known/jmap).`,
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
 			config := ConfigFromViper(v)
 			config.Action = ActionTestConnect
 
@@ -88,6 +92,10 @@ Supports Bearer token (--accesstoken) and Basic auth (--username + --password).`
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
 			config := ConfigFromViper(v)
 			config.Action = ActionTestAuth
 
@@ -128,6 +136,10 @@ using the Mailbox/get JMAP method. Shows mailbox name, role, and message counts.
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
 
 			config := ConfigFromViper(v)
 			config.Action = ActionGetMailboxes

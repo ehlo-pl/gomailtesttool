@@ -69,6 +69,250 @@ func TestValidateConfiguration_SMTPSAndSTARTTLS(t *testing.T) {
 	}
 }
 
+// TestValidateConfiguration_Priority tests --priority validation for sendmail
+func TestValidateConfiguration_Priority(t *testing.T) {
+	tests := []struct {
+		name      string
+		priority  string
+		wantError bool
+	}{
+		{name: "high is valid", priority: "high"},
+		{name: "normal is valid", priority: "normal"},
+		{name: "low is valid", priority: "low"},
+		{name: "invalid value", priority: "urgent", wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := NewConfig()
+			config.Action = ActionSendMail
+			config.Host = "smtp.example.com"
+			config.From = "sender@example.com"
+			config.To = []string{"recipient@example.com"}
+			config.Subject = "Test"
+			config.Priority = tt.priority
+
+			err := validateConfiguration(config)
+
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("validateConfiguration() expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), "-priority") {
+					t.Errorf("validateConfiguration() error = %v, want error mentioning -priority", err)
+				}
+			} else if err != nil {
+				t.Errorf("validateConfiguration() unexpected error = %v", err)
+			}
+		})
+	}
+}
+
+// TestValidateConfiguration_UseMXAndAddress tests mutual exclusion of --use-mx and --address
+func TestValidateConfiguration_UseMXAndAddress(t *testing.T) {
+	tests := []struct {
+		name           string
+		useMX          bool
+		connectAddress string
+		wantError      bool
+	}{
+		{name: "Neither set", useMX: false, connectAddress: ""},
+		{name: "use-mx only", useMX: true, connectAddress: ""},
+		{name: "address only", useMX: false, connectAddress: "192.0.2.1"},
+		{name: "Both set - should error", useMX: true, connectAddress: "192.0.2.1", wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := NewConfig()
+			config.Action = ActionTestConnect
+			config.Host = "example.com"
+			config.UseMX = tt.useMX
+			config.ConnectAddress = tt.connectAddress
+
+			err := validateConfiguration(config)
+
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("validateConfiguration() expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), "-use-mx") || !strings.Contains(err.Error(), "-address") {
+					t.Errorf("validateConfiguration() error = %v, want error mentioning -use-mx and -address", err)
+				}
+			} else if err != nil {
+				t.Errorf("validateConfiguration() unexpected error = %v", err)
+			}
+		})
+	}
+}
+
+// TestValidateConfiguration_SendMailUseMXExclusions tests that --use-mx for
+// sendmail is mutually exclusive with --host, and that the MX lookup domain
+// is derived from the first --to recipient.
+func TestValidateConfiguration_SendMailUseMXExclusions(t *testing.T) {
+	tests := []struct {
+		name      string
+		useMX     bool
+		host      string
+		to        []string
+		wantError bool
+		errorMsg  string
+		wantHost  string
+	}{
+		{
+			name:      "use-mx and host both set - should error",
+			useMX:     true,
+			host:      "smtp.example.com",
+			to:        []string{"recipient@example.com"},
+			wantError: true,
+			errorMsg:  "cannot use both -use-mx and -host",
+		},
+		{
+			name:     "use-mx without host derives domain from -to",
+			useMX:    true,
+			host:     "",
+			to:       []string{"recipient@example.com"},
+			wantHost: "example.com",
+		},
+		{
+			name:      "use-mx without host and invalid recipient domain - should error",
+			useMX:     true,
+			host:      "",
+			to:        []string{"recipient@exa_mple.com"},
+			wantError: true,
+			errorMsg:  "invalid domain derived from -to recipient",
+		},
+		{
+			name:     "no use-mx leaves host untouched",
+			useMX:    false,
+			host:     "smtp.example.com",
+			to:       []string{"recipient@example.com"},
+			wantHost: "smtp.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := NewConfig()
+			config.Action = ActionSendMail
+			config.UseMX = tt.useMX
+			config.Host = tt.host
+			config.From = "sender@example.com"
+			config.To = tt.to
+
+			err := validateConfiguration(config)
+
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("validateConfiguration() expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("validateConfiguration() error = %v, want error containing %q", err, tt.errorMsg)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("validateConfiguration() unexpected error = %v", err)
+			}
+			if config.Host != tt.wantHost {
+				t.Errorf("config.Host = %q, want %q", config.Host, tt.wantHost)
+			}
+		})
+	}
+}
+
+// TestValidateConfiguration_NoTLSFlags tests --no-smtps/--no-starttls mutual exclusion
+// with --smtps/--starttls, and the teststarttls/--no-starttls restriction.
+func TestValidateConfiguration_NoTLSFlags(t *testing.T) {
+	tests := []struct {
+		name       string
+		action     string
+		smtps      bool
+		starttls   bool
+		noSMTPS    bool
+		noStartTLS bool
+		wantError  bool
+		errorMsg   string
+	}{
+		{
+			name:       "no-starttls alone is fine",
+			action:     ActionTestConnect,
+			noStartTLS: true,
+			wantError:  false,
+		},
+		{
+			name:      "no-smtps alone is fine",
+			action:    ActionTestConnect,
+			noSMTPS:   true,
+			wantError: false,
+		},
+		{
+			name:      "smtps and no-smtps conflict",
+			action:    ActionTestConnect,
+			smtps:     true,
+			noSMTPS:   true,
+			wantError: true,
+			errorMsg:  "cannot use both -smtps and -no-smtps",
+		},
+		{
+			name:       "starttls and no-starttls conflict",
+			action:     ActionTestConnect,
+			starttls:   true,
+			noStartTLS: true,
+			wantError:  true,
+			errorMsg:   "cannot use both -starttls and -no-starttls",
+		},
+		{
+			name:       "teststarttls with no-starttls and no smtps errors",
+			action:     ActionTestStartTLS,
+			noStartTLS: true,
+			wantError:  true,
+			errorMsg:   "teststarttls requires STARTTLS or -smtps",
+		},
+		{
+			name:       "teststarttls with no-starttls and smtps and no-smtps errors via mutual exclusion",
+			action:     ActionTestStartTLS,
+			smtps:      true,
+			noSMTPS:    true,
+			noStartTLS: true,
+			wantError:  true,
+			errorMsg:   "cannot use both -smtps and -no-smtps",
+		},
+		{
+			name:      "teststarttls without no-starttls is fine",
+			action:    ActionTestStartTLS,
+			wantError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := NewConfig()
+			config.Action = tt.action
+			config.Host = "smtp.example.com"
+			config.SMTPS = tt.smtps
+			config.StartTLS = tt.starttls
+			config.NoSMTPS = tt.noSMTPS
+			config.NoStartTLS = tt.noStartTLS
+
+			err := validateConfiguration(config)
+
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("validateConfiguration() expected error, got nil")
+				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("validateConfiguration() error = %v, want error containing %q", err, tt.errorMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("validateConfiguration() unexpected error = %v", err)
+				}
+			}
+		})
+	}
+}
+
 // TestValidateConfiguration_SMTPSPortDefault tests smart port defaulting for SMTPS
 func TestValidateConfiguration_SMTPSPortDefault(t *testing.T) {
 	tests := []struct {

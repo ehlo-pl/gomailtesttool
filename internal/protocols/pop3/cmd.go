@@ -48,6 +48,10 @@ and (for POP3S) TLS state.`,
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
 			config := ConfigFromViper(v)
 			config.Action = ActionTestConnect
 
@@ -90,6 +94,10 @@ Automatically upgrades to TLS via STLS when --starttls is set.`,
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
 			config := ConfigFromViper(v)
 			config.Action = ActionTestAuth
 
@@ -130,6 +138,10 @@ Shows message count, total size, and per-message size and UIDL (if supported).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
 
 			config := ConfigFromViper(v)
 			config.Action = ActionListMail

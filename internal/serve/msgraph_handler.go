@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ziembor/gomailtesttool/internal/common/logger"
@@ -21,6 +22,7 @@ type msgraphSendRequest struct {
 	Subject  string   `json:"subject"`
 	Body     string   `json:"body,omitempty"`
 	BodyHTML string   `json:"bodyHTML,omitempty"`
+	Priority string   `json:"priority,omitempty"` // high, normal, low (default: normal)
 }
 
 func (s *Server) handleMsgraphSendMail(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +55,14 @@ func (s *Server) handleMsgraphSendMail(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if req.Priority != "" {
+		switch strings.ToLower(req.Priority) {
+		case "high", "normal", "low":
+		default:
+			writeJSON(w, http.StatusBadRequest, apiResponse{Status: "error", Message: "invalid priority: " + req.Priority + " (must be one of: high, normal, low)"})
+			return
+		}
+	}
 
 	// Validation passed — now require a live client.
 	if s.graphClient == nil {
@@ -64,6 +74,9 @@ func (s *Server) handleMsgraphSendMail(w http.ResponseWriter, r *http.Request) {
 	// Recipients are passed directly to SendEmail — no need to set them on the config.
 	cfg := *s.msgraphBase
 	cfg.Action = msgraph.ActionSendMail
+	if req.Priority != "" {
+		cfg.Priority = strings.ToLower(req.Priority)
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()

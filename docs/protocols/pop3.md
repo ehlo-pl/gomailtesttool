@@ -71,7 +71,7 @@ gomailtest pop3 listmail --host pop.example.com --port 995 --pop3s \
 
 | Flag | Description | Environment Variable | Default |
 |------|-------------|---------------------|---------|
-| `--host` | POP3 server hostname | `POP3HOST` | — |
+| `--host` | POP3 server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and auth | `POP3HOST` | — |
 | `--port` | POP3 server port | `POP3PORT` | 110 |
 | `--timeout` | Connection timeout (seconds) | `POP3TIMEOUT` | 30 |
 | `--username` | Username for authentication | `POP3USERNAME` | — |
@@ -80,9 +80,13 @@ gomailtest pop3 listmail --host pop.example.com --port 995 --pop3s \
 | `--authmethod` | Auth method: auto, USER, APOP, XOAUTH2 | `POP3AUTHMETHOD` | auto |
 | `--pop3s` | Use POP3S (implicit TLS on port 995) | `POP3POP3S` | false |
 | `--starttls` | Force STLS upgrade | `POP3STARTTLS` | false |
+| `--no-pop3s` | Force plain connection: errors if `--pop3s` is also set | `POP3NOPOP3S` | false |
+| `--no-starttls` | Force plain connection: errors if `--starttls` is also set | `POP3NOSTARTTLS` | false |
 | `--skipverify` | Skip TLS certificate verification | `POP3SKIPVERIFY` | false |
 | `--tlsversion` | TLS version: 1.2, 1.3 | `POP3TLSVERSION` | 1.2 |
-| `--address` | Override connection address (uses --host for SNI) | `POP3ADDRESS` | — |
+| `--address` | Optional: connect to this IP/host instead of --host (e.g. behind a load balancer); --host is still used for SNI/certificate checks and auth | `POP3ADDRESS` | — |
+| `--ipv4` | Force IPv4: resolve --host/--address to an A record and connect over IPv4 | `POP3IPV4` | false |
+| `--ipv6` | Force IPv6: resolve --host/--address to an AAAA record and connect over IPv6 | `POP3IPV6` | false |
 | `--proxy` | HTTP/HTTPS proxy URL | `POP3PROXY` | — |
 | `--maxretries` | Maximum retry attempts | `POP3MAXRETRIES` | 3 |
 | `--retrydelay` | Retry delay (milliseconds) | `POP3RETRYDELAY` | 2000 |
@@ -90,6 +94,8 @@ gomailtest pop3 listmail --host pop.example.com --port 995 --pop3s \
 | `--verbose` | Enable verbose output | — | false |
 | `--loglevel` | Log level: DEBUG, INFO, WARN, ERROR | — | INFO |
 | `--logformat` | Log file format: csv, json | `POP3LOGFORMAT` | csv |
+
+**Note:** `--pop3s` and `--starttls` cannot be used together. `--no-pop3s`+`--pop3s` and `--no-starttls`+`--starttls` are each mutually exclusive (useful to catch conflicting defaults from `--config`/env vars).
 
 ### listmail-only flags
 

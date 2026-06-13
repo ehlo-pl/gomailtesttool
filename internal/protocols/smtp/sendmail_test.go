@@ -169,7 +169,7 @@ func TestBuildEmailMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			message := buildEmailMessage(tt.from, tt.to, tt.subject, tt.body)
+			message := buildEmailMessage(tt.from, tt.to, nil, tt.subject, tt.body, "normal")
 			messageStr := string(message)
 
 			// Verify From header is sanitized
@@ -292,8 +292,10 @@ func TestBuildEmailMessage_RFCCompliance(t *testing.T) {
 	message := buildEmailMessage(
 		"sender@example.com",
 		[]string{"recipient@example.com"},
+		nil,
 		"Test Subject",
 		"Test Body",
+		"normal",
 	)
 
 	messageStr := string(message)
@@ -324,5 +326,58 @@ func TestBuildEmailMessage_RFCCompliance(t *testing.T) {
 
 	if headerIndex != len(headerOrder) {
 		t.Errorf("RFC 5322 header order not preserved, found %d/%d headers", headerIndex, len(headerOrder))
+	}
+}
+
+func TestCollectEnvelopeRecipients(t *testing.T) {
+	tests := []struct {
+		name string
+		to   []string
+		cc   []string
+		bcc  []string
+		want []string
+	}{
+		{
+			name: "to only",
+			to:   []string{"a@example.com"},
+			want: []string{"a@example.com"},
+		},
+		{
+			name: "to, cc, and bcc combined in order",
+			to:   []string{"a@example.com"},
+			cc:   []string{"b@example.com"},
+			bcc:  []string{"c@example.com"},
+			want: []string{"a@example.com", "b@example.com", "c@example.com"},
+		},
+		{
+			name: "multiple recipients per field",
+			to:   []string{"a1@example.com", "a2@example.com"},
+			cc:   []string{"b1@example.com"},
+			bcc:  []string{"c1@example.com", "c2@example.com"},
+			want: []string{"a1@example.com", "a2@example.com", "b1@example.com", "c1@example.com", "c2@example.com"},
+		},
+		{
+			name: "no recipients",
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			cfg.To = tt.to
+			cfg.Cc = tt.cc
+			cfg.Bcc = tt.bcc
+
+			got := collectEnvelopeRecipients(cfg)
+			if len(got) != len(tt.want) {
+				t.Fatalf("collectEnvelopeRecipients() = %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("collectEnvelopeRecipients()[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
 	}
 }

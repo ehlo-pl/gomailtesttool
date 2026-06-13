@@ -33,6 +33,12 @@ Endpoints:
 All non-health endpoints require the X-API-Key header.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			configPath := v.GetString("config")
+			if err := bootstrap.LoadConfigFile(v, configPath); err != nil {
+				return err
+			}
 
 			cfg := &Config{
 				Port:   v.GetInt("port"),
@@ -49,9 +55,13 @@ All non-health endpoints require the X-API-Key header.`,
 
 			slogger, _, _ := bootstrap.InitLoggers("servetool", "serve", false, "INFO", "csv")
 
-			// Load SMTP base config from SMTP* env vars
+			// Load SMTP base config from SMTP* env vars, with defaults from the
+			// "smtp" section of --config (if provided).
 			smtpViper := viper.New()
 			smtp.BindEnvs(smtpViper)
+			if err := bootstrap.LoadConfigFileSection(smtpViper, configPath, "smtp"); err != nil {
+				return err
+			}
 			smtpBase := smtp.ConfigFromViper(smtpViper)
 			smtpBase.Action = smtp.ActionSendMail
 			if smtpBase.Host == "" {
@@ -61,11 +71,15 @@ All non-health endpoints require the X-API-Key header.`,
 
 			// Load MS Graph base config and create client — resolve all values before
 			// calling New() so the constructor receives the final state directly.
+			// Defaults come from the "msgraph" section of --config (if provided).
 			var msgraphBase *msgraph.Config
 			var graphClient *msgraphsdk.GraphServiceClient
 
 			msgraphViper := viper.New()
 			msgraph.BindEnvs(msgraphViper)
+			if err := bootstrap.LoadConfigFileSection(msgraphViper, configPath, "msgraph"); err != nil {
+				return err
+			}
 			loadedBase := msgraph.ConfigFromViper(msgraphViper)
 			loadedBase.Action = msgraph.ActionSendMail
 
@@ -90,7 +104,7 @@ All non-health endpoints require the X-API-Key header.`,
 	}
 
 	cmd.Flags().Int("port", 8080, "HTTP listen port (env: SERVE_PORT)")
-	cmd.Flags().String("listen", "", "Bind address; empty means all interfaces (env: SERVE_LISTEN)")
+	cmd.Flags().String("listen", "127.0.0.1", "Bind address; use 0.0.0.0 to listen on all interfaces (env: SERVE_LISTEN)")
 	cmd.Flags().String("api-key", "", "Required X-API-Key header value (env: SERVE_API_KEY)")
 
 	_ = v.BindEnv("port", "SERVE_PORT")

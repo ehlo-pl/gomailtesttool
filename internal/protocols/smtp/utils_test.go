@@ -14,16 +14,18 @@ func TestMaskPassword(t *testing.T) {
 		password string
 		expected string
 	}{
-		// Short passwords (<= 4 chars) - fully masked
+		// Short passwords (<= 8 chars) - fully masked, since revealing 4
+		// characters of a password that short discloses most or all of it
 		{"Empty password", "", "****"},
 		{"Single char", "a", "****"},
 		{"Two chars", "ab", "****"},
 		{"Three chars", "abc", "****"},
 		{"Four chars", "1234", "****"},
+		{"Five chars", "12345", "****"},
+		{"Short password", "password", "****"},
+		{"Mixed case", "MyP@ss", "****"},
 
-		// Normal passwords (> 4 chars) - show first 2 and last 2
-		{"Five chars", "12345", "12****45"},
-		{"Short password", "password", "pa****rd"},
+		// Longer passwords (> 8 chars) - show first 2 and last 2
 		{"Longer password", "MySecretPassword", "My****rd"},
 		{"Complex password", "P@ssw0rd!123", "P@****23"},
 		{"Very long password", "ThisIsAVeryLongPasswordWithManyCharacters", "Th****rs"},
@@ -33,7 +35,6 @@ func TestMaskPassword(t *testing.T) {
 		{"Unicode characters", "пароль123", "п****23"}, // Note: UTF-8 bytes, not runes
 		{"Spaces in password", "my password", "my****rd"},
 		{"Numbers only", "123456789", "12****89"},
-		{"Mixed case", "MyP@ss", "My****ss"},
 	}
 
 	for _, tt := range tests {

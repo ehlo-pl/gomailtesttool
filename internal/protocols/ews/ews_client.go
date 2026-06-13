@@ -7,11 +7,14 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/go-ntlmssp"
+	"github.com/ziembor/gomailtesttool/internal/common/network"
 )
 
 const (
@@ -75,6 +78,22 @@ func NewEWSClient(config *Config) (*EWSClient, error) {
 		TLSClientConfig: tlsCfg,
 	}
 
+	// Resolve to a specific address family if --ipv4/--ipv6 was requested
+	if config.IPv4Only || config.IPv6Only {
+		dialer := &net.Dialer{}
+		baseTransport.DialContext = func(ctx context.Context, dialNetwork, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return dialer.DialContext(ctx, dialNetwork, addr)
+			}
+			host, err = network.ResolveForDial(ctx, host, config.IPv4Only, config.IPv6Only)
+			if err != nil {
+				return nil, err
+			}
+			return dialer.DialContext(ctx, dialNetwork, net.JoinHostPort(host, port))
+		}
+	}
+
 	if config.ProxyURL != "" {
 		proxyURL, err := url.Parse(config.ProxyURL)
 		if err != nil {
@@ -101,8 +120,9 @@ func NewEWSClient(config *Config) (*EWSClient, error) {
 		scheme = "http"
 	}
 
-	ewsURL := fmt.Sprintf("%s://%s:%d%s", scheme, config.Host, config.Port, config.EWSPath)
-	autodiscoverURL := fmt.Sprintf("%s://%s:%d%s", scheme, config.Host, config.Port, config.AutodiscoverPath)
+	hostPort := net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
+	ewsURL := fmt.Sprintf("%s://%s%s", scheme, hostPort, config.EWSPath)
+	autodiscoverURL := fmt.Sprintf("%s://%s%s", scheme, hostPort, config.AutodiscoverPath)
 
 	return &EWSClient{
 		httpClient:      httpClient,

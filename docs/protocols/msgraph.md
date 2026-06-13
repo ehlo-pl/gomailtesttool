@@ -73,6 +73,14 @@ gomailtest msgraph sendmail \
     --to "recipient@example.com" \
     --subject "Report Attached" \
     --attachments "C:\Reports\report.pdf,C:\Data\spreadsheet.xlsx"
+
+# Inline image referenced from HTML body, plus a custom header
+gomailtest msgraph sendmail \
+    --to "recipient@example.com" \
+    --subject "Inline Image" \
+    --bodyHTML '<p>Hello! Here is our logo: <img src="cid:logo.png"></p>' \
+    --inline-attachments "C:\Branding\logo.png" \
+    --header "X-Custom-Header: example-value"
 ```
 
 ### sendinvite — Create Calendar Invitations
@@ -153,6 +161,9 @@ gomailtest msgraph searchandexport --messageid "<message-id@example.com>"
 | `--bodyHTML` | Email body HTML | `MSGRAPHBODYHTML` |
 | `--body-template` | Path to HTML template file | `MSGRAPHBODYTEMPLATE` |
 | `--attachments` | Comma-separated file paths | `MSGRAPHATTACHMENTS` |
+| `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` (referenced from `--bodyHTML`) | `MSGRAPHINLINEATTACHMENTS` |
+| `--header` | Custom header in `"Name: Value"` form (repeatable) | — (CLI only) |
+| `--priority` | Email priority/importance: `high`, `normal`, `low` (maps to the Graph `importance` field) | `MSGRAPHPRIORITY` |
 | `--start` | Start time (RFC3339) | `MSGRAPHSTART` |
 | `--end` | End time (RFC3339) | `MSGRAPHEND` |
 | `--messageid` | Internet Message ID | `MSGRAPHMESSAGEID` |

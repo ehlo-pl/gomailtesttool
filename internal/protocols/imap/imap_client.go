@@ -11,6 +11,7 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-sasl"
 
+	"github.com/ziembor/gomailtesttool/internal/common/network"
 	"github.com/ziembor/gomailtesttool/internal/common/ratelimit"
 	imapprotocol "github.com/ziembor/gomailtesttool/internal/imap/protocol"
 )
@@ -62,6 +63,12 @@ func (c *IMAPClient) Connect(ctx context.Context) error {
 	if c.config.ConnectAddress != "" {
 		connectHost = c.config.ConnectAddress
 	}
+
+	// Resolve to a specific address family if --ipv4/--ipv6 was requested
+	connectHost, err := network.ResolveForDial(ctx, connectHost, c.config.IPv4Only, c.config.IPv6Only)
+	if err != nil {
+		return err
+	}
 	address := net.JoinHostPort(connectHost, fmt.Sprintf("%d", c.port))
 
 	options := &imapclient.Options{
@@ -73,7 +80,6 @@ func (c *IMAPClient) Connect(ctx context.Context) error {
 	}
 
 	var client *imapclient.Client
-	var err error
 
 	if c.config.IMAPS {
 		// Implicit TLS (IMAPS)

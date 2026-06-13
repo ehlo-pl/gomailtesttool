@@ -1,7 +1,8 @@
 package smtp
 
 // maskPassword masks a password for display in logs and error messages.
-// For passwords <= 4 characters, returns "****"
+// For passwords <= 8 characters, returns "****" (revealing 4 characters of a
+// password that short would disclose most or all of it)
 // For longer passwords, shows first 2 and last 2 characters with **** in between
 // This prevents password exposure in logs while allowing identification of which credential was used.
 //
@@ -10,7 +11,7 @@ package smtp
 //   - "password123" -> "pa****23"
 //   - "MySecretP@ss" -> "My****ss"
 func maskPassword(password string) string {
-	if len(password) <= 4 {
+	if len(password) <= 8 {
 		return "****"
 	}
 	// Show first 2 and last 2 characters
