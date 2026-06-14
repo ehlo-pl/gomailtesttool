@@ -60,6 +60,30 @@ gomailtest imap listfolders --host imap.example.com --port 993 --imaps \
     --username user@example.com --password "yourpassword"
 ```
 
+### exportmessages — Export Matching Messages as .eml
+
+Authenticates, selects a mailbox, SEARCHes for messages by Message-ID and/or
+a Subject substring, and exports each match's full raw RFC822 message as a
+`.eml` file.
+
+```powershell
+gomailtest imap exportmessages --host imap.example.com --port 993 --imaps \
+    --username user@example.com --password "yourpassword" \
+    --subject "Invoice"
+
+gomailtest imap exportmessages --host imap.example.com --port 993 --imaps \
+    --username user@example.com --password "yourpassword" \
+    --messageid "<message-id@example.com>" --mailbox "INBOX" --count 10
+
+# Custom export directory
+gomailtest imap exportmessages --host imap.example.com --port 993 --imaps \
+    --username user@example.com --password "yourpassword" \
+    --subject "Invoice" --exportdir "C:\exports"
+```
+
+Output goes to `%TEMP%\export\{date}\msg_{uid}.eml`, or
+`<exportdir>\{date}\msg_{uid}.eml` when `--exportdir` is given.
+
 ## Flags
 
 | Flag | Description | Environment Variable | Default |
@@ -88,6 +112,16 @@ gomailtest imap listfolders --host imap.example.com --port 993 --imaps \
 | `--loglevel` | Log level: DEBUG, INFO, WARN, ERROR | — | INFO |
 | `--output` | Output format: text, json | `IMAPOUTPUT` | text |
 | `--logformat` | Log file format: csv, json | `IMAPLOGFORMAT` | csv |
+
+### exportmessages-specific
+
+| Flag | Description | Environment Variable | Default |
+|------|-------------|---------------------|---------|
+| `--messageid` | Message-ID header value to search for | `IMAPMESSAGEID` | — |
+| `--subject` | Subject substring to search for | `IMAPSUBJECT` | — |
+| `--mailbox` | Mailbox to search | `IMAPMAILBOX` | INBOX |
+| `--count` | Maximum number of matching messages to export | `IMAPCOUNT` | 25 |
+| `--exportdir` | Directory under which to create the dated export folder | `IMAPEXPORTDIR` | OS temp dir |
 
 **Note:** `--imaps` and `--starttls` cannot be used together. When `--imaps` is set and port is the default 143, the port automatically changes to 993. `--no-imaps`+`--imaps` and `--no-starttls`+`--starttls` are each mutually exclusive (useful to catch conflicting defaults from `--config`/env vars).
 
