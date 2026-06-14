@@ -348,6 +348,53 @@ func (c *POP3Client) UIDL(ctx context.Context) ([]protocol.MessageInfo, error) {
 	return protocol.ParseUIDLResponse(resp)
 }
 
+// Top retrieves the headers and the first `lines` lines of the body for the
+// given message number. Pass lines=0 to retrieve only the headers.
+func (c *POP3Client) Top(ctx context.Context, msgNum, lines int) ([]byte, error) {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return nil, fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+
+	if _, err := c.conn.Write([]byte(protocol.TOP(msgNum, lines))); err != nil {
+		return nil, fmt.Errorf("failed to send TOP: %w", err)
+	}
+
+	resp, err := protocol.ReadMultilineResponse(c.reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TOP response: %w", err)
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("TOP failed: %s", resp.Message)
+	}
+
+	return []byte(strings.Join(resp.Lines, "\r\n")), nil
+}
+
+// Retr retrieves the full content of the given message number.
+func (c *POP3Client) Retr(ctx context.Context, msgNum int) ([]byte, error) {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return nil, fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+
+	if _, err := c.conn.Write([]byte(protocol.RETR(msgNum))); err != nil {
+		return nil, fmt.Errorf("failed to send RETR: %w", err)
+	}
+
+	resp, err := protocol.ReadMultilineResponse(c.reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read RETR response: %w", err)
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("RETR failed: %s", resp.Message)
+	}
+
+	return []byte(strings.Join(resp.Lines, "\r\n")), nil
+}
+
 // Quit sends the QUIT command and closes the connection.
 func (c *POP3Client) Quit() error {
 	if c.conn == nil {
