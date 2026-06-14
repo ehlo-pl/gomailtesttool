@@ -127,6 +127,22 @@ Output goes to `%TEMP%\export\{date}\message_{n}_{timestamp}.json`.
 gomailtest msgraph searchandexport --messageid "<message-id@example.com>"
 ```
 
+### exportmessages — Export Matching Messages as .eml
+
+Searches messages by Internet Message-ID and/or a subject substring (OData
+`contains()`), then downloads each match's raw RFC822 content as a `.eml`
+file.
+
+```powershell
+gomailtest msgraph exportmessages --subject "Invoice"
+gomailtest msgraph exportmessages --messageid "<message-id@example.com>"
+gomailtest msgraph exportmessages --subject "Invoice" --count 10
+gomailtest msgraph exportmessages --subject "Invoice" --exportdir "C:\exports"
+```
+
+Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or
+`<exportdir>\{date}\msg_{id}.eml` when `--exportdir` is given.
+
 ## Flags
 
 ### Persistent (all subcommands)
@@ -167,6 +183,15 @@ gomailtest msgraph searchandexport --messageid "<message-id@example.com>"
 | `--start` | Start time (RFC3339) | `MSGRAPHSTART` |
 | `--end` | End time (RFC3339) | `MSGRAPHEND` |
 | `--messageid` | Internet Message ID | `MSGRAPHMESSAGEID` |
+| `--exportdir` | Directory under which to create the dated export folder (used by `exportinbox`, `searchandexport`, `exportmessages`) | `MSGRAPHEXPORTDIR` | OS temp dir |
+
+### exportmessages-specific
+
+| Flag | Description | Environment Variable | Default |
+|------|-------------|---------------------|---------|
+| `--messageid` | Internet Message-ID to search for | `MSGRAPHMESSAGEID` | — |
+| `--subject` | Subject substring to search for (OData `contains()`) | `MSGRAPHSUBJECT` | — |
+| `--count` | Maximum number of matching messages to export | `MSGRAPHCOUNT` | 25 |
 
 ## Authentication Methods
 
@@ -285,7 +310,7 @@ Retry uses exponential backoff: 2s → 4s → 8s → 16s → 30s (capped). Retri
 |--------|-----------|
 | sendmail | `Mail.Send` |
 | getevents, sendinvite | `Calendars.ReadWrite` |
-| getinbox, exportinbox, searchandexport | `Mail.Read` |
+| getinbox, exportinbox, searchandexport, exportmessages | `Mail.Read` |
 | getschedule | `Calendars.Read` |
 
 ## Tips and Best Practices

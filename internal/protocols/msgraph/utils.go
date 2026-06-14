@@ -121,6 +121,28 @@ func validateMessageID(msgID string) error {
 	return nil
 }
 
+// validateSearchSubject validates a subject search pattern used in an OData
+// contains() filter. Single quotes are escaped (doubled) by the caller before
+// being embedded in the filter, so this only rejects empty/oversized input and
+// control characters that have no place in an email subject.
+func validateSearchSubject(subject string) error {
+	if strings.TrimSpace(subject) == "" {
+		return fmt.Errorf("subject cannot be empty")
+	}
+
+	if len(subject) > 998 {
+		return fmt.Errorf("exceeds maximum length of 998 characters")
+	}
+
+	for _, r := range subject {
+		if r < 0x20 && r != '\t' {
+			return fmt.Errorf("contains invalid control characters")
+		}
+	}
+
+	return nil
+}
+
 // enrichGraphAPIError enriches Graph API errors with additional context,
 // particularly for rate limiting scenarios. It detects rate limit errors (429)
 // and extracts the Retry-After header if available.
