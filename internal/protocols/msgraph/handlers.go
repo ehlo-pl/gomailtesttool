@@ -14,6 +14,7 @@ import (
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/users"
 	"github.com/ziembor/gomailtesttool/internal/common/email"
+	"github.com/ziembor/gomailtesttool/internal/common/export"
 	"github.com/ziembor/gomailtesttool/internal/common/logger"
 )
 
@@ -591,7 +592,7 @@ func exportInbox(ctx context.Context, client *msgraphsdk.GraphServiceClient, mai
 	}
 
 	// Create export directory
-	exportDir, err := createExportDir()
+	exportDir, err := export.CreateExportDir(config.ExportDir)
 	if err != nil {
 		return err
 	}
@@ -674,7 +675,7 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 	}
 
 	// Create export directory
-	exportDir, err := createExportDir()
+	exportDir, err := export.CreateExportDir(config.ExportDir)
 	if err != nil {
 		return err
 	}
@@ -765,7 +766,7 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 	}
 
 	// Create export directory
-	exportDir, err := createExportDir()
+	exportDir, err := export.CreateExportDir(config.ExportDir)
 	if err != nil {
 		return err
 	}
@@ -829,7 +830,8 @@ func exportMessageToEML(ctx context.Context, client *msgraphsdk.GraphServiceClie
 		name = *message.GetInternetMessageId()
 	}
 
-	filename := fmt.Sprintf("msg_%s.eml", sanitizeFilename(name))
+
+	filename := fmt.Sprintf("msg_%s.eml", export.SanitizeFilename(name))
 	filePath := filepath.Join(dir, filename)
 
 	if err := os.WriteFile(filePath, mimeContent, 0644); err != nil {
@@ -899,7 +901,7 @@ func exportMessageToJSON(message models.Messageable, dir string, config *Config)
 	}
 
 	// Sanitize filename
-	filename := fmt.Sprintf("msg_%s.json", sanitizeFilename(id))
+	filename := fmt.Sprintf("msg_%s.json", export.SanitizeFilename(id))
 	filePath := filepath.Join(dir, filename)
 
 	if err := os.WriteFile(filePath, jsonData, 0644); err != nil {
@@ -908,18 +910,6 @@ func exportMessageToJSON(message models.Messageable, dir string, config *Config)
 
 	logVerbose(config.VerboseMode, "Exported message to %s", filePath)
 	return nil
-}
-
-// createExportDir creates the export directory structure: $TEMP/export/YYYY-MM-DD
-func createExportDir() (string, error) {
-	tempDir := os.TempDir()
-	dateStr := time.Now().Format("2006-01-02")
-	exportDir := filepath.Join(tempDir, "export", dateStr)
-
-	if err := os.MkdirAll(exportDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create export directory %s: %w", exportDir, err)
-	}
-	return exportDir, nil
 }
 
 // extractEmailAddress helper
@@ -943,15 +933,6 @@ func extractRecipients(recipients []models.Recipientable) []map[string]string {
 		}
 	}
 	return res
-}
-
-// sanitizeFilename helper
-func sanitizeFilename(name string) string {
-	invalid := []string{"<", ">", ":", "\"", "/", "\\", "|", "?", "*", "="}
-	for _, char := range invalid {
-		name = strings.ReplaceAll(name, char, "_")
-	}
-	return name
 }
 
 // interpretAvailability converts Microsoft Graph availability view codes to human-readable status.

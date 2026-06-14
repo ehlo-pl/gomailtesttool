@@ -50,13 +50,21 @@ type Config struct {
 	OutputFormat string
 	LogFormat    string  // Log file format: csv, json
 	RateLimit    float64 // Maximum requests per second (0 = unlimited)
+
+	// exportmessages configuration
+	Subject   string // Subject substring to search for
+	MessageID string // Message-ID header to search for
+	Mailbox   string // Mailbox to search (default: INBOX)
+	Count     int    // Maximum number of matching messages to export
+	ExportDir string // Directory under which to create the dated export folder (default: OS temp dir)
 }
 
 // Action constants
 const (
-	ActionTestConnect = "testconnect"
-	ActionTestAuth    = "testauth"
-	ActionListFolders = "listfolders"
+	ActionTestConnect    = "testconnect"
+	ActionTestAuth       = "testauth"
+	ActionListFolders    = "listfolders"
+	ActionExportMessages = "exportmessages"
 )
 
 // NewConfig creates a new Config with default values.
@@ -76,6 +84,8 @@ func NewConfig() *Config {
 		OutputFormat: "text",
 		LogFormat:    "csv",
 		RateLimit:    0,
+		Mailbox:      "INBOX",
+		Count:        25,
 	}
 }
 
@@ -145,6 +155,11 @@ func BindEnvs(v *viper.Viper) {
 		"output":      "IMAPOUTPUT",
 		"logformat":   "IMAPLOGFORMAT",
 		"ratelimit":   "IMAPRATELIMIT",
+		"subject":     "IMAPSUBJECT",
+		"messageid":   "IMAPMESSAGEID",
+		"mailbox":     "IMAPMAILBOX",
+		"count":       "IMAPCOUNT",
+		"exportdir":   "IMAPEXPORTDIR",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -201,6 +216,16 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		logFormat = defaults.LogFormat
 	}
 
+	mailbox := v.GetString("mailbox")
+	if mailbox == "" {
+		mailbox = defaults.Mailbox
+	}
+
+	count := v.GetInt("count")
+	if count <= 0 {
+		count = defaults.Count
+	}
+
 	return &Config{
 		Host:           v.GetString("host"),
 		Port:           port,
@@ -226,13 +251,18 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		OutputFormat:   outputFormat,
 		LogFormat:      logFormat,
 		RateLimit:      v.GetFloat64("ratelimit"),
+		Subject:        v.GetString("subject"),
+		MessageID:      v.GetString("messageid"),
+		Mailbox:        mailbox,
+		Count:          count,
+		ExportDir:      v.GetString("exportdir"),
 	}
 }
 
 // validateConfiguration validates the configuration.
 func validateConfiguration(config *Config) error {
 	// Validate action
-	validActions := []string{ActionTestConnect, ActionTestAuth, ActionListFolders}
+	validActions := []string{ActionTestConnect, ActionTestAuth, ActionListFolders, ActionExportMessages}
 	valid := false
 	for _, a := range validActions {
 		if config.Action == a {
@@ -307,7 +337,7 @@ func validateConfiguration(config *Config) error {
 
 	// Action-specific validation
 	switch config.Action {
-	case ActionTestAuth, ActionListFolders:
+	case ActionTestAuth, ActionListFolders, ActionExportMessages:
 		if config.Username == "" {
 			return fmt.Errorf("%s requires --username", config.Action)
 		}
@@ -324,6 +354,13 @@ func validateConfiguration(config *Config) error {
 			}
 		} else if config.Password == "" {
 			return fmt.Errorf("%s requires --password (or --accesstoken for XOAUTH2)", config.Action)
+		}
+	}
+
+	// Validate exportmessages-specific requirements
+	if config.Action == ActionExportMessages {
+		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
+			return fmt.Errorf("exportmessages action requires --messageid and/or --subject parameter")
 		}
 	}
 

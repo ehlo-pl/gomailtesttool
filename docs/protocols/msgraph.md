@@ -137,9 +137,17 @@ file.
 gomailtest msgraph exportmessages --subject "Invoice"
 gomailtest msgraph exportmessages --messageid "<message-id@example.com>"
 gomailtest msgraph exportmessages --subject "Invoice" --count 10
+
 ```
 
 Output goes to `%TEMP%\export\{date}\msg_{id}.eml`.
+=======
+gomailtest msgraph exportmessages --subject "Invoice" --exportdir "C:\exports"
+```
+
+Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or
+`<exportdir>\{date}\msg_{id}.eml` when `--exportdir` is given.
+ 
 
 ## Flags
 
@@ -181,6 +189,15 @@ Output goes to `%TEMP%\export\{date}\msg_{id}.eml`.
 | `--start` | Start time (RFC3339) | `MSGRAPHSTART` |
 | `--end` | End time (RFC3339) | `MSGRAPHEND` |
 | `--messageid` | Internet Message ID | `MSGRAPHMESSAGEID` |
+| `--exportdir` | Directory under which to create the dated export folder (used by `exportinbox`, `searchandexport`, `exportmessages`) | `MSGRAPHEXPORTDIR` | OS temp dir |
+
+### exportmessages-specific
+
+| Flag | Description | Environment Variable | Default |
+|------|-------------|---------------------|---------|
+| `--messageid` | Internet Message-ID to search for | `MSGRAPHMESSAGEID` | — |
+| `--subject` | Subject substring to search for (OData `contains()`) | `MSGRAPHSUBJECT` | — |
+| `--count` | Maximum number of matching messages to export | `MSGRAPHCOUNT` | 25 |
 
 ## Authentication Methods
 

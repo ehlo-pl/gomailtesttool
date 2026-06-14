@@ -360,6 +360,7 @@ func newExportInboxCmd(v *viper.Viper) *cobra.Command {
 		},
 	}
 	cmd.Flags().Int("count", 3, "Number of messages to export (env: MSGRAPHCOUNT)")
+	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: MSGRAPHEXPORTDIR)")
 	return cmd
 }
 
@@ -407,6 +408,61 @@ func newSearchAndExportCmd(v *viper.Viper) *cobra.Command {
 		},
 	}
 	cmd.Flags().String("messageid", "", "Internet Message-ID to search for (env: MSGRAPHMESSAGEID)")
+	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: MSGRAPHEXPORTDIR)")
+	return cmd
+}
+
+func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "exportmessages",
+		Short: "Search messages by Message-ID and/or Subject and export them as .eml files",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionExportMessages
+			// "subject" is shared with sendmail/sendinvite, whose default
+			// ("Automated Tool Notification") would otherwise narrow the
+			// search; only use it here if the user actually provided it.
+			config.Subject = v.GetString("subject")
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("msgraphtool", ActionExportMessages, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer csvLogger.Close()
+			}
+
+			if config.ProxyURL != "" {
+				os.Setenv("HTTP_PROXY", config.ProxyURL)
+				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+			}
+
+			client, err := NewGraphServiceClient(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+
+			return exportMessages(ctx, client, config.Mailbox, config.MessageID, config.Subject, config.Count, config, csvLogger)
+		},
+	}
+	cmd.Flags().String("messageid", "", "Internet Message-ID to search for (env: MSGRAPHMESSAGEID)")
+	cmd.Flags().String("subject", "", "Subject substring to search for, used with OData contains() (env: MSGRAPHSUBJECT)")
+	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: MSGRAPHCOUNT)")
+	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: MSGRAPHEXPORTDIR)")
 	return cmd
 }
 
