@@ -142,6 +142,7 @@ gomailtest msgraph exportmessages --subject "Invoice" --exportdir "C:\exports"
 
 Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or
 `<exportdir>\{date}\msg_{id}.eml` when `--exportdir` is given.
+ 
 
 ## Flags
 

@@ -830,6 +830,7 @@ func exportMessageToEML(ctx context.Context, client *msgraphsdk.GraphServiceClie
 		name = *message.GetInternetMessageId()
 	}
 
+
 	filename := fmt.Sprintf("msg_%s.eml", export.SanitizeFilename(name))
 	filePath := filepath.Join(dir, filename)
 

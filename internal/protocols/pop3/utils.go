@@ -1,7 +1,8 @@
 package pop3
 
-// maskUsername masks a username for safe logging.
+// maskUsername masks usernames/emails for safe display in logs.
 // Shows first 2 and last 2 characters with **** in between.
+// Examples: "user@example.com" -> "us****om", "ab" -> "****"
 func maskUsername(username string) string {
 	if len(username) <= 4 {
 		return "****"

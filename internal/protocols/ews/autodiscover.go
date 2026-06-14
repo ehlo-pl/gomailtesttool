@@ -50,7 +50,6 @@ type userSetting struct {
 // autodiscover sends a SOAP GetUserSettings request to the Autodiscover endpoint.
 func autodiscover(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
 	fmt.Printf("Testing EWS Autodiscover for %s\n", config.Username)
-	fmt.Printf("  Endpoint: https://%s:%d%s\n\n", config.Host, config.Port, config.AutodiscoverPath)
 
 	if shouldWrite, _ := csvLogger.ShouldWriteHeader(); shouldWrite {
 		if err := csvLogger.WriteHeader([]string{
@@ -67,6 +66,8 @@ func autodiscover(ctx context.Context, config *Config, csvLogger logger.Logger, 
 		writeAutodiscoverCSV(csvLogger, slogLogger, config, nil, 0, err.Error())
 		return err
 	}
+
+	fmt.Printf("  Endpoint: %s\n\n", ewsClient.AutodiscoverUrl())
 
 	logger.LogDebug(slogLogger, "Sending Autodiscover GetUserSettings", "email", config.Username)
 

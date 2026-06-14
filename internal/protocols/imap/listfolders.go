@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ziembor/gomailtesttool/internal/common/security"
 )
 
 // listFolders lists all mailbox folders.
@@ -74,7 +75,7 @@ func listFolders(ctx context.Context, config *Config, csvLogger logger.Logger, s
 	if authErr != nil {
 		logger.LogError(slogLogger, "Authentication failed",
 			"error", authErr,
-			"username", maskUsername(config.Username))
+			"username", security.MaskUsername(config.Username))
 
 		if logErr := csvLogger.WriteRow([]string{
 			config.Action, "FAILURE", config.Host, fmt.Sprintf("%d", config.Port),

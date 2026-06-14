@@ -15,6 +15,7 @@ import (
 
 	"github.com/ziembor/gomailtesttool/internal/common/email"
 	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ziembor/gomailtesttool/internal/common/security"
 	smtptls "github.com/ziembor/gomailtesttool/internal/smtp/tls"
 )
 
@@ -189,9 +190,9 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		if err := client.Auth(config.Username, config.Password, config.AccessToken, []string{methodToUse}); err != nil {
 			logger.LogError(slogLogger, "Authentication failed",
 				"error", err,
-				"username", maskUsername(config.Username),
-				"password", maskPassword(config.Password),
-				"accesstoken", maskAccessToken(config.AccessToken),
+				"username", security.MaskUsername(config.Username),
+				"password", security.MaskPassword(config.Password),
+				"accesstoken", security.MaskAccessToken(config.AccessToken),
 				"method", methodToUse)
 
 			// Show TLS cipher information on auth failure if verbose and TLS was used

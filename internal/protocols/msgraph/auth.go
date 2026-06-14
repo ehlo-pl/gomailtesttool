@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/golang-jwt/jwt/v5"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+	"github.com/ziembor/gomailtesttool/internal/common/security"
 	"software.sslmate.com/src/go-pkcs12"
 )
 
@@ -61,7 +62,7 @@ func (c *BearerTokenCredential) GetToken(ctx context.Context, options policy.Tok
 // NewGraphServiceClient creates credentials and initializes the Microsoft Graph SDK client.
 func NewGraphServiceClient(ctx context.Context, config *Config, logger *slog.Logger) (*msgraphsdk.GraphServiceClient, error) {
 	// Setup Authentication
-	logDebug(logger, "Setting up Microsoft Graph client", "tenantID", maskGUID(config.TenantID), "clientID", maskGUID(config.ClientID))
+	logDebug(logger, "Setting up Microsoft Graph client", "tenantID", security.MaskGUID(config.TenantID), "clientID", security.MaskGUID(config.ClientID))
 
 	cred, err := getCredential(config.TenantID, config.ClientID, config.Secret, config.PfxPath, config.PfxPass, config.Thumbprint, config, logger)
 	if err != nil {

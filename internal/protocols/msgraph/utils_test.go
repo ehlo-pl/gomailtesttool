@@ -111,54 +111,6 @@ func TestValidateMessageID(t *testing.T) {
 	}
 }
 
-// TestMaskSecret tests secret masking for logging (security helper)
-func TestMaskSecret(t *testing.T) {
-	tests := []struct {
-		name     string
-		secret   string
-		expected string
-	}{
-		{"Short secret (<= 8 chars)", "secret", "********"},
-		{"Short secret (8 chars)", "12345678", "********"},
-		{"Normal secret (12 chars)", "secret123456", "secr********3456"},
-		{"Long secret", "this_is_a_very_long_secret_key", "this********_key"},
-		{"Empty secret", "", "********"},
-		{"Minimum maskable (9 chars)", "123456789", "1234********6789"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := maskSecret(tt.secret)
-			if result != tt.expected {
-				t.Errorf("maskSecret(%q) = %q, want %q", tt.secret, result, tt.expected)
-			}
-		})
-	}
-}
-
-// TestMaskGUID tests GUID masking for logging (security helper)
-func TestMaskGUID(t *testing.T) {
-	tests := []struct {
-		name     string
-		guid     string
-		expected string
-	}{
-		{"Standard GUID", "12345678-1234-1234-1234-123456789012", "1234****-****-****-****9012"},
-		{"Short GUID (<= 8 chars)", "1234", "****"},
-		{"Empty GUID", "", "****"},
-		{"Minimum maskable (9 chars)", "123456789", "1234****-****-****-****6789"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := maskGUID(tt.guid)
-			if result != tt.expected {
-				t.Errorf("maskGUID(%q) = %q, want %q", tt.guid, result, tt.expected)
-			}
-		})
-	}
-}
-
 // TestIfEmpty tests the conditional string helper
 func TestIfEmpty(t *testing.T) {
 	tests := []struct {

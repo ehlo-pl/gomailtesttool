@@ -1,0 +1,94 @@
+# Code Review Results - gomailtesttool
+
+**Scope:** Full codebase review (122 Go files, ~25k lines), 2026-06-14.
+`go build ./...` and `go vet ./...` both pass cleanly.
+
+## 0. Status of Previous Findings
+
+All issues from the prior review in this file have been fixed and are
+tracked as completed in `TODO.md`:
+
+- Broken `MaskAccessToken`/`MaskPassword` in `internal/common/security/masking.go`
+  (previously exposed full short tokens/passwords) — fixed.
+- API-key middleware bypass on empty configured key
+  (`internal/serve/server.go`) — now fails closed.
+- Default bind address changed from `0.0.0.0` to `127.0.0.1`
+  (`internal/serve/cmd.go`).
+- SMTP response-reader goroutine leak in
+  `internal/smtp/protocol/responses.go` — now uses `conn.SetReadDeadline`
+  instead of a goroutine + `time.After`.
+- Missing HTTP server `IdleTimeout` (`internal/serve/server.go`) — now set
+  to 60s.
+
+Notably, TODO.md records that fixing the masking bugs required applying
+"the same fix" separately to duplicate copies of the masking functions in
+`internal/protocols/jmap/utils.go` and `internal/protocols/smtp/utils.go`.
+That duplication is itself the main new finding below (1.1).
+
+## 1. Security Issues (in context of a credential-handling testing tool)
+
+### 1.1 Major: Credential-masking logic is duplicated across 6 packages, creating drift risk
+
+- **Location:**
+  - `internal/common/security/masking.go` (canonical, fixed version)
+  - `internal/protocols/smtp/utils.go` (`maskPassword`, `maskUsername`, `maskAccessToken`)
+  - `internal/protocols/jmap/utils.go` (`maskUsername`, `maskPassword`, `maskAccessToken`)
+  - `internal/protocols/imap/utils.go` (`maskUsername`)
+  - `internal/protocols/pop3/utils.go` (`maskUsername`)
+  - `internal/protocols/msgraph/utils.go` (`maskSecret`, `maskGUID`)
+- **Issue:** Six packages each carry their own private copies of what is
+  essentially the same masking logic, with subtly different thresholds and
+  output formats (e.g. `smtp.maskAccessToken` masks tokens <= 16 chars
+  completely, while `jmap.maskAccessToken` and `common/security.MaskAccessToken`
+  show 2 chars on each side for 9-16 char tokens). Only
+  `internal/devtools/env/env.go` actually imports `common/security`.
+- **Impact:** When the masking bugs were fixed in `common/security`, the
+  fixes had to be re-applied by hand to the `jmap` and `smtp` copies (per
+  TODO.md). Any future fix to masking behavior is likely to miss one or
+  more of the 5 duplicate copies, silently leaving a weaker/incorrect
+  masking implementation in some protocol packages.
+- **Recommendation:** Have all protocol packages call
+  `internal/common/security` directly and delete the local `maskX`
+  helpers. This removes ~5 duplicate implementations and ensures future
+  fixes apply everywhere at once.
+
+### 1.2 Minor: `internal/protocols/msgraph/utils.go:maskSecret` has a masking-weakness bug (currently dead code)
+
+- **Location:** `internal/protocols/msgraph/utils.go:41-47`
+- **Issue:** For secrets of 9-16 characters, `secret[:4] + "********" + secret[len(secret)-4:]` exposes 8 of the secret's characters (e.g. a 9-char secret exposes 8/9 chars; the two 4-char windows overlap). This is the same class of bug already fixed in `common/security.MaskSecret` (which now returns `secret[:4] + "****"` for secrets > 4 chars, with no trailing reveal).
+- **Impact:** Currently `maskSecret` is unused (only `maskGUID` is called, in `auth.go:64`), so there's no live exposure. But it's a trap for the next person who wires it up to log a client secret.
+- **Recommendation:** Remove this dead function as part of consolidating onto `common/security` (see 1.1), or fix it to match the safer canonical behavior if it must stay.
+
+### 1.3 Low: `internal/pop3/protocol/responses.go:ReadResponseWithTimeout` silently ignores its `timeout` parameter
+
+- **Location:** `internal/pop3/protocol/responses.go:43-47`
+  ```go
+  func ReadResponseWithTimeout(reader *bufio.Reader, timeout time.Duration) (*POP3Response, error) {
+      // For now, just use the basic read - timeout should be set on the connection
+      return ReadResponse(reader)
+  }
+  ```
+- **Issue:** The function accepts a `timeout` but never uses it — it's pure dead code with a misleading signature/doc comment ("reads a response with a timeout"). It is not called from anywhere in the codebase.
+- **Impact:** Low today since it's unused, but if a future caller adopts it expecting `SetReadDeadline`-style enforcement (as SMTP's `ReadResponseWithTimeout` now correctly does), they'll get an unbounded read and a potential hang against a misbehaving POP3 server.
+- **Related gap:** The live POP3 command path (`internal/protocols/pop3/pop3_client.go`, calls to `protocol.ReadResponse` at lines 101, 139, 240, 253, 280, 303) sets no read deadline at all for normal commands — only the `QUIT`/close path (line 361) sets a 5s deadline. SMTP, by contrast, wraps every response read in `ReadResponseWithTimeout(conn, ...)` which sets and clears a deadline. Consider giving POP3 the same per-command deadline treatment SMTP has, rather than keeping the unused/broken `ReadResponseWithTimeout` helper.
+
+## 2. Code Quality / Correctness
+
+### 2.1 Minor: EWS Autodiscover prints a hardcoded `https://` scheme that can mismatch the actual request URL
+
+- **Location:** `internal/protocols/ews/autodiscover.go:53`
+  ```go
+  fmt.Printf("  Endpoint: https://%s:%d%s\n\n", config.Host, config.Port, config.AutodiscoverPath)
+  ```
+- **Issue:** `NewEWSClient` (`internal/protocols/ews/ews_client.go:118-121`) computes `scheme := "https"` but switches to `"http"` when `config.Port == 80`, and builds `autodiscoverURL` from that scheme. The printed message in `autodiscover.go` always says `https://`, regardless of the actual scheme used for the request.
+- **Impact:** Cosmetic — diagnostic output can show the wrong scheme when testing against port 80, which is confusing when comparing the printed endpoint to packet captures or proxy logs.
+- **Recommendation:** Use `ewsClient.AutodiscoverUrl()` (already exposed) for the printed endpoint instead of re-deriving it with a hardcoded scheme.
+
+## 3. Summary
+
+The codebase is in good shape overall — `go vet` is clean, and every issue
+from the previous review has been addressed. The main opportunity for this
+pass is **1.1**: consolidating the five duplicate masking-helper copies onto
+`internal/common/security` would remove the structural cause of the
+previous masking bugs recurring, and incidentally cleans up the dead/buggy
+code in **1.2** and **1.3**.

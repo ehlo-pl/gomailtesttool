@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ziembor/gomailtesttool/internal/common/security"
 )
 
 // testAuth tests IMAP authentication.
@@ -32,7 +33,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 
 		if logErr := csvLogger.WriteRow([]string{
 			config.Action, "FAILURE", config.Host, fmt.Sprintf("%d", config.Port),
-			maskUsername(config.Username), "", "", "FAILURE", err.Error(),
+			security.MaskUsername(config.Username), "", "", "FAILURE", err.Error(),
 		}); logErr != nil {
 			logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 		}
@@ -86,12 +87,12 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	if authErr != nil {
 		logger.LogError(slogLogger, "Authentication failed",
 			"error", authErr,
-			"username", maskUsername(config.Username),
+			"username", security.MaskUsername(config.Username),
 			"method", authMethod)
 
 		if logErr := csvLogger.WriteRow([]string{
 			config.Action, "FAILURE", config.Host, fmt.Sprintf("%d", config.Port),
-			maskUsername(config.Username), authMechanisms, authMethod, "FAILURE", authErr.Error(),
+			security.MaskUsername(config.Username), authMechanisms, authMethod, "FAILURE", authErr.Error(),
 		}); logErr != nil {
 			logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 		}
@@ -99,12 +100,12 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	}
 
 	logger.LogInfo(slogLogger, "Authentication successful",
-		"username", maskUsername(config.Username),
+		"username", security.MaskUsername(config.Username),
 		"method", authMethod)
 
 	if logErr := csvLogger.WriteRow([]string{
 		config.Action, "SUCCESS", config.Host, fmt.Sprintf("%d", config.Port),
-		maskUsername(config.Username), authMechanisms, authMethod, "SUCCESS", "",
+		security.MaskUsername(config.Username), authMechanisms, authMethod, "SUCCESS", "",
 	}); logErr != nil {
 		logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 	}

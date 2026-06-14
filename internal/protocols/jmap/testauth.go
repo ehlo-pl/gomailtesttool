@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ziembor/gomailtesttool/internal/common/security"
 	"github.com/ziembor/gomailtesttool/internal/jmap/protocol"
 )
 
@@ -35,12 +36,12 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		logger.LogError(slogLogger, "JMAP authentication failed",
 			"error", err,
 			"host", config.Host,
-			"username", maskUsername(config.Username),
+			"username", security.MaskUsername(config.Username),
 			"auth_method", authMethod)
 
 		if logErr := csvLogger.WriteRow([]string{
 			config.Action, "FAILURE", config.Host, fmt.Sprintf("%d", config.Port),
-			maskUsername(config.Username), authMethod, "", "", err.Error(),
+			security.MaskUsername(config.Username), authMethod, "", "", err.Error(),
 		}); logErr != nil {
 			logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 		}
@@ -88,7 +89,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	// Log success to CSV
 	if logErr := csvLogger.WriteRow([]string{
 		config.Action, "SUCCESS", config.Host, fmt.Sprintf("%d", config.Port),
-		maskUsername(config.Username), authMethod, session.APIURL,
+		security.MaskUsername(config.Username), authMethod, session.APIURL,
 		fmt.Sprintf("%d", session.GetAccountCount()), "",
 	}); logErr != nil {
 		logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
@@ -96,7 +97,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 
 	logger.LogInfo(slogLogger, "JMAP authentication test completed",
 		"host", config.Host,
-		"username", maskUsername(config.Username),
+		"username", security.MaskUsername(config.Username),
 		"auth_method", authMethod,
 		"accounts", session.GetAccountCount(),
 		"has_mail", session.HasMailCapability())

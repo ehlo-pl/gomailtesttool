@@ -37,23 +37,6 @@ func logVerbose(verbose bool, format string, args ...interface{}) {
 	}
 }
 
-// maskSecret masks a secret for display, showing only first and last 4 characters
-func maskSecret(secret string) string {
-	if len(secret) <= 8 {
-		return "********"
-	}
-	// Show first 4 and last 4 characters
-	return secret[:4] + "********" + secret[len(secret)-4:]
-}
-
-// maskGUID masks a GUID for logging, showing only first 4 and last 4 characters
-func maskGUID(guid string) string {
-	if len(guid) <= 8 {
-		return "****"
-	}
-	return guid[:4] + "****-****-****-****" + guid[len(guid)-4:]
-}
-
 // ifEmpty returns defaultVal if s is empty, otherwise returns s
 func ifEmpty(s, defaultVal string) string {
 	if s == "" {
