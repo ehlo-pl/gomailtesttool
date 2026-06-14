@@ -14,6 +14,7 @@ import (
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/users"
 	"github.com/ziembor/gomailtesttool/internal/common/email"
+	"github.com/ziembor/gomailtesttool/internal/common/export"
 	"github.com/ziembor/gomailtesttool/internal/common/logger"
 )
 
@@ -591,7 +592,7 @@ func exportInbox(ctx context.Context, client *msgraphsdk.GraphServiceClient, mai
 	}
 
 	// Create export directory
-	exportDir, err := createExportDir()
+	exportDir, err := export.CreateExportDir(config.ExportDir)
 	if err != nil {
 		return err
 	}
@@ -674,7 +675,7 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 	}
 
 	// Create export directory
-	exportDir, err := createExportDir()
+	exportDir, err := export.CreateExportDir(config.ExportDir)
 	if err != nil {
 		return err
 	}
@@ -697,6 +698,147 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 	}
 
 	return nil
+}
+
+// exportMessages searches for messages matching the given Internet Message-ID
+// and/or subject pattern and exports each match as a raw .eml (RFC822) file.
+func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, messageID string, subject string, count int, config *Config, logger logger.Logger) error {
+	// Build OData filter from the supplied criteria.
+	// SECURITY: Escape single quotes for OData filter (defense-in-depth);
+	// validateMessageID()/validateSearchSubject() already reject control
+	// characters and (for messageID) quotes.
+	var clauses []string
+	if messageID != "" {
+		escapedMessageID := strings.ReplaceAll(messageID, "'", "''")
+		clauses = append(clauses, fmt.Sprintf("internetMessageId eq '%s'", escapedMessageID))
+	}
+	if subject != "" {
+		escapedSubject := strings.ReplaceAll(subject, "'", "''")
+		clauses = append(clauses, fmt.Sprintf("contains(subject,'%s')", escapedSubject))
+	}
+	filter := strings.Join(clauses, " and ")
+
+	requestConfig := &users.ItemMessagesRequestBuilderGetRequestConfiguration{
+		QueryParameters: &users.ItemMessagesRequestBuilderGetQueryParameters{
+			Filter: &filter,
+			Top:    Int32Ptr(int32(count)),
+			Select: []string{"id", "internetMessageId", "subject", "receivedDateTime", "from", "toRecipients", "ccRecipients", "bccRecipients", "hasAttachments"},
+		},
+	}
+
+	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/messages?$filter=%s&$top=%d", mailbox, filter, count)
+
+	// Execute API call with retry logic
+	var getValueFunc func() []models.Messageable
+	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+		apiResult, apiErr := client.Users().ByUserId(mailbox).Messages().Get(ctx, requestConfig)
+		if apiErr == nil {
+			getValueFunc = apiResult.GetValue
+		}
+		return apiErr
+	})
+
+	if err != nil {
+		enrichedErr := enrichGraphAPIError(err, logger, "exportMessages")
+		return fmt.Errorf("error searching messages for %s: %w", mailbox, enrichedErr)
+	}
+
+	messages := getValueFunc()
+	messageCount := len(messages)
+
+	logVerbose(config.VerboseMode, "API response received: %d messages", messageCount)
+
+	if messageCount == 0 {
+		if config.OutputFormat == "json" {
+			printJSON([]interface{}{}) // Empty array
+		} else {
+			fmt.Println("No messages found matching the given criteria.")
+		}
+		if logger != nil {
+			_ = logger.WriteRow([]string{ActionExportMessages, StatusSuccess, mailbox, "No messages found (0 messages)", "N/A"})
+		}
+		return nil
+	}
+
+	// Print JSON output if requested
+	if config.OutputFormat == "json" {
+		printJSON(formatMessagesOutput(messages))
+	}
+
+	// Create export directory
+	exportDir, err := export.CreateExportDir(config.ExportDir)
+	if err != nil {
+		return err
+	}
+
+	if config.OutputFormat != "json" {
+		fmt.Printf("Export directory: %s\n", exportDir)
+	}
+
+	successCount := 0
+	for _, message := range messages {
+		filePath, err := exportMessageToEML(ctx, client, mailbox, message, exportDir, config)
+		if err != nil {
+			log.Printf("Error exporting message ID %s: %v", *message.GetId(), err)
+			if logger != nil {
+				_ = logger.WriteRow([]string{ActionExportMessages, StatusError, mailbox, err.Error(), *message.GetId()})
+			}
+			continue
+		}
+
+		successCount++
+		if config.OutputFormat != "json" {
+			fmt.Printf("Successfully exported message: %s -> %s\n", *message.GetSubject(), filePath)
+		}
+		if logger != nil {
+			_ = logger.WriteRow([]string{ActionExportMessages, StatusSuccess, mailbox, "Exported successfully", *message.GetId(), filePath})
+		}
+	}
+
+	if config.OutputFormat != "json" {
+		fmt.Printf("Successfully exported %d/%d messages.\n", successCount, messageCount)
+	}
+
+	return nil
+}
+
+// exportMessageToEML fetches a message's raw RFC822/MIME content via the
+// Graph API "$value" endpoint and writes it to a .eml file in dir. It returns
+// the path to the written file.
+func exportMessageToEML(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, message models.Messageable, dir string, config *Config) (string, error) {
+	if message.GetId() == nil {
+		return "", fmt.Errorf("message has no ID")
+	}
+	id := *message.GetId()
+
+	var mimeContent []byte
+	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+		content, apiErr := client.Users().ByUserId(mailbox).Messages().ByMessageId(id).Content().Get(ctx, nil)
+		if apiErr == nil {
+			mimeContent = content
+		}
+		return apiErr
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch message content: %w", err)
+	}
+
+	// Prefer the Internet Message-ID for the filename when available, since
+	// it's more useful for cross-referencing than the Graph-internal ID.
+	name := id
+	if message.GetInternetMessageId() != nil && *message.GetInternetMessageId() != "" {
+		name = *message.GetInternetMessageId()
+	}
+
+	filename := fmt.Sprintf("msg_%s.eml", export.SanitizeFilename(name))
+	filePath := filepath.Join(dir, filename)
+
+	if err := os.WriteFile(filePath, mimeContent, 0644); err != nil {
+		return "", fmt.Errorf("failed to write EML file: %w", err)
+	}
+
+	logVerbose(config.VerboseMode, "Exported message to %s", filePath)
+	return filePath, nil
 }
 
 // exportMessageToJSON serializes a message to JSON and saves it to a file
@@ -758,7 +900,7 @@ func exportMessageToJSON(message models.Messageable, dir string, config *Config)
 	}
 
 	// Sanitize filename
-	filename := fmt.Sprintf("msg_%s.json", sanitizeFilename(id))
+	filename := fmt.Sprintf("msg_%s.json", export.SanitizeFilename(id))
 	filePath := filepath.Join(dir, filename)
 
 	if err := os.WriteFile(filePath, jsonData, 0644); err != nil {
@@ -767,18 +909,6 @@ func exportMessageToJSON(message models.Messageable, dir string, config *Config)
 
 	logVerbose(config.VerboseMode, "Exported message to %s", filePath)
 	return nil
-}
-
-// createExportDir creates the export directory structure: $TEMP/export/YYYY-MM-DD
-func createExportDir() (string, error) {
-	tempDir := os.TempDir()
-	dateStr := time.Now().Format("2006-01-02")
-	exportDir := filepath.Join(tempDir, "export", dateStr)
-
-	if err := os.MkdirAll(exportDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create export directory %s: %w", exportDir, err)
-	}
-	return exportDir, nil
 }
 
 // extractEmailAddress helper
@@ -802,15 +932,6 @@ func extractRecipients(recipients []models.Recipientable) []map[string]string {
 		}
 	}
 	return res
-}
-
-// sanitizeFilename helper
-func sanitizeFilename(name string) string {
-	invalid := []string{"<", ">", ":", "\"", "/", "\\", "|", "?", "*", "="}
-	for _, char := range invalid {
-		name = strings.ReplaceAll(name, char, "_")
-	}
-	return name
 }
 
 // interpretAvailability converts Microsoft Graph availability view codes to human-readable status.

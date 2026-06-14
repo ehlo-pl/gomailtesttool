@@ -65,6 +65,30 @@ gomailtest pop3 listmail --host pop.example.com --port 995 --pop3s \
     --username user@example.com --password "yourpassword" --maxmessages 50
 ```
 
+### exportmessages — Export Matching Messages as .eml
+
+Authenticates, fetches headers for each message via `TOP`, matches against the
+given Message-ID and/or Subject, and exports each match's full message (via
+`RETR`) as a `.eml` file.
+
+```powershell
+gomailtest pop3 exportmessages --host pop.example.com --port 995 --pop3s \
+    --username user@example.com --password "yourpassword" \
+    --subject "Invoice"
+
+gomailtest pop3 exportmessages --host pop.example.com --port 995 --pop3s \
+    --username user@example.com --password "yourpassword" \
+    --messageid "<message-id@example.com>" --count 10
+
+# Custom export directory
+gomailtest pop3 exportmessages --host pop.example.com --port 995 --pop3s \
+    --username user@example.com --password "yourpassword" \
+    --subject "Invoice" --exportdir "C:\exports"
+```
+
+Output goes to `%TEMP%\export\{date}\msg_{message-id}.eml`, or
+`<exportdir>\{date}\msg_{message-id}.eml` when `--exportdir` is given.
+
 ## Flags
 
 ### Persistent (all subcommands)
@@ -102,6 +126,15 @@ gomailtest pop3 listmail --host pop.example.com --port 995 --pop3s \
 | Flag | Description | Environment Variable | Default |
 |------|-------------|---------------------|---------|
 | `--maxmessages` | Maximum messages to list | `POP3MAXMESSAGES` | 100 |
+
+### exportmessages-specific
+
+| Flag | Description | Environment Variable | Default |
+|------|-------------|---------------------|---------|
+| `--messageid` | Message-ID header value to search for | `POP3MESSAGEID` | — |
+| `--subject` | Subject substring to search for | `POP3SUBJECT` | — |
+| `--count` | Maximum number of matching messages to export | `POP3COUNT` | 25 |
+| `--exportdir` | Directory under which to create the dated export folder | `POP3EXPORTDIR` | OS temp dir |
 
 ## Environment Variables
 

@@ -49,7 +49,10 @@ type Config struct {
 	EndTime       string // End time in RFC3339 format
 
 	// Search configuration
-	MessageID string // Internet Message ID for searchandexport action
+	MessageID string // Internet Message ID for searchandexport/exportmessages actions
+
+	// Export configuration
+	ExportDir string // Directory under which to create the dated export folder (default: OS temp dir)
 
 	// Network configuration
 	ProxyURL   string        // HTTP/HTTPS proxy URL (e.g., http://proxy.example.com:8080)
@@ -92,6 +95,7 @@ const (
 	ActionGetSchedule     = "getschedule"
 	ActionExportInbox     = "exportinbox"
 	ActionSearchAndExport = "searchandexport"
+	ActionExportMessages  = "exportmessages"
 )
 
 // RegisterPersistentFlags registers flags shared by all msgraph subcommands
@@ -148,6 +152,7 @@ func BindEnvs(v *viper.Viper) {
 		"start":              "MSGRAPHSTART",
 		"end":                "MSGRAPHEND",
 		"messageid":          "MSGRAPHMESSAGEID",
+		"exportdir":          "MSGRAPHEXPORTDIR",
 		"proxy":              "MSGRAPHPROXY",
 		"maxretries":         "MSGRAPHMAXRETRIES",
 		"retrydelay":         "MSGRAPHRETRYDELAY",
@@ -235,6 +240,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
 		MessageID:             v.GetString("messageid"),
+		ExportDir:             v.GetString("exportdir"),
 		ProxyURL:              v.GetString("proxy"),
 		MaxRetries:            maxRetries,
 		RetryDelay:            time.Duration(retryDelayMs) * time.Millisecond,
@@ -382,6 +388,26 @@ func validateConfiguration(config *Config) error {
 		// SECURITY: Validate Message-ID format to prevent OData injection attacks
 		if err := validateMessageID(config.MessageID); err != nil {
 			return fmt.Errorf("invalid message ID: %w", err)
+		}
+	}
+
+	// Validate exportmessages-specific requirements
+	if config.Action == ActionExportMessages {
+		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
+			return fmt.Errorf("exportmessages action requires --messageid and/or --subject parameter")
+		}
+
+		if config.MessageID != "" {
+			// SECURITY: Validate Message-ID format to prevent OData injection attacks
+			if err := validateMessageID(config.MessageID); err != nil {
+				return fmt.Errorf("invalid message ID: %w", err)
+			}
+		}
+
+		if config.Subject != "" {
+			if err := validateSearchSubject(config.Subject); err != nil {
+				return fmt.Errorf("invalid subject: %w", err)
+			}
 		}
 	}
 

@@ -245,6 +245,81 @@ func (c *IMAPClient) ListMailboxes(ctx context.Context) ([]MailboxInfo, error) {
 	return result, nil
 }
 
+// SelectMailbox selects (opens) the given mailbox for subsequent SEARCH/FETCH commands.
+func (c *IMAPClient) SelectMailbox(ctx context.Context, mailbox string) error {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+
+	if _, err := c.client.Select(mailbox, nil).Wait(); err != nil {
+		return fmt.Errorf("SELECT %s failed: %w", mailbox, err)
+	}
+	return nil
+}
+
+// SearchMessages searches the selected mailbox for messages matching the
+// given Message-ID header and/or a subject substring. At least one of
+// messageID/subject must be non-empty. Returns matching UIDs.
+func (c *IMAPClient) SearchMessages(ctx context.Context, messageID, subject string) ([]imap.UID, error) {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return nil, fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+
+	criteria := &imap.SearchCriteria{}
+	if messageID != "" {
+		criteria.Header = append(criteria.Header, imap.SearchCriteriaHeaderField{Key: "Message-Id", Value: messageID})
+	}
+	if subject != "" {
+		criteria.Header = append(criteria.Header, imap.SearchCriteriaHeaderField{Key: "Subject", Value: subject})
+	}
+
+	data, err := c.client.UIDSearch(criteria, nil).Wait()
+	if err != nil {
+		return nil, fmt.Errorf("SEARCH failed: %w", err)
+	}
+
+	uidSet, ok := data.All.(imap.UIDSet)
+	if !ok {
+		return nil, nil
+	}
+	uids, _ := uidSet.Nums()
+	return uids, nil
+}
+
+// FetchRFC822 fetches the full raw RFC822 message body for the given UID.
+func (c *IMAPClient) FetchRFC822(ctx context.Context, uid imap.UID) ([]byte, error) {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return nil, fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+
+	fetchCmd := c.client.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+		BodySection: []*imap.FetchItemBodySection{{}},
+	})
+	defer fetchCmd.Close()
+
+	msg := fetchCmd.Next()
+	if msg == nil {
+		return nil, fmt.Errorf("no message returned for UID %d", uid)
+	}
+
+	buf, err := msg.Collect()
+	if err != nil {
+		return nil, fmt.Errorf("FETCH failed for UID %d: %w", uid, err)
+	}
+
+	body := buf.FindBodySection(&imap.FetchItemBodySection{})
+	if body == nil {
+		return nil, fmt.Errorf("no body section returned for UID %d", uid)
+	}
+	return body, nil
+}
+
 // Logout sends the LOGOUT command and closes the connection.
 func (c *IMAPClient) Logout() error {
 	if c.client != nil {
