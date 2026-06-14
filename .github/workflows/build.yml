@@ -229,16 +229,6 @@ jobs:
             -mailbox "user@example.com" -action getinbox
           ```
 
-          ### Tools Overview
-
-          | Tool | Protocol | Ports | Auth Methods |
-          |------|----------|-------|--------------|
-          | smtptool | SMTP | 25, 587, 465 | PLAIN, LOGIN, CRAM-MD5, XOAUTH2 |
-          | imaptool | IMAP | 143, 993 | PLAIN, LOGIN, XOAUTH2 |
-          | pop3tool | POP3 | 110, 995 | USER/PASS, APOP, XOAUTH2 |
-          | jmaptool | JMAP | 443 | Basic, Bearer |
-          | msgraphtool | Graph API | 443 | Client Secret, Certificate, Bearer |
-
           ### Documentation
           - Online: [GitHub Repository](https://github.com/${{ github.repository }})
       env:

@@ -127,6 +127,20 @@ Output goes to `%TEMP%\export\{date}\message_{n}_{timestamp}.json`.
 gomailtest msgraph searchandexport --messageid "<message-id@example.com>"
 ```
 
+### exportmessages — Export Matching Messages as .eml
+
+Searches messages by Internet Message-ID and/or a subject substring (OData
+`contains()`), then downloads each match's raw RFC822 content as a `.eml`
+file.
+
+```powershell
+gomailtest msgraph exportmessages --subject "Invoice"
+gomailtest msgraph exportmessages --messageid "<message-id@example.com>"
+gomailtest msgraph exportmessages --subject "Invoice" --count 10
+```
+
+Output goes to `%TEMP%\export\{date}\msg_{id}.eml`.
+
 ## Flags
 
 ### Persistent (all subcommands)
@@ -285,7 +299,7 @@ Retry uses exponential backoff: 2s → 4s → 8s → 16s → 30s (capped). Retri
 |--------|-----------|
 | sendmail | `Mail.Send` |
 | getevents, sendinvite | `Calendars.ReadWrite` |
-| getinbox, exportinbox, searchandexport | `Mail.Read` |
+| getinbox, exportinbox, searchandexport, exportmessages | `Mail.Read` |
 | getschedule | `Calendars.Read` |
 
 ## Tips and Best Practices

@@ -92,6 +92,7 @@ const (
 	ActionGetSchedule     = "getschedule"
 	ActionExportInbox     = "exportinbox"
 	ActionSearchAndExport = "searchandexport"
+	ActionExportMessages  = "exportmessages"
 )
 
 // RegisterPersistentFlags registers flags shared by all msgraph subcommands
@@ -382,6 +383,26 @@ func validateConfiguration(config *Config) error {
 		// SECURITY: Validate Message-ID format to prevent OData injection attacks
 		if err := validateMessageID(config.MessageID); err != nil {
 			return fmt.Errorf("invalid message ID: %w", err)
+		}
+	}
+
+	// Validate exportmessages-specific requirements
+	if config.Action == ActionExportMessages {
+		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
+			return fmt.Errorf("exportmessages action requires --messageid and/or --subject parameter")
+		}
+
+		if config.MessageID != "" {
+			// SECURITY: Validate Message-ID format to prevent OData injection attacks
+			if err := validateMessageID(config.MessageID); err != nil {
+				return fmt.Errorf("invalid message ID: %w", err)
+			}
+		}
+
+		if config.Subject != "" {
+			if err := validateSearchSubject(config.Subject); err != nil {
+				return fmt.Errorf("invalid subject: %w", err)
+			}
 		}
 	}
 
