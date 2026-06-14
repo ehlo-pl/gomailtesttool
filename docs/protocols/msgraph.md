@@ -137,11 +137,6 @@ file.
 gomailtest msgraph exportmessages --subject "Invoice"
 gomailtest msgraph exportmessages --messageid "<message-id@example.com>"
 gomailtest msgraph exportmessages --subject "Invoice" --count 10
-
-```
-
-Output goes to `%TEMP%\export\{date}\msg_{id}.eml`.
-=======
 gomailtest msgraph exportmessages --subject "Invoice" --exportdir "C:\exports"
 ```
 
