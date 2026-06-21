@@ -2,16 +2,16 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/ziembor/gomailtesttool/internal/common/bootstrap"
-	"github.com/ziembor/gomailtesttool/internal/common/version"
-	"github.com/ziembor/gomailtesttool/internal/devtools"
-	"github.com/ziembor/gomailtesttool/internal/protocols/ews"
-	"github.com/ziembor/gomailtesttool/internal/protocols/imap"
-	"github.com/ziembor/gomailtesttool/internal/protocols/jmap"
-	"github.com/ziembor/gomailtesttool/internal/protocols/msgraph"
-	"github.com/ziembor/gomailtesttool/internal/protocols/pop3"
-	"github.com/ziembor/gomailtesttool/internal/protocols/smtp"
-	"github.com/ziembor/gomailtesttool/internal/serve"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/version"
+	"github.com/ehlo-pl/gomailtesttool/internal/devtools"
+	"github.com/ehlo-pl/gomailtesttool/internal/protocols/ews"
+	"github.com/ehlo-pl/gomailtesttool/internal/protocols/imap"
+	"github.com/ehlo-pl/gomailtesttool/internal/protocols/jmap"
+	"github.com/ehlo-pl/gomailtesttool/internal/protocols/msgraph"
+	"github.com/ehlo-pl/gomailtesttool/internal/protocols/pop3"
+	"github.com/ehlo-pl/gomailtesttool/internal/protocols/smtp"
+	"github.com/ehlo-pl/gomailtesttool/internal/serve"
 )
 
 var rootCmd = &cobra.Command{

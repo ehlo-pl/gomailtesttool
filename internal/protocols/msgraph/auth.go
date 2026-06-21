@@ -15,7 +15,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/golang-jwt/jwt/v5"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	"github.com/ziembor/gomailtesttool/internal/common/security"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
 	"software.sslmate.com/src/go-pkcs12"
 )
 

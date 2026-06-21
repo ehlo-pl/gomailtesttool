@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 )
 
 // testConnect tests basic IMAP connectivity.

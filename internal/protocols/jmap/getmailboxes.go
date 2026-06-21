@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
-	"github.com/ziembor/gomailtesttool/internal/jmap/protocol"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/jmap/protocol"
 )
 
 // getMailboxes retrieves and displays the list of mailboxes.

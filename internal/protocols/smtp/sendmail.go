@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ziembor/gomailtesttool/internal/common/email"
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
-	"github.com/ziembor/gomailtesttool/internal/common/security"
-	smtptls "github.com/ziembor/gomailtesttool/internal/smtp/tls"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
+	smtptls "github.com/ehlo-pl/gomailtesttool/internal/smtp/tls"
 )
 
 // SendMail performs end-to-end email sending test.

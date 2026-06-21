@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ziembor/gomailtesttool/internal/smtp/protocol"
+	"github.com/ehlo-pl/gomailtesttool/internal/smtp/protocol"
 )
 
 // TestDebugLogCommand tests debug logging of SMTP commands

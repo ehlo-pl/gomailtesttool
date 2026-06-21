@@ -13,9 +13,9 @@ import (
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/users"
-	"github.com/ziembor/gomailtesttool/internal/common/email"
-	"github.com/ziembor/gomailtesttool/internal/common/export"
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 )
 
 // Status constants

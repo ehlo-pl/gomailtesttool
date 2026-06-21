@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ziembor/gomailtesttool/internal/common/network"
-	"github.com/ziembor/gomailtesttool/internal/jmap/protocol"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
+	"github.com/ehlo-pl/gomailtesttool/internal/jmap/protocol"
 )
 
 // JMAPClient wraps HTTP client for JMAP operations.

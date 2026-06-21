@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ziembor/gomailtesttool/internal/common/export"
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 )
 
 // exportMessages fetches headers for each message via TOP, matches them

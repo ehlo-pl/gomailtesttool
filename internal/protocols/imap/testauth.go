@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
-	"github.com/ziembor/gomailtesttool/internal/common/security"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
 )
 
 // testAuth tests IMAP authentication.

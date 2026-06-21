@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
-	smtptls "github.com/ziembor/gomailtesttool/internal/smtp/tls"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	smtptls "github.com/ehlo-pl/gomailtesttool/internal/smtp/tls"
 )
 
 // testStartTLS performs comprehensive TLS/SSL testing with detailed diagnostics.

@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
-	"github.com/ziembor/gomailtesttool/internal/protocols/msgraph"
-	"github.com/ziembor/gomailtesttool/internal/protocols/smtp"
+	"github.com/ehlo-pl/gomailtesttool/internal/protocols/msgraph"
+	"github.com/ehlo-pl/gomailtesttool/internal/protocols/smtp"
 )
 
 // newTestServer builds a Server configured for unit tests.

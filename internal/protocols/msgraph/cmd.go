@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/ziembor/gomailtesttool/internal/common/bootstrap"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 )
 
 // NewCmd returns the "msgraph" cobra.Command with all 8 action subcommands.

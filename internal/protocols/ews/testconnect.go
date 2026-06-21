@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 )
 
 // testConnect performs an HTTP/TLS probe against the EWS endpoint.

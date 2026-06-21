@@ -2,7 +2,7 @@
 
 Portable CLI for testing email infrastructure: SMTP, IMAP, POP3, JMAP, and Microsoft EWS (on-prem) + Graph (Exchange Online). Single binary, no runtime dependencies, cross-platform (Windows, Linux, macOS).
 
-**Repository:** [https://github.com/ziembor/gomailtesttool](https://github.com/ziembor/gomailtesttool)
+**Repository:** [https://github.com/ehlo-pl/gomailtesttool](https://github.com/ehlo-pl/gomailtesttool)
 
 ## Commands
 

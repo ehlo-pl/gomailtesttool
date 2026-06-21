@@ -11,7 +11,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/viper"
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 )
 
 // SetupSignalContext returns a context cancelled on SIGINT/SIGTERM.

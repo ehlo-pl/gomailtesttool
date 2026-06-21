@@ -22,7 +22,7 @@ Top MCP Servers:
 ## Your Setup Checklist
 
 ### Codebases
-- [ ] gomailtesttool — github.com/ziembor/gomailtesttool
+- [ ] gomailtesttool — github.com/ehlo-pl/gomailtesttool
 
 ### MCP Servers to Activate
 - [ ] Gmail — Read/send Gmail messages directly from Claude; useful for verifying mail delivered by gomailtesttool's send/test commands. Activate via `/mcp` and run `authenticate`/`complete_authentication`.

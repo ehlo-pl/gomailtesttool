@@ -11,9 +11,9 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-sasl"
 
-	"github.com/ziembor/gomailtesttool/internal/common/network"
-	"github.com/ziembor/gomailtesttool/internal/common/ratelimit"
-	imapprotocol "github.com/ziembor/gomailtesttool/internal/imap/protocol"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/ratelimit"
+	imapprotocol "github.com/ehlo-pl/gomailtesttool/internal/imap/protocol"
 )
 
 // IMAPClient wraps an IMAP connection with additional functionality.

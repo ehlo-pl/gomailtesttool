@@ -1,4 +1,4 @@
-module github.com/ziembor/gomailtesttool
+module github.com/ehlo-pl/gomailtesttool
 
 go 1.24.0
 

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
-	"github.com/ziembor/gomailtesttool/internal/common/security"
-	"github.com/ziembor/gomailtesttool/internal/jmap/protocol"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
+	"github.com/ehlo-pl/gomailtesttool/internal/jmap/protocol"
 )
 
 // testAuth tests JMAP authentication.

@@ -321,7 +321,7 @@ Get-ChildItem "$env:TEMP\_msgraphtool_*.csv" |
     Sort-Object LastWriteTime -Descending | Select-Object -First 5
 ```
 
-**Report issues:** https://github.com/ziembor/gomailtesttool/issues  
+**Report issues:** https://github.com/ehlo-pl/gomailtesttool/issues  
 Include: version, full command used, error message, verbose output (with secrets redacted).
 
                           ..ooOO END OOoo..

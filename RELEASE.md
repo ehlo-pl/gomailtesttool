@@ -1,6 +1,6 @@
 # Release & Versioning Guide
 
-This document is the **definitive guide** for versioning and releasing the `msgraphtool` project.
+This document is the **definitive guide** for versioning and releasing the `gomailtesttool` suite.
 
 ## 1. Versioning Policy
 
@@ -18,30 +18,13 @@ To update the version, edit the `Version` constant in `internal/common/version/v
   - `z` (Patch): Bug fixes, documentation updates.
 
 ### Changelog Format
-Changelogs are stored as individual files in the `Changelog/` directory:
-- **Location:** `Changelog/{version}.md` (e.g., `Changelog/1.16.2.md`)
+Changelogs are stored as individual files in the `ChangeLog/` directory:
+- **Location:** `ChangeLog/{version}.md` (e.g., `ChangeLog/1.16.2.md`)
 - **Format:** [Keep a Changelog](https://keepachangelog.com) style.
 
-## 2. Automated Release (Recommended)
+## 2. Release Process
 
-The `run-integration-tests.ps1` script is the standard way to perform releases. It handles validation, file updates, and git operations automatically.
-
-### Quick Start
-```powershell
-# From project root
-.\run-integration-tests.ps1
-```
-
-### What the Script Does
-1. **Safety Checks:** Validates git status and scans for potential secrets.
-2. **Version Bump:** Prompts for new version and updates `internal/common/version/version.go`.
-3. **Changelog:** Interactively creates `Changelog/{version}.md`.
-4. **Commit:** Stages and commits changes with a standardized message.
-5. **Tag & Push:** Creates a git tag (e.g., `v2.0.2`) and pushes it to trigger GitHub Actions.
-
-## 3. Manual Release Process
-
-If you cannot use the automation script, follow these steps to release manually.
+Use the manual release flow below. GitHub Actions handles the cross-platform build and release packaging after the version commit and tag are pushed.
 
 ### Step 1: Update Version
 Update the version constant with the new number (e.g., `2.1.0`).
@@ -52,7 +35,7 @@ const Version = "2.1.0"  // Change this line
 ```
 
 ### Step 2: Create Changelog
-Create a new file `Changelog/2.1.0.md`:
+Create a new file `ChangeLog/2.1.0.md`:
 ```markdown
 ## [2.1.0] - 2026-01-05
 
@@ -74,7 +57,7 @@ Create a new file `Changelog/2.1.0.md`:
 
 ### Step 4: Commit Changes
 ```powershell
-git add internal/common/version/version.go Changelog/2.1.0.md
+git add internal/common/version/version.go ChangeLog/2.1.0.md
 git commit -m "Release v2.1.0"
 git push origin main
 ```
@@ -86,7 +69,7 @@ git tag v2.1.0
 git push origin v2.1.0
 ```
 
-## 4. GitHub Actions Workflow
+## 3. GitHub Actions Workflow
 
 When a tag matching `v*` is pushed (e.g., `v2.1.0`), the `.github/workflows/build.yml` workflow triggers automatically.
 
@@ -97,15 +80,15 @@ When a tag matching `v*` is pushed (e.g., `v2.1.0`), the `.github/workflows/buil
 4. **Uploads** the ZIP files to the Release.
 
 **Artifacts Produced:**
-- `msgraphtool-windows.zip`
-- `msgraphtool-linux.zip`
-- `msgraphtool-macos.zip`
+- `gomailtesttool-windows-amd64.zip`
+- `gomailtesttool-linux-amd64.zip`
+- `gomailtesttool-macos-arm64.zip`
 
-## 5. Troubleshooting & Rollback
+## 4. Troubleshooting & Rollback
 
 ### Build Fails in GitHub Actions
 - Check the workflow logs: `gh run view --log-failed`
-- Ensure `src/go.mod` matches the Go version in `build.yml` (currently 1.25+).
+- Ensure `go.mod` and `build.yml` both target the same Go version.
 
 ### Emergency Rollback
 If a bad release is pushed:
@@ -128,10 +111,8 @@ If a bad release is pushed:
 ## For Future AI Assistants
 
 To perform a release:
-1. **Prefer `.\run-integration-tests.ps1`** if interactive mode is possible.
-2. **If manual:**
-   - Read `internal/common/version/version.go` to get current version.
-   - Increment according to Semantic Versioning (major.minor.patch).
-   - Update the `Version` const in `internal/common/version/version.go`.
-   - Write `Changelog/{version}.md`.
-   - Commit & Tag.
+1. Read `internal/common/version/version.go` to get the current version.
+2. Increment according to Semantic Versioning (major.minor.patch).
+3. Update the `Version` const in `internal/common/version/version.go`.
+4. Write `ChangeLog/{version}.md`.
+5. Commit and tag the release.

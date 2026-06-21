@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/ziembor/gomailtesttool/internal/common/bootstrap"
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 )
 
 // NewCmd returns the "ews" cobra.Command with all 4 action subcommands.

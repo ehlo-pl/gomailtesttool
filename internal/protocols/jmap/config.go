@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/ziembor/gomailtesttool/internal/common/network"
-	"github.com/ziembor/gomailtesttool/internal/common/validation"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
 )
 
 // Config holds all jmaptool configuration.

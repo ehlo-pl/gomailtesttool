@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/Azure/go-ntlmssp"
-	"github.com/ziembor/gomailtesttool/internal/common/network"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 )
 
 const (

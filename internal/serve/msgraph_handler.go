@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ziembor/gomailtesttool/internal/common/logger"
-	"github.com/ziembor/gomailtesttool/internal/common/validation"
-	"github.com/ziembor/gomailtesttool/internal/protocols/msgraph"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/ehlo-pl/gomailtesttool/internal/protocols/msgraph"
 )
 
 // msgraphSendRequest is the JSON body for POST /msgraph/sendmail.

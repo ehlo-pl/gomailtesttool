@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ziembor/gomailtesttool/internal/common/network"
-	"github.com/ziembor/gomailtesttool/internal/common/ratelimit"
-	"github.com/ziembor/gomailtesttool/internal/pop3/protocol"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/ratelimit"
+	"github.com/ehlo-pl/gomailtesttool/internal/pop3/protocol"
 )
 
 // POP3Client wraps a POP3 connection with additional functionality.
