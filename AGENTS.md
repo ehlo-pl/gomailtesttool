@@ -1,15 +1,18 @@
-# Microsoft Graph & SMTP Testing Tools
+# gomailtesttool
 
-**Repository:** [https://github.com/ziembor/msgraphtool](https://github.com/ziembor/msgraphtool)
+**Repository:** [https://github.com/ehlo-pl/gomailtesttool](https://github.com/ehlo-pl/gomailtesttool)
 
 ## Overview
 
-This repository contains two complementary, lightweight, portable command-line interface (CLI) tools written in **Go (Golang)** with cross-platform support for **Windows, Linux, and macOS**:
+This repository contains five lightweight, portable command-line interface (CLI) tools written in **Go (Golang)** with cross-platform support for **Windows, Linux, and macOS**:
 
 - **msgraphtool**: Interacts with the **Microsoft Graph API** to manage emails and calendar events on Exchange Online (EXO) mailboxes.
 - **smtptool**: Tests SMTP connectivity with comprehensive TLS diagnostics for on-premises Exchange servers and generic SMTP servers.
+- **imaptool**: Tests IMAP connectivity, authentication, and mailbox listing.
+- **pop3tool**: Tests POP3 connectivity, authentication, and message listing.
+- **jmaptool**: Tests JMAP connectivity and mailbox operations.
 
-Both tools are designed for **minimal external dependencies** — they compile into single static binaries that do not require installing runtimes or libraries on the target machine.
+All tools are designed for **minimal external dependencies** — they compile into single static binaries that do not require installing runtimes or libraries on the target machine.
 
 ## Features
 
@@ -51,7 +54,7 @@ Both tools are designed for **minimal external dependencies** — they compile i
   * TLS warnings for deprecated protocols and weak ciphers
   * Certificate validation with detailed error reporting
 
-### Both Tools
+### Shared Characteristics
 
 * **CSV Logging:**
   * All operations are automatically logged to `%TEMP%\_{toolname}_{action}_{date}.csv`
@@ -91,15 +94,15 @@ See **[EXAMPLES.md](EXAMPLES.md)** for detailed usage scenarios.
 ## Project Overview
 
 **Platform**: Cross-platform (Windows, Linux, macOS), but `-thumbprint` auth is Windows-only.
-**Module name**: `msgraphtool`
-**Go version**: 1.25+
+**Module name**: `gomailtesttool`
+**Go version**: 1.24+
 
 ### Project Structure
 
 The repository uses a modular structure with shared internal packages:
 
 ```
-msgraphtool/
+gomailtesttool/
 ├── cmd/
 │   ├── msgraphtool/              # Microsoft Graph tool source
 │   │   ├── main.go
@@ -107,7 +110,7 @@ msgraphtool/
 │   │   ├── handlers.go
 │   │   ├── auth.go
 │   │   └── completions.go
-│   └── smtptool/                 # SMTP tool source
+│   ├── smtptool/                 # SMTP tool source
 │       ├── main.go
 │       ├── config.go
 │       ├── handlers.go
@@ -117,32 +120,39 @@ msgraphtool/
 │       ├── smtp_auth.go
 │       ├── smtp_sendmail.go
 │       └── completions.go
+│   ├── imaptool/                 # IMAP tool source
+│   ├── pop3tool/                 # POP3 tool source
+│   └── jmaptool/                 # JMAP tool source
 ├── internal/
 │   ├── common/                   # Shared packages (70-80% code reuse)
 │   │   ├── logger/               # CSV and structured logging
 │   │   ├── retry/                # Retry with exponential backoff
 │   │   ├── version/              # Version management (single source of truth)
 │   │   └── validation/           # Input validators
-│   ├── msgraph/                  # Graph-specific code
-│   └── smtp/                     # SMTP-specific code
+│   ├── imap/                     # IMAP-specific packages
+│   ├── jmap/                     # JMAP-specific packages
+│   ├── pop3/                     # POP3-specific packages
+│   └── smtp/                     # SMTP-specific packages
 │       ├── protocol/             # SMTP command builders and response parsing
 │       ├── tls/                  # TLS handshake and certificate analysis
 │       └── exchange/             # Exchange detection
-├── build-all.ps1                 # Build script for both tools
-├── run-integration-tests.ps1     # Release automation script
+├── build-all.ps1                 # Build script for all tools
+├── run-interactive-release.ps1   # Legacy release helper
+├── run-integration-tests.ps1     # Legacy Graph integration test runner
 ├── selfsignedcert.ps1            # Certificate generation script
-├── Changelog/                    # Version changelogs
+├── ChangeLog/                    # Version changelogs
 ├── AGENTS.md                     # Project documentation (this file)
 ├── BUILD.md                      # Build instructions
-├── SMTP_TOOL_README.md           # SMTP tool documentation
+├── *_TOOL_README.md              # Tool-specific documentation
 └── README.md                     # Public documentation
 ```
 
 **Key Points:**
 - Root `go.mod` and `go.sum` in project root
 - Version managed in `internal/common/version/version.go` (static const)
-- Build both tools: `.\build-all.ps1`
-- Build individually: `go build -C cmd/msgraphtool` or `go build -C cmd/smtptool`
+- Build all tools: `.\build-all.ps1`
+- Build individually from `cmd/<tool>`
+- `src/` is legacy and not part of the active build or release path
 
 ### CSV Logging
 
@@ -174,24 +184,18 @@ See **[BUILD.md](BUILD.md)** for more details.
 
 ## Release Process
 
-**IMPORTANT: Use the interactive release script for all releases.**
-
-```powershell
-# From project root
-.\run-integration-tests.ps1
-```
+**IMPORTANT: Follow the manual release steps in `RELEASE.md`, then push the release tag to trigger GitHub Actions.**
 
 See **[RELEASE.md](RELEASE.md)** for the complete release guide.
 
 ## Documentation Reference
 
 - **[RELEASE.md](RELEASE.md)** - Release process and versioning policy.
-- **[BUILD.md](BUILD.md)** - Build instructions for both tools.
+- **[BUILD.md](BUILD.md)** - Build instructions for all tools.
 - **[README.md](README.md)** - User-facing documentation.
 - **[SMTP_TOOL_README.md](SMTP_TOOL_README.md)** - Complete SMTP tool documentation.
 - **[EXAMPLES.md](EXAMPLES.md)** - Microsoft Graph tool usage examples.
 - **[SECURITY.md](SECURITY.md)** - Security policy and best practices.
 
                           ..ooOO END OOoo..
-
 

@@ -10,8 +10,9 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-sasl"
 
-	"msgraphtool/internal/common/ratelimit"
-	imapprotocol "msgraphtool/internal/imap/protocol"
+	"gomailtesttool/internal/common/ratelimit"
+	imapprotocol "gomailtesttool/internal/imap/protocol"
+	smtptls "gomailtesttool/internal/smtp/tls"
 )
 
 // IMAPClient wraps an IMAP connection with additional functionality.
@@ -62,7 +63,7 @@ func (c *IMAPClient) Connect(ctx context.Context) error {
 		TLSConfig: &tls.Config{
 			ServerName:         c.host,
 			InsecureSkipVerify: c.config.SkipVerify,
-			MinVersion:         parseTLSVersion(c.config.TLSVersion),
+			MinVersion:         smtptls.ParseTLSVersion(c.config.TLSVersion),
 		},
 	}
 
@@ -247,22 +248,6 @@ func (c *IMAPClient) Close() error {
 		return c.client.Close()
 	}
 	return nil
-}
-
-// parseTLSVersion parses a TLS version string to a constant.
-func parseTLSVersion(version string) uint16 {
-	switch version {
-	case "1.3":
-		return tls.VersionTLS13
-	case "1.2":
-		return tls.VersionTLS12
-	case "1.1":
-		return tls.VersionTLS11
-	case "1.0":
-		return tls.VersionTLS10
-	default:
-		return tls.VersionTLS12
-	}
 }
 
 // convertCaps converts go-imap capabilities to our protocol.Capabilities.

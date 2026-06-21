@@ -1,4 +1,4 @@
-module msgraphtool
+module gomailtesttool
 
 go 1.24.0
 

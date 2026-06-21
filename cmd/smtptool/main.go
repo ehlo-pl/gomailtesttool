@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"msgraphtool/internal/common/logger"
-	"msgraphtool/internal/common/version"
+	"gomailtesttool/internal/common/logger"
+	"gomailtesttool/internal/common/version"
 )
 
 func main() {
@@ -29,8 +29,8 @@ func run() error {
 	// Handle version flag
 	if config.ShowVersion {
 		fmt.Printf("SMTP Connectivity Testing Tool - Version %s\n", version.Get())
-		fmt.Println("Part of msgraphtool suite")
-		fmt.Println("Repository: https://github.com/ziembor/msgraphtool")
+		fmt.Println("Part of gomailtesttool suite")
+		fmt.Println("Repository: https://github.com/ehlo-pl/gomailtesttool")
 		return nil
 	}
 

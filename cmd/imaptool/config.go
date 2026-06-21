@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"msgraphtool/internal/common/validation"
+	"gomailtesttool/internal/common/validation"
 )
 
 // Config holds all imaptool configuration.
@@ -80,7 +80,7 @@ func parseAndConfigureFlags() *Config {
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "IMAP Connectivity Testing Tool - Part of gomailtesttool suite\n\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "Repository: https://github.com/ziembor/gomailtesttool\n\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Repository: https://github.com/ehlo-pl/gomailtesttool\n\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options]\n\n", os.Args[0])
 		fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
 		flag.PrintDefaults()

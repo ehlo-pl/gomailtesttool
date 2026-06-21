@@ -14,7 +14,7 @@ import (
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/users"
-	"msgraphtool/internal/common/logger"
+	"gomailtesttool/internal/common/logger"
 )
 
 // executeAction dispatches to the appropriate action handler based on config.Action.
@@ -586,7 +586,7 @@ func exportInbox(ctx context.Context, client *msgraphsdk.GraphServiceClient, mai
 	messageCount := len(messages)
 
 	logVerbose(config.VerboseMode, "API response received: %d messages", messageCount)
-	
+
 	if config.OutputFormat != "json" {
 		fmt.Printf("Exporting %d messages from inbox for %s...\n", messageCount, mailbox)
 	}
@@ -613,7 +613,7 @@ func exportInbox(ctx context.Context, client *msgraphsdk.GraphServiceClient, mai
 	if err != nil {
 		return err
 	}
-	
+
 	if config.OutputFormat != "json" {
 		fmt.Printf("Export directory: %s\n", exportDir)
 	}
@@ -696,7 +696,7 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 	if err != nil {
 		return err
 	}
-	
+
 	if config.OutputFormat != "json" {
 		fmt.Printf("Export directory: %s\n", exportDir)
 	}
@@ -729,12 +729,20 @@ func exportMessageToJSON(message models.Messageable, dir string, config *Config)
 	// We could use the model directly but it might be verbose or have circular refs depending on serialization
 	// Extracting fields explicitly gives us control.
 	exportData := make(map[string]interface{})
-	
-	if message.GetId() != nil { exportData["id"] = *message.GetId() }
-	if message.GetInternetMessageId() != nil { exportData["internetMessageId"] = *message.GetInternetMessageId() }
-	if message.GetSubject() != nil { exportData["subject"] = *message.GetSubject() }
-	if message.GetReceivedDateTime() != nil { exportData["receivedDateTime"] = message.GetReceivedDateTime().Format(time.RFC3339) }
-	
+
+	if message.GetId() != nil {
+		exportData["id"] = *message.GetId()
+	}
+	if message.GetInternetMessageId() != nil {
+		exportData["internetMessageId"] = *message.GetInternetMessageId()
+	}
+	if message.GetSubject() != nil {
+		exportData["subject"] = *message.GetSubject()
+	}
+	if message.GetReceivedDateTime() != nil {
+		exportData["receivedDateTime"] = message.GetReceivedDateTime().Format(time.RFC3339)
+	}
+
 	// From
 	if message.GetFrom() != nil && message.GetFrom().GetEmailAddress() != nil {
 		exportData["from"] = extractEmailAddress(message.GetFrom().GetEmailAddress())
@@ -796,8 +804,12 @@ func createExportDir() (string, error) {
 // extractEmailAddress helper
 func extractEmailAddress(addr models.EmailAddressable) map[string]string {
 	res := make(map[string]string)
-	if addr.GetName() != nil { res["name"] = *addr.GetName() }
-	if addr.GetAddress() != nil { res["address"] = *addr.GetAddress() }
+	if addr.GetName() != nil {
+		res["name"] = *addr.GetName()
+	}
+	if addr.GetAddress() != nil {
+		res["address"] = *addr.GetAddress()
+	}
 	return res
 }
 

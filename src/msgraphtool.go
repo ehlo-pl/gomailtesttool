@@ -17,7 +17,7 @@
 //
 //	msgraphtool.exe -tenantid "..." -clientid "..." -secret "..." -mailbox "user@example.com" -action sendmail
 //
-// Version information is embedded from the VERSION file at compile time using go:embed.
+// Version information is defined in version.go for this legacy module.
 package main
 
 import (

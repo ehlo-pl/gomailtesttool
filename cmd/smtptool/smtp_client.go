@@ -10,9 +10,9 @@ import (
 	"net/textproto"
 	"strings"
 
-	"msgraphtool/internal/common/ratelimit"
-	"msgraphtool/internal/smtp/protocol"
-	smtptls "msgraphtool/internal/smtp/tls"
+	"gomailtesttool/internal/common/ratelimit"
+	"gomailtesttool/internal/smtp/protocol"
+	smtptls "gomailtesttool/internal/smtp/tls"
 )
 
 // SMTPClient wraps SMTP connection with enhanced diagnostics.
@@ -25,9 +25,9 @@ type SMTPClient struct {
 	banner       string
 	capabilities protocol.Capabilities
 	limiter      *ratelimit.Limiter
-	smtpClient   *smtp.Client           // Reusable stdlib client after STARTTLS or SMTPS
-	tlsState     *tls.ConnectionState   // Stored TLS state for SMTPS connections
-	ctx          context.Context        // Context for cancellation propagation
+	smtpClient   *smtp.Client         // Reusable stdlib client after STARTTLS or SMTPS
+	tlsState     *tls.ConnectionState // Stored TLS state for SMTPS connections
+	ctx          context.Context      // Context for cancellation propagation
 }
 
 // debugLogCommand logs an SMTP command being sent to the server.

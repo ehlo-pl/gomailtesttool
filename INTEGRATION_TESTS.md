@@ -384,7 +384,7 @@ For issues or questions:
 - See main [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common errors
 - Check [SECURITY_PRACTICES.md](SECURITY_PRACTICES.md) for security guidance
 - Review [README.md](README.md) for general usage information
-- Report issues at: https://github.com/ziembor/msgraphtool/issues
+- Report issues at: https://github.com/ehlo-pl/gomailtesttool/issues
 
 ---
 

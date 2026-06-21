@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"msgraphtool/internal/common/logger"
+	"gomailtesttool/internal/common/logger"
 )
 
 // testConnect tests basic IMAP connectivity.

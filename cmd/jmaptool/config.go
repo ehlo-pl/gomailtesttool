@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"msgraphtool/internal/common/version"
+	"gomailtesttool/internal/common/version"
 )
 
 // Config holds all configuration for jmaptool.

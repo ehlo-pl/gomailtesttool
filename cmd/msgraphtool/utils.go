@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
-	"msgraphtool/internal/common/logger"
-	"msgraphtool/internal/common/retry"
+	"gomailtesttool/internal/common/logger"
+	"gomailtesttool/internal/common/retry"
 )
 
 // logDebug logs a debug message if logger is not nil

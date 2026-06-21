@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"msgraphtool/internal/common/ratelimit"
-	"msgraphtool/internal/pop3/protocol"
+	"gomailtesttool/internal/common/ratelimit"
+	"gomailtesttool/internal/pop3/protocol"
+	smtptls "gomailtesttool/internal/smtp/tls"
 )
 
 // POP3Client wraps a POP3 connection with additional functionality.
@@ -65,7 +66,7 @@ func (c *POP3Client) Connect(ctx context.Context) error {
 		tlsConfig := &tls.Config{
 			ServerName:         c.host,
 			InsecureSkipVerify: c.config.SkipVerify,
-			MinVersion:         parseTLSVersion(c.config.TLSVersion),
+			MinVersion:         smtptls.ParseTLSVersion(c.config.TLSVersion),
 		}
 		conn, err = tls.DialWithDialer(dialer, "tcp", address, tlsConfig)
 		if err != nil {
@@ -139,7 +140,7 @@ func (c *POP3Client) StartTLS(tlsConfig *tls.Config) error {
 		tlsConfig = &tls.Config{
 			ServerName:         c.host,
 			InsecureSkipVerify: c.config.SkipVerify,
-			MinVersion:         parseTLSVersion(c.config.TLSVersion),
+			MinVersion:         smtptls.ParseTLSVersion(c.config.TLSVersion),
 		}
 	}
 
@@ -382,20 +383,4 @@ func (c *POP3Client) Close() error {
 		return c.conn.Close()
 	}
 	return nil
-}
-
-// parseTLSVersion parses a TLS version string to a constant.
-func parseTLSVersion(version string) uint16 {
-	switch version {
-	case "1.3":
-		return tls.VersionTLS13
-	case "1.2":
-		return tls.VersionTLS12
-	case "1.1":
-		return tls.VersionTLS11
-	case "1.0":
-		return tls.VersionTLS10
-	default:
-		return tls.VersionTLS12
-	}
 }

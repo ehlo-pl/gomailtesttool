@@ -607,7 +607,7 @@ If you continue to experience issues:
    ```
 
 4. **Report issues:**
-   - GitHub: https://github.com/ziembor/msgraphtool/issues
+   - GitHub: https://github.com/ehlo-pl/gomailtesttool/issues
    - Include: Version, command used, error message, verbose output (with secrets redacted)
 
 ---

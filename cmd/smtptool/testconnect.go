@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"msgraphtool/internal/common/logger"
-	"msgraphtool/internal/smtp/exchange"
+	"gomailtesttool/internal/common/logger"
+	"gomailtesttool/internal/smtp/exchange"
 )
 
 // testConnect performs basic SMTP connectivity and capability testing.

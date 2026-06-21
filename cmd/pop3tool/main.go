@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"msgraphtool/internal/common/logger"
-	"msgraphtool/internal/common/version"
+	"gomailtesttool/internal/common/logger"
+	"gomailtesttool/internal/common/version"
 )
 
 func main() {
@@ -31,7 +31,7 @@ func main() {
 	// Handle version flag
 	if config.ShowVersion {
 		fmt.Printf("pop3tool version %s\n", version.Get())
-		fmt.Println("Part of gomailtesttool suite - https://github.com/ziembor/gomailtesttool")
+		fmt.Println("Part of gomailtesttool suite - https://github.com/ehlo-pl/gomailtesttool")
 		os.Exit(0)
 	}
 

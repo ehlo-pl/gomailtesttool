@@ -5,7 +5,7 @@ import (
 )
 
 // version is the current version of the tool
-var versionRaw = "2.6.9"
+var versionRaw = "3.4.0"
 
 // version is the current version of the tool, trimmed of whitespace
 var version = strings.TrimSpace(versionRaw)

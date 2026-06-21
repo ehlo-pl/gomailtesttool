@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"msgraphtool/internal/smtp/protocol"
+	"gomailtesttool/internal/smtp/protocol"
 )
 
 // TestDebugLogCommand tests debug logging of SMTP commands
@@ -347,7 +347,7 @@ func TestDebugLogging_MultilineResponseFormatting(t *testing.T) {
 
 	// Create a typical EHLO response with multiple capabilities
 	response := &protocol.SMTPResponse{
-		Code: 250,
+		Code:    250,
 		Message: "smtp.example.com\nSIZE 35882577\n8BITMIME\nSTARTTLS\nAUTH PLAIN LOGIN",
 		Lines: []string{
 			"smtp.example.com",
@@ -814,10 +814,10 @@ func TestSMTPClient_GetCapabilities(t *testing.T) {
 
 	t.Run("Returns stored capabilities", func(t *testing.T) {
 		caps := protocol.Capabilities{
-			"STARTTLS":  []string{},
-			"AUTH":      []string{"PLAIN", "LOGIN"},
-			"SIZE":      []string{"35882577"},
-			"8BITMIME":  []string{},
+			"STARTTLS": []string{},
+			"AUTH":     []string{"PLAIN", "LOGIN"},
+			"SIZE":     []string{"35882577"},
+			"8BITMIME": []string{},
 		}
 		client := &SMTPClient{
 			capabilities: caps,

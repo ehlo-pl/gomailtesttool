@@ -1,34 +1,34 @@
-# Interactive Release Script for Microsoft Graph EXO Mails/Calendar Golang Testing Tool
+# Interactive Release Script for gomailtesttool
 # This script guides you through creating a new release that triggers GitHub Actions
 #
 # QUICK REFERENCE:
-#   Usage:      .\release.ps1
-#   Version:    Updates src/VERSION only (auto-embedded via go:embed)
-#   Changelog:  Creates Changelog/{version}.md with interactive prompts
+#   Usage:      .\run-interactive-release.ps1
+#   Version:    Updates internal/common/version/version.go
+#   Changelog:  Creates ChangeLog/{version}.md with interactive prompts
 #   Git Tag:    Creates v{version} tag - TRIGGERS GITHUB ACTIONS
-#   Output:     Windows & Linux binaries + GitHub Release with ZIPs
+#   Output:     Cross-platform suite binaries + GitHub Release archives
 #   Auto-Bump:  Bumps patch version and creates b{version} branch for next dev cycle
 #
 # Full documentation: See RELEASE.md
 
 <#
 .SYNOPSIS
-    Interactive release script for msgraphtool
+    Interactive release script for gomailtesttool
 
 .DESCRIPTION
     This script helps you:
-    1. Update version in src/VERSION (auto-embedded into binary via go:embed)
-    2. Create/update changelog entry in Changelog/{version}.md
+    1. Update version in internal/common/version/version.go
+    2. Create/update changelog entry in ChangeLog/{version}.md
     3. Commit changes to git with formatted message
     4. Create and push git tag to trigger GitHub Actions build
     5. Optionally create a Pull Request
     6. Optionally monitor GitHub Actions workflow
     7. Bump patch version and create b{version} branch for next development cycle
 
-    IMPORTANT: Only updates src/VERSION - version is embedded at compile time.
+    IMPORTANT: Updates the shared version constant used by all tools in the suite.
 
 .EXAMPLE
-    .\release.ps1
+    .\run-interactive-release.ps1
 
     Runs the interactive release process
 
@@ -38,12 +38,11 @@
     Shows complete help documentation
 
 .NOTES
-    - Major version is LOCKED at 1 (only minor/patch updates allowed)
-    - Version format: 1.x.y (e.g., 1.16.2, 1.17.0)
-    - Version file: src/VERSION (NOT project root)
+    - Version format: x.y.z (Semantic Versioning)
+    - Version file: internal/common/version/version.go
     - Requires: Git (required), GitHub CLI (optional for PR creation)
     - Pushing tag triggers: .github/workflows/build.yml
-    - Builds: Windows (msgraphtool.exe) and Linux (msgraphtool)
+    - Builds: Windows, Linux, and macOS archives for the full suite
     - Documentation: See RELEASE.md for complete documentation
 #>
 
@@ -57,8 +56,36 @@ function Write-Warning { param($Message) Write-Host "⚠ $Message" -ForegroundCo
 function Write-Error { param($Message) Write-Host "✗ $Message" -ForegroundColor Red }
 function Write-Header { param($Message) Write-Host "`n========================================" -ForegroundColor Magenta; Write-Host $Message -ForegroundColor Magenta; Write-Host "========================================`n" -ForegroundColor Magenta }
 
+function Get-VersionFromFile {
+    param([string]$Path)
+
+    $content = Get-Content $Path -Raw
+    $match = [regex]::Match($content, 'const Version = "([^"]+)"')
+    if (-not $match.Success) {
+        throw "Could not extract version from $Path"
+    }
+
+    return $match.Groups[1].Value
+}
+
+function Set-VersionInFile {
+    param(
+        [string]$Path,
+        [string]$NewVersion
+    )
+
+    $content = Get-Content $Path -Raw
+    if ($content -notmatch 'const Version = "([^"]+)"') {
+        throw "Could not find Version constant in $Path"
+    }
+
+    $updated = [regex]::Replace($content, 'const Version = "[^"]+"', "const Version = `"$NewVersion`"", 1)
+    Set-Content -Path $Path -Value $updated -NoNewline
+}
+
 # Check if we're in the right directory
-if (-not (Test-Path "src\VERSION")) {
+$versionFilePath = Join-Path $PSScriptRoot "internal\common\version\version.go"
+if (-not (Test-Path $versionFilePath)) {
     Write-Error "This script must be run from the project root directory"
     Write-Error "Current directory: $(Get-Location)"
     exit 1
@@ -125,14 +152,15 @@ $filesToScan = @(
     "test-results/*.md",
     "ChangeLog/*.md",
     "*.md",
-    "src/*.go"
+    "cmd",
+    "internal"
 )
 
 # Collect all files to scan (for progress tracking)
 Write-Info "Collecting files to scan..."
 $allFiles = @()
 foreach ($pattern in $filesToScan) {
-    $files = Get-ChildItem -Path $pattern -Recurse -ErrorAction SilentlyContinue
+    $files = Get-ChildItem -Path $pattern -Recurse -File -ErrorAction SilentlyContinue
     foreach ($file in $files) {
         # Skip files that should have example secrets
         if ($file.Name -match "EXAMPLES|README|CLAUDE|IMPROVEMENTS|UNIT_TESTS") {
@@ -256,12 +284,12 @@ if ($secretsFound.Count -gt 0) {
 
 # Read current version
 Write-Header "Step 3: Version Information"
-$currentVersion = (Get-Content "src\VERSION" -Raw).Trim()
+$currentVersion = Get-VersionFromFile $versionFilePath
 Write-Info "Current version: $currentVersion"
 
-# Validate current version format (must be 1.x.y)
-if ($currentVersion -notmatch '^1\.\d+\.\d+$') {
-    Write-Error "Current version '$currentVersion' is invalid. Must be in format 1.x.y"
+# Validate current version format (must be x.y.z)
+if ($currentVersion -notmatch '^\d+\.\d+\.\d+$') {
+    Write-Error "Current version '$currentVersion' is invalid. Must be in format x.y.z"
     exit 1
 }
 
@@ -273,32 +301,34 @@ $currentPatch = [int]$versionParts[2]
 
 # Suggest next versions
 Write-Info "`nSuggested versions:"
-Write-Host "  1. Patch release (bug fixes):    1.$currentMinor.$($currentPatch + 1)"
-Write-Host "  2. Minor release (new features): 1.$($currentMinor + 1).0"
+Write-Host "  1. Patch release (bug fixes):    $currentMajor.$currentMinor.$($currentPatch + 1)"
+Write-Host "  2. Minor release (new features): $currentMajor.$($currentMinor + 1).0"
+Write-Host "  3. Major release (breaking):     $($currentMajor + 1).0.0"
 
 # Prompt for new version
 $newVersion = $null
 while ($true) {
-    $input = Read-Host "`nEnter new version (must be 1.x.y format, or press Enter for patch: 1.$currentMinor.$($currentPatch + 1))"
+    $input = Read-Host "`nEnter new version (must be x.y.z format, or press Enter for patch: $currentMajor.$currentMinor.$($currentPatch + 1))"
 
     if ([string]::IsNullOrWhiteSpace($input)) {
         # Default to patch version
-        $newVersion = "1.$currentMinor.$($currentPatch + 1)"
+        $newVersion = "$currentMajor.$currentMinor.$($currentPatch + 1)"
         break
     }
 
     # Validate format
-    if ($input -notmatch '^1\.\d+\.\d+$') {
-        Write-Warning "Invalid format. Must be 1.x.y (major version locked at 1)"
+    if ($input -notmatch '^\d+\.\d+\.\d+$') {
+        Write-Warning "Invalid format. Must be x.y.z"
         continue
     }
 
     # Check if version is greater than current
     $newParts = $input -split '\.'
+    $newMajor = [int]$newParts[0]
     $newMinor = [int]$newParts[1]
     $newPatch = [int]$newParts[2]
 
-    if ($newMinor -lt $currentMinor -or ($newMinor -eq $currentMinor -and $newPatch -le $currentPatch)) {
+    if ([version]$input -le [version]$currentVersion) {
         Write-Warning "New version must be greater than current version ($currentVersion)"
         continue
     }
@@ -307,30 +337,35 @@ while ($true) {
     break
 }
 
+$newParts = $newVersion -split '\.'
+$newMajor = [int]$newParts[0]
+$newMinor = [int]$newParts[1]
+$newPatch = [int]$newParts[2]
+
 Write-Success "New version: $newVersion"
 
 # Determine release type
-$releaseType = if ($currentMinor -eq $newMinor) { "Patch" } else { "Minor" }
+$releaseType = if ($newMajor -gt $currentMajor) { "Major" } elseif ($newMinor -gt $currentMinor) { "Minor" } else { "Patch" }
 Write-Info "Release type: $releaseType"
 
-# Update src/VERSION file
+# Update version file
 Write-Header "Step 4: Updating Version File"
-Write-Info "Updating src\VERSION..."
-Set-Content -Path "src\VERSION" -Value $newVersion -NoNewline
-Write-Success "Updated src\VERSION to $newVersion"
+Write-Info "Updating $versionFilePath..."
+$versionFileOriginalContent = Get-Content $versionFilePath -Raw
+Set-VersionInFile -Path $versionFilePath -NewVersion $newVersion
+Write-Success "Updated version to $newVersion"
 
-Write-Info "`nNote: Version is automatically embedded into the binary at compile time via go:embed directive"
-Write-Info "      (No need to update source code - it reads from VERSION file)"
+Write-Info "`nNote: Version is read from the shared const in internal/common/version/version.go"
 
 # Create/update changelog entry
 Write-Header "Step 5: Changelog Entry"
 $changelogPath = "CHANGELOG.md"
-$changelogEntryPath = "Changelog\$newVersion.md"
+$changelogEntryPath = "ChangeLog\$newVersion.md"
 
-# Create Changelog directory if it doesn't exist
-if (-not (Test-Path "Changelog")) {
-    New-Item -ItemType Directory -Path "Changelog" | Out-Null
-    Write-Info "Created Changelog directory"
+# Create ChangeLog directory if it doesn't exist
+if (-not (Test-Path "ChangeLog")) {
+    New-Item -ItemType Directory -Path "ChangeLog" | Out-Null
+    Write-Info "Created ChangeLog directory"
 }
 
 # Check if changelog entry already exists
@@ -448,7 +483,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 # Show summary
 Write-Header "Step 6: Review Changes"
 Write-Info "The following changes will be made:"
-Write-Host "  • src\VERSION: $currentVersion → $newVersion (embedded via go:embed)"
+Write-Host "  • internal/common/version/version.go: $currentVersion → $newVersion"
 Write-Host "  • ${changelogEntryPath}: $(if (Test-Path $changelogEntryPath) { "Updated" } else { "Created" })"
 Write-Host "`nCommit message:"
 Write-Host "------------------------"
@@ -459,16 +494,16 @@ Write-Host "------------------------"
 $confirm = Read-Host "`nDo you want to proceed with these changes? (y/N)"
 if ($confirm -ne 'y' -and $confirm -ne 'Y') {
     Write-Warning "Release cancelled"
-    # Restore VERSION file
-    Set-Content -Path "src\VERSION" -Value $currentVersion -NoNewline
-    Write-Info "Restored src\VERSION to $currentVersion"
+    # Restore version file
+    Set-Content -Path $versionFilePath -Value $versionFileOriginalContent -NoNewline
+    Write-Info "Restored $versionFilePath to $currentVersion"
     exit 0
 }
 
 # Stage changes
 Write-Header "Step 7: Committing Changes"
 Write-Info "Staging changes..."
-git add src\VERSION $changelogEntryPath
+git add $versionFilePath $changelogEntryPath
 
 # Show what will be committed
 Write-Info "`nFiles to be committed:"
@@ -508,9 +543,9 @@ Write-Header "Step 9: Create Git Tag (Triggers GitHub Actions)"
 $tagName = "v$newVersion"
 Write-Warning "Creating and pushing tag '$tagName' will trigger GitHub Actions workflow!"
 Write-Info "This will:"
-Write-Host "  • Build Windows and Linux binaries"
+Write-Host "  • Build Windows, Linux, and macOS archives"
 Write-Host "  • Create GitHub Release"
-Write-Host "  • Attach ZIP files with binaries to the release"
+Write-Host "  • Attach suite ZIP files with binaries and docs to the release"
 
 $createTag = Read-Host "`nCreate and push tag '$tagName'? (y/N)"
 if ($createTag -eq 'y' -or $createTag -eq 'Y') {
@@ -563,6 +598,7 @@ $changelogForCommit
 
 ## Test plan
 - [x] Version updated in all required files
+- [x] Shared version source updated
 - [x] Changelog entry created
 - [x] Changes committed to branch
 
@@ -650,10 +686,10 @@ if ($bumpVersion -ne 'n' -and $bumpVersion -ne 'N') {
     Write-Info "Next development version: $nextVersion"
     Write-Info "Branch name: $branchName"
 
-    # Update VERSION file
-    Write-Info "`nUpdating src\VERSION to $nextVersion..."
-    Set-Content -Path "src\VERSION" -Value $nextVersion -NoNewline
-    Write-Success "Updated src\VERSION to $nextVersion"
+    # Update version file
+    Write-Info "`nUpdating $versionFilePath to $nextVersion..."
+    Set-VersionInFile -Path $versionFilePath -NewVersion $nextVersion
+    Write-Success "Updated version to $nextVersion"
 
     # Create new branch
     Write-Info "`nCreating branch $branchName..."
@@ -661,15 +697,15 @@ if ($bumpVersion -ne 'n' -and $bumpVersion -ne 'N') {
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to create branch $branchName"
-        # Restore VERSION file
-        Set-Content -Path "src\VERSION" -Value $newVersion -NoNewline
-        Write-Warning "Restored src\VERSION to $newVersion"
+        # Restore version file
+        Set-VersionInFile -Path $versionFilePath -NewVersion $newVersion
+        Write-Warning "Restored version to $newVersion"
     } else {
         Write-Success "Created and checked out branch: $branchName"
 
         # Commit the version bump
         Write-Info "`nCommitting version bump..."
-        git add src\VERSION
+        git add $versionFilePath
         git commit -m "Bump version to $nextVersion for next development cycle
 
 Preparing for next patch release after v$newVersion
@@ -700,7 +736,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
         # Summary of next dev cycle
         Write-Info "`nNext development cycle ready:"
         Write-Host "  ✓ Current branch: $branchName"
-        Write-Host "  ✓ Version in src\VERSION: $nextVersion"
+        Write-Host "  ✓ Version in internal/common/version/version.go: $nextVersion"
         Write-Host "  ✓ Ready for development work"
     }
 } else {

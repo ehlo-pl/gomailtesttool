@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"msgraphtool/internal/jmap/protocol"
+	"gomailtesttool/internal/jmap/protocol"
 )
 
 // JMAPClient wraps HTTP client for JMAP operations.

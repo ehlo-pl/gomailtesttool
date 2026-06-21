@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"msgraphtool/internal/common/validation"
+	"gomailtesttool/internal/common/validation"
 )
 
 // Config holds all smtptool configuration.
@@ -49,7 +49,7 @@ type Config struct {
 	VerboseMode  bool
 	LogLevel     string
 	OutputFormat string
-	LogFormat    string // Log file format: csv, json
+	LogFormat    string  // Log file format: csv, json
 	RateLimit    float64 // Maximum requests per second (0 = unlimited)
 }
 
@@ -87,8 +87,8 @@ func parseAndConfigureFlags() *Config {
 	config := NewConfig()
 
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "SMTP Connectivity Testing Tool - Part of msgraphtool suite\n\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "Repository: https://github.com/ziembor/msgraphtool\n\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "SMTP Connectivity Testing Tool - Part of gomailtesttool suite\n\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Repository: https://github.com/ehlo-pl/gomailtesttool\n\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options]\n\n", os.Args[0])
 		fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
 		flag.PrintDefaults()

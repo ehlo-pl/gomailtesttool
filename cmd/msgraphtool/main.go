@@ -29,8 +29,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"msgraphtool/internal/common/logger"
-	"msgraphtool/internal/common/version"
+	"gomailtesttool/internal/common/logger"
+	"gomailtesttool/internal/common/version"
 )
 
 func main() {

@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"msgraphtool/internal/common/logger"
-	smtptls "msgraphtool/internal/smtp/tls"
+	"gomailtesttool/internal/common/logger"
+	smtptls "gomailtesttool/internal/smtp/tls"
 )
 
 // testAuth performs SMTP authentication testing.

@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"msgraphtool/internal/common/logger"
-	"msgraphtool/internal/jmap/protocol"
+	"gomailtesttool/internal/common/logger"
+	"gomailtesttool/internal/jmap/protocol"
 )
 
 // testConnect tests JMAP server connectivity by discovering the session.

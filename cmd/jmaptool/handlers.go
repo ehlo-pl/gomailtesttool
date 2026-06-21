@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"msgraphtool/internal/common/logger"
+	"gomailtesttool/internal/common/logger"
 )
 
 // executeAction dispatches to the appropriate handler based on action.

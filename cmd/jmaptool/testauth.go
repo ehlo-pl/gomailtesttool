@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"msgraphtool/internal/common/logger"
-	"msgraphtool/internal/jmap/protocol"
+	"gomailtesttool/internal/common/logger"
+	"gomailtesttool/internal/jmap/protocol"
 )
 
 // testAuth tests JMAP authentication.

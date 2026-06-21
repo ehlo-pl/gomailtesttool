@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"msgraphtool/internal/common/validation"
-	"msgraphtool/internal/common/version"
+	"gomailtesttool/internal/common/validation"
+	"gomailtesttool/internal/common/version"
 )
 
 // Config holds all application configuration including command-line flags,
@@ -74,9 +74,9 @@ func NewConfig() *Config {
 		Action:        ActionGetInbox,
 		Count:         3,
 		VerboseMode:   false,
-		LogLevel:      "INFO",                  // Default: INFO level logging
-		OutputFormat:  "text",                  // Default: text output
-		LogFormat:     "csv",                   // Default: CSV log format
+		LogLevel:      "INFO", // Default: INFO level logging
+		OutputFormat:  "text", // Default: text output
+		LogFormat:     "csv",  // Default: CSV log format
 		ShowVersion:   false,
 		MaxRetries:    3,                       // Default: 3 retry attempts
 		RetryDelay:    2000 * time.Millisecond, // Default: 2 second base delay
@@ -91,7 +91,7 @@ func parseAndConfigureFlags() *Config {
 	// Customize help output
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Microsoft Graph EXO Mails/Calendar Golang Testing Tool - Version %s\n\n", version.Get())
-		fmt.Fprintf(flag.CommandLine.Output(), "Repository: https://github.com/ziembor/msgraphtool\n\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Repository: https://github.com/ehlo-pl/gomailtesttool\n\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options]\n\n", os.Args[0])
 		fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
 		flag.PrintDefaults()
@@ -129,7 +129,7 @@ func parseAndConfigureFlags() *Config {
 	flag.Var(&attachmentFiles, "attachments", "Comma-separated list of file paths to attach (env: MSGRAPHATTACHMENTS)")
 
 	// Calendar invite flags
-	inviteSubject := flag.String("invite-subject", "", "")  // Deprecated: use -subject instead
+	inviteSubject := flag.String("invite-subject", "", "") // Deprecated: use -subject instead
 	startTime := flag.String("start", "", "Start time for calendar invite (RFC3339 or PowerShell 'Get-Date -Format s' format). Examples: '2026-01-15T14:00:00Z', '2026-01-15T14:00:00'. Defaults to now if empty (env: MSGRAPHSTART)")
 	endTime := flag.String("end", "", "End time for calendar invite (RFC3339 or PowerShell 'Get-Date -Format s' format). Examples: '2026-01-15T15:00:00Z', '2026-01-15T15:00:00'. Defaults to 1 hour after start if empty (env: MSGRAPHEND)")
 
@@ -250,11 +250,11 @@ func parseAndConfigureFlags() *Config {
 
 	// Create and populate Config struct with all parsed values
 	config := &Config{
-		ShowVersion: *showVersion,
-		TenantID:    *tenantID,
-		ClientID:    *clientID,
-		Mailbox:     *mailbox,
-		Action:      *action,
+		ShowVersion:     *showVersion,
+		TenantID:        *tenantID,
+		ClientID:        *clientID,
+		Mailbox:         *mailbox,
+		Action:          *action,
 		Secret:          *secret,
 		PfxPath:         *pfxPath,
 		PfxPass:         *pfxPass,
@@ -574,7 +574,6 @@ func printVerboseConfig(tenantID, clientID, secret, pfxPath, thumbprint, bearerT
 		fmt.Println("  (no additional parameters)")
 	}
 
-
 	fmt.Println()
 	fmt.Println("========================================")
 	fmt.Println()
@@ -687,10 +686,10 @@ func validateFilePath(path, fieldName string) error {
 
 // Action constants
 const (
-	ActionGetEvents    = "getevents"
-	ActionSendMail     = "sendmail"
-	ActionSendInvite   = "sendinvite"
-	ActionGetInbox     = "getinbox"
+	ActionGetEvents       = "getevents"
+	ActionSendMail        = "sendmail"
+	ActionSendInvite      = "sendinvite"
+	ActionGetInbox        = "getinbox"
 	ActionGetSchedule     = "getschedule"
 	ActionExportInbox     = "exportinbox"
 	ActionSearchAndExport = "searchandexport"
@@ -890,4 +889,3 @@ Write-Host "PowerShell completion for msgraphtool loaded successfully!" -Foregro
 Write-Host "Try typing: msgraphtool.exe -<TAB>" -ForegroundColor Cyan
 `
 }
-

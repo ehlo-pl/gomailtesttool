@@ -1,17 +1,20 @@
-# Microsoft Graph & SMTP Testing Tools
+# gomailtesttool
 
-Portable, single-binary CLI tools for testing and managing email infrastructure - both cloud (Exchange Online via Microsoft Graph) and on-premises (SMTP servers).
+Portable, single-binary CLI tools for testing and managing email infrastructure across Microsoft Graph, SMTP, IMAP, POP3, and JMAP.
 
-**Repository:** [https://github.com/ziembor/msgraphtool](https://github.com/ziembor/msgraphtool)
+**Repository:** [https://github.com/ehlo-pl/gomailtesttool](https://github.com/ehlo-pl/gomailtesttool)
 
 ## Purpose
 
-This repository contains two complementary tools for comprehensive email infrastructure testing:
+This repository contains five complementary tools for comprehensive email infrastructure testing:
 
 - **msgraphtool**: Microsoft Graph API client for Exchange Online mailbox operations (send mail, calendar events, inbox management).
 - **smtptool**: SMTP connectivity testing tool with comprehensive TLS diagnostics for on-premises Exchange servers and generic SMTP servers.
+- **imaptool**: IMAP connectivity and mailbox testing tool.
+- **pop3tool**: POP3 connectivity and message retrieval testing tool.
+- **jmaptool**: JMAP protocol testing tool.
 
-Both tools are lightweight, standalone executables requiring no additional runtimes or dependencies. Cross-platform support for Windows, Linux, and macOS with automatic CSV logging.
+All tools are lightweight, standalone executables requiring no additional runtimes or dependencies. Cross-platform support for Windows, Linux, and macOS with automatic CSV logging.
 
 ## Key Features
 
@@ -25,7 +28,7 @@ Both tools are lightweight, standalone executables requiring no additional runti
 - **Diagnostics**: SSL/TLS handshake analysis, certificate validation, cipher strength assessment, Exchange detection.
 - **Target**: On-premises Exchange servers and generic SMTP servers.
 
-### Both Tools
+### Shared Characteristics
 - **Logging**: Automatic CSV logging of all operations to `%TEMP%`.
 - **Portable**: Single binary, no dependencies.
 
@@ -49,9 +52,9 @@ Both tools are lightweight, standalone executables requiring no additional runti
 
 ## Quick Start
 
-### Build Both Tools
+### Build the Suite
 ```powershell
-# Build both tools at once
+# Build all tools at once
 .\build-all.ps1
 
 # Or build individually
@@ -144,5 +147,3 @@ smtptool -action testauth -host smtp.office365.com -port 587 -username user@comp
 This tool is provided as-is for testing and automation purposes.
 
                           ..ooOO END OOoo..
-
-

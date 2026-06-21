@@ -397,6 +397,6 @@ All operations are automatically logged to action-specific CSV files:
 
 ## Support
 
-**Repository:** [https://github.com/ziembor/msgraphtool](https://github.com/ziembor/msgraphtool)
+**Repository:** [https://github.com/ehlo-pl/gomailtesttool](https://github.com/ehlo-pl/gomailtesttool)
 
                           ..ooOO END OOoo..

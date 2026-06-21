@@ -1,8 +1,11 @@
 # Build Instructions
 
-This document provides instructions for building both tools in this repository:
+This document provides instructions for building the tools in this repository:
 - **msgraphtool**: Microsoft Graph API tool for Exchange Online
 - **smtptool**: SMTP connectivity testing tool
+- **imaptool**: IMAP connectivity testing tool
+- **pop3tool**: POP3 connectivity testing tool
+- **jmaptool**: JMAP protocol testing tool
 
 ## Prerequisites
 
@@ -49,7 +52,7 @@ go build -C cmd/smtptool -ldflags="-s -w" -o bin/smtptool.exe
 
 ## Cross-Platform Builds
 
-Both tools support Windows, Linux, and macOS.
+All tools support Windows, Linux, and macOS.
 
 ### Build for Linux
 
@@ -86,7 +89,7 @@ Remove-Item Env:\GOOS; Remove-Item Env:\GOARCH
 The repository now uses a modular structure:
 
 ```
-msgraphtool/
+gomailtesttool/
 ├── bin/                 # Build output directory (executables)
 ├── cmd/
 │   ├── msgraphtool/     # Microsoft Graph tool source
@@ -96,26 +99,13 @@ msgraphtool/
 │   └── jmaptool/        # JMAP tool source
 ├── internal/
 │   ├── common/          # Shared packages (logger, retry, version, validation)
-│   ├── msgraph/         # Graph-specific code
+│   ├── imap/            # IMAP-specific packages
+│   ├── jmap/            # JMAP-specific packages
+│   ├── pop3/            # POP3-specific packages
 │   └── smtp/            # SMTP-specific code (protocol, TLS, Exchange)
-├── src/
-│   └── VERSION          # Version file (embedded at build time)
 ├── build-all.ps1        # Build script for all tools
 └── go.mod               # Root module
 ```
-
-## Legacy Build (Deprecated)
-
-The old build method is deprecated but still works temporarily:
-
-```powershell
-# DEPRECATED - Do not use for new builds
-go build -C src -o msgraphtool.exe
-```
-
-**Migration:** Update your build scripts to:
-1. Use `go build -C cmd/msgraphtool` instead of `go build -C src`
-2. Output to `bin/` directory: `-o bin/msgraphtool.exe`
 
 ## Verification
 
@@ -133,18 +123,13 @@ After building, verify the executables:
 
 > **Complete Guide:** See **[RELEASE.md](RELEASE.md)** for the full release and versioning policy.
 
-To create a new release:
+To prepare a release:
 
 ```powershell
-.\run-integration-tests.ps1
+.\build-all.ps1
 ```
 
-This script:
-1. Runs integration tests
-2. Prompts for version bump
-3. Updates VERSION file and changelog
-4. Creates git tag
-5. Builds both tools
+Then follow the version bump, changelog, commit, and tag steps in **[RELEASE.md](RELEASE.md)**.
 
 ## Troubleshooting
 
