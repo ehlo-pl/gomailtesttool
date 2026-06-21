@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/go-ntlmssp"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
+	tlsutil "github.com/ehlo-pl/gomailtesttool/internal/common/tls"
 )
 
 const (
@@ -255,12 +256,7 @@ func (c *EWSClient) applyAuth(req *http.Request) {
 func buildTLSConfig(config *Config) (*tls.Config, error) {
 	tlsCfg := &tls.Config{
 		InsecureSkipVerify: config.SkipVerify, //nolint:gosec // user-controlled flag with warning shown in validateConfiguration
-	}
-	switch config.TLSVersion {
-	case "1.3":
-		tlsCfg.MinVersion = tls.VersionTLS13
-	default: // 1.2
-		tlsCfg.MinVersion = tls.VersionTLS12
+		MinVersion:         tlsutil.ParseTLSVersion(config.TLSVersion),
 	}
 	return tlsCfg, nil
 }

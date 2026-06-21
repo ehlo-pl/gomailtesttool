@@ -10,7 +10,7 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
-	smtptls "github.com/ehlo-pl/gomailtesttool/internal/smtp/tls"
+	tlsutil "github.com/ehlo-pl/gomailtesttool/internal/common/tls"
 )
 
 // testAuth performs SMTP authentication testing.
@@ -121,7 +121,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	} else if !config.NoStartTLS && (config.Port == 25 || config.Port == 587) && caps.SupportsSTARTTLS() {
 		// STARTTLS if on port 25/587 and available
 		fmt.Println("Upgrading to TLS before authentication...")
-		tlsVersion := smtptls.ParseTLSVersion(config.TLSVersion)
+		tlsVersion := tlsutil.ParseTLSVersion(config.TLSVersion)
 		tlsConfig := &tls.Config{
 			ServerName:         client.GetHost(), // resolved MX hostname if --use-mx, otherwise --host
 			InsecureSkipVerify: config.SkipVerify,

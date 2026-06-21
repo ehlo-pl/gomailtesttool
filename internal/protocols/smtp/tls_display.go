@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	smtptls "github.com/ehlo-pl/gomailtesttool/internal/smtp/tls"
+	tlsutil "github.com/ehlo-pl/gomailtesttool/internal/common/tls"
 )
 
 // TLSCSVData holds formatted TLS and certificate data for CSV logging.
@@ -33,20 +33,20 @@ func displayComprehensiveTLSInfo(tlsState *tls.ConnectionState, hostname string,
 	}
 
 	// Analyze TLS connection
-	tlsInfo := smtptls.AnalyzeTLSConnection(tlsState)
+	tlsInfo := tlsutil.AnalyzeTLSConnection(tlsState)
 	if tlsInfo != nil {
 		displayTLSConnectionInfo(tlsInfo)
 	}
 
 	// Analyze certificate chain
 	if len(tlsState.PeerCertificates) > 0 {
-		certInfo := smtptls.AnalyzeCertificateChain(tlsState.PeerCertificates, hostname)
+		certInfo := tlsutil.AnalyzeCertificateChain(tlsState.PeerCertificates, hostname)
 		if certInfo != nil {
 			displayCertificateInfo(certInfo)
 		}
 
 		// Check for TLS warnings (skipVerify=false for display purposes)
-		warnings := smtptls.CheckTLSWarnings(tlsInfo, certInfo, false)
+		warnings := tlsutil.CheckTLSWarnings(tlsInfo, certInfo, false)
 		if len(warnings) > 0 && verbose {
 			fmt.Println("\nSecurity Warnings:")
 			fmt.Println(strings.Repeat("═", 60))
@@ -58,7 +58,7 @@ func displayComprehensiveTLSInfo(tlsState *tls.ConnectionState, hostname string,
 
 		// Show recommendations if in verbose mode
 		if verbose {
-			recommendations := smtptls.GetTLSRecommendations(tlsInfo)
+			recommendations := tlsutil.GetTLSRecommendations(tlsInfo)
 			if len(recommendations) > 0 {
 				fmt.Println("\nRecommendations:")
 				fmt.Println(strings.Repeat("═", 60))
@@ -72,7 +72,7 @@ func displayComprehensiveTLSInfo(tlsState *tls.ConnectionState, hostname string,
 }
 
 // displayTLSConnectionInfo displays TLS connection details.
-func displayTLSConnectionInfo(info *smtptls.TLSInfo) {
+func displayTLSConnectionInfo(info *tlsutil.TLSInfo) {
 	if info == nil {
 		return
 	}
@@ -92,7 +92,7 @@ func displayTLSConnectionInfo(info *smtptls.TLSInfo) {
 }
 
 // displayCertificateInfo displays certificate details.
-func displayCertificateInfo(info *smtptls.CertificateInfo) {
+func displayCertificateInfo(info *tlsutil.CertificateInfo) {
 	if info == nil {
 		return
 	}
@@ -159,12 +159,12 @@ func formatTLSInfoForCSV(tlsState *tls.ConnectionState, hostname string) TLSCSVD
 	}
 
 	// Analyze TLS connection
-	tlsInfo := smtptls.AnalyzeTLSConnection(tlsState)
+	tlsInfo := tlsutil.AnalyzeTLSConnection(tlsState)
 
 	// Analyze certificate chain
-	var certInfo *smtptls.CertificateInfo
+	var certInfo *tlsutil.CertificateInfo
 	if len(tlsState.PeerCertificates) > 0 {
-		certInfo = smtptls.AnalyzeCertificateChain(tlsState.PeerCertificates, hostname)
+		certInfo = tlsutil.AnalyzeCertificateChain(tlsState.PeerCertificates, hostname)
 	}
 
 	// Build CSV data structure

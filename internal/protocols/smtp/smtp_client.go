@@ -11,15 +11,15 @@ import (
 	"strings"
 
 	"github.com/Azure/go-ntlmssp"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/ratelimit"
+	tlsutil "github.com/ehlo-pl/gomailtesttool/internal/common/tls"
+	"github.com/ehlo-pl/gomailtesttool/internal/smtp/protocol"
 	krb5client "github.com/jcmturner/gokrb5/v8/client"
 	krb5config "github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/gssapi"
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"github.com/jcmturner/gokrb5/v8/types"
-	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
-	"github.com/ehlo-pl/gomailtesttool/internal/common/ratelimit"
-	"github.com/ehlo-pl/gomailtesttool/internal/smtp/protocol"
-	smtptls "github.com/ehlo-pl/gomailtesttool/internal/smtp/tls"
 )
 
 // SMTPClient wraps SMTP connection with enhanced diagnostics.
@@ -129,7 +129,7 @@ func (c *SMTPClient) Connect(ctx context.Context) error {
 	if c.config.SMTPS {
 		c.debugLogMessage("SMTPS mode: Performing immediate TLS handshake...")
 
-		tlsVersion := smtptls.ParseTLSVersion(c.config.TLSVersion)
+		tlsVersion := tlsutil.ParseTLSVersion(c.config.TLSVersion)
 		tlsConfig := &tls.Config{
 			ServerName:         c.host,
 			InsecureSkipVerify: c.config.SkipVerify,

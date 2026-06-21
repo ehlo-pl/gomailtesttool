@@ -2,7 +2,7 @@
 
 IMAP server connectivity, TLS configuration, authentication, and folder listing.
 
-> **Legacy name:** `imaptool`. The legacy binary was removed in v3.1. Use `gomailtest imap <action> --flag` (see the migration table in README.md).
+> **Legacy name:** `imaptool`. Use `gomailtest imap <action> --flag` (see the migration table in README.md).
 
 ## Quick Start
 
