@@ -16,7 +16,7 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
-	smtptls "github.com/ehlo-pl/gomailtesttool/internal/smtp/tls"
+	tlsutil "github.com/ehlo-pl/gomailtesttool/internal/common/tls"
 )
 
 // SendMail performs end-to-end email sending test.
@@ -129,7 +129,7 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		// STARTTLS if on common SMTP submission ports and available
 		// Ports: 25 (SMTP), 587 (Submission), 2525/2526 (Alternative submission), 1025 (Testing/Alt)
 		fmt.Println("Upgrading to TLS...")
-		tlsVersion := smtptls.ParseTLSVersion(config.TLSVersion)
+		tlsVersion := tlsutil.ParseTLSVersion(config.TLSVersion)
 		tlsConfig := &tls.Config{
 			ServerName:         client.GetHost(), // resolved MX hostname if --use-mx, otherwise --host
 			InsecureSkipVerify: config.SkipVerify,

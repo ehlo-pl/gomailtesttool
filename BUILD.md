@@ -26,10 +26,6 @@ go build -o bin/gomailtest.exe ./cmd/gomailtest
 go build -ldflags="-s -w" -o bin/gomailtest.exe ./cmd/gomailtest
 ```
 
-## Note on Legacy Binaries
-
-The individual shim binaries (`smtptool`, `imaptool`, `pop3tool`, `jmaptool`, `msgraphtool`) that existed in v3.0.x have been removed in v3.1.0. Use `gomailtest <protocol> <action>` instead.
-
 ## Cross-Platform Builds
 
 ### Build for Linux

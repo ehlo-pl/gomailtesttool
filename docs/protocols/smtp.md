@@ -2,7 +2,7 @@
 
 SMTP connectivity, TLS diagnostics, authentication, and email sending.
 
-> **Legacy name:** `smtptool`. The legacy binary was removed in v3.1. Use `gomailtest smtp <action> --flag` (see the migration table in README.md).
+> **Legacy name:** `smtptool`. Use `gomailtest smtp <action> --flag` (see the migration table in README.md).
 
 ## Quick Start
 

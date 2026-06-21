@@ -161,7 +161,7 @@ Each protocol uses a dedicated prefix:
 
 ## Migrating from Legacy Binary Names
 
-The individual tool binaries (`smtptool`, `imaptool`, `pop3tool`, `jmaptool`, `msgraphtool`) were removed in v3.1.0. Replace them with `gomailtest <protocol> <action> --flag`:
+Replace legacy `*tool` invocations with `gomailtest <protocol> <action> --flag`:
 
 | Old | New |
 |-----|-----|

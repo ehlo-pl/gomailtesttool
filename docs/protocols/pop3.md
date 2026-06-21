@@ -2,7 +2,7 @@
 
 POP3 server connectivity, TLS configuration, authentication, and message listing.
 
-> **Legacy name:** `pop3tool`. The legacy binary was removed in v3.1. Use `gomailtest pop3 <action> --flag` (see the migration table in README.md).
+> **Legacy name:** `pop3tool`. Use `gomailtest pop3 <action> --flag` (see the migration table in README.md).
 
 ## Quick Start
 

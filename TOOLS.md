@@ -8,8 +8,6 @@ This document provides a comprehensive comparison of all protocols supported by 
 > ```
 > gomailtest <protocol> <action> [flags]
 > ```
->
-> The legacy per-protocol binaries (`smtptool`, `imaptool`, `pop3tool`, `jmaptool`, `ewstool`, `msgraphtool`) were removed in v3.1.0.
 
 ## Quick Reference
 

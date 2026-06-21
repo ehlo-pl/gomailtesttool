@@ -7,25 +7,6 @@ import (
 	"strings"
 )
 
-// tlsVersionString converts a TLS version constant to a display string.
-func tlsVersionString(version uint16) string {
-	switch version {
-	case tls.VersionTLS10:
-		return "TLS 1.0"
-	case tls.VersionTLS11:
-		return "TLS 1.1"
-	case tls.VersionTLS12:
-		return "TLS 1.2"
-	case tls.VersionTLS13:
-		return "TLS 1.3"
-	default:
-		if version == 0 {
-			return ""
-		}
-		return fmt.Sprintf("TLS 0x%04x", version)
-	}
-}
-
 // tlsCipherName returns the cipher suite name, or hex if unknown.
 func tlsCipherName(id uint16) string {
 	name := tls.CipherSuiteName(id)

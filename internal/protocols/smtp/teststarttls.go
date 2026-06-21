@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
-	smtptls "github.com/ehlo-pl/gomailtesttool/internal/smtp/tls"
+	tlsutil "github.com/ehlo-pl/gomailtesttool/internal/common/tls"
 )
 
 // testStartTLS performs comprehensive TLS/SSL testing with detailed diagnostics.
@@ -122,7 +122,7 @@ func testStartTLS(ctx context.Context, config *Config, csvLogger logger.Logger, 
 
 		// Perform STARTTLS handshake
 		fmt.Println("Performing TLS handshake...")
-		tlsVersion := smtptls.ParseTLSVersion(config.TLSVersion)
+		tlsVersion := tlsutil.ParseTLSVersion(config.TLSVersion)
 		tlsConfig := &tls.Config{
 			ServerName:         client.GetHost(), // resolved MX hostname if --use-mx, otherwise --host
 			InsecureSkipVerify: config.SkipVerify,
@@ -151,15 +151,15 @@ func testStartTLS(ctx context.Context, config *Config, csvLogger logger.Logger, 
 	}
 
 	// Analyze TLS connection
-	tlsInfo := smtptls.AnalyzeTLSConnection(connState)
+	tlsInfo := tlsutil.AnalyzeTLSConnection(connState)
 	printTLSInfo(tlsInfo)
 
 	// Analyze certificate chain
-	certInfo := smtptls.AnalyzeCertificateChain(connState.PeerCertificates, client.GetHost())
+	certInfo := tlsutil.AnalyzeCertificateChain(connState.PeerCertificates, client.GetHost())
 	printCertificateInfo(certInfo)
 
 	// Check for warnings
-	warnings := smtptls.CheckTLSWarnings(tlsInfo, certInfo, config.SkipVerify)
+	warnings := tlsutil.CheckTLSWarnings(tlsInfo, certInfo, config.SkipVerify)
 	if len(warnings) > 0 {
 		fmt.Println("\n⚠ TLS Warnings:")
 		fmt.Println(strings.Repeat("─", 60))
@@ -170,7 +170,7 @@ func testStartTLS(ctx context.Context, config *Config, csvLogger logger.Logger, 
 	}
 
 	// Get recommendations
-	recommendations := smtptls.GetTLSRecommendations(tlsInfo)
+	recommendations := tlsutil.GetTLSRecommendations(tlsInfo)
 	if len(recommendations) > 0 {
 		fmt.Println("\n💡 Recommendations:")
 		fmt.Println(strings.Repeat("─", 60))
@@ -228,7 +228,7 @@ func testStartTLS(ctx context.Context, config *Config, csvLogger logger.Logger, 
 }
 
 // printTLSInfo displays TLS connection details.
-func printTLSInfo(info *smtptls.TLSInfo) {
+func printTLSInfo(info *tlsutil.TLSInfo) {
 	fmt.Println("TLS Connection Details:")
 	fmt.Println(strings.Repeat("═", 60))
 	fmt.Printf("  Protocol Version:    %s\n", info.Version)
@@ -244,7 +244,7 @@ func printTLSInfo(info *smtptls.TLSInfo) {
 }
 
 // printCertificateInfo displays certificate details.
-func printCertificateInfo(info *smtptls.CertificateInfo) {
+func printCertificateInfo(info *tlsutil.CertificateInfo) {
 	fmt.Println("\nCertificate Information:")
 	fmt.Println(strings.Repeat("═", 60))
 	fmt.Printf("  Subject:             %s\n", info.Subject)

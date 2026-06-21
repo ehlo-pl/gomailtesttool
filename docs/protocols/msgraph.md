@@ -2,7 +2,7 @@
 
 Exchange Online mailbox operations via Microsoft Graph API: send emails, manage calendar events, export inbox.
 
-> **Legacy name:** `msgraphtool`. The legacy binary was removed in v3.1. Use `gomailtest msgraph <action> --flag` (see the migration table in README.md).
+> **Legacy name:** `msgraphtool`. Use `gomailtest msgraph <action> --flag` (see the migration table in README.md).
 
 ## Quick Start
 

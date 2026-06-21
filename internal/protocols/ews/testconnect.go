@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	tlsutil "github.com/ehlo-pl/gomailtesttool/internal/common/tls"
 )
 
 // testConnect performs an HTTP/TLS probe against the EWS endpoint.
@@ -65,7 +66,7 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 
 	if resp.TLS != nil {
 		state := resp.TLS
-		tlsVersion = tlsVersionString(state.Version)
+		tlsVersion = tlsutil.TLSVersionString(state.Version)
 		cipherSuite = tlsCipherName(state.CipherSuite)
 		certs = state.PeerCertificates
 
