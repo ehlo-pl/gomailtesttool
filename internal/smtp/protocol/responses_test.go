@@ -5,11 +5,24 @@ package protocol
 
 import (
 	"bufio"
-	"bytes"
+	"net"
 	"strings"
 	"testing"
 	"time"
 )
+
+// newPipeConn returns one end of an in-memory net.Conn pipe along with a
+// bufio.Reader wrapping it. The other end is returned so the test can write
+// (or withhold) response bytes; it is closed automatically on test cleanup.
+func newPipeConn(t *testing.T) (net.Conn, *bufio.Reader, net.Conn) {
+	t.Helper()
+	client, server := net.Pipe()
+	t.Cleanup(func() {
+		client.Close()
+		server.Close()
+	})
+	return client, bufio.NewReader(client), server
+}
 
 func TestReadResponse(t *testing.T) {
 	tests := []struct {
@@ -137,8 +150,12 @@ func TestReadResponseWithTimeout_Success(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader := bufio.NewReader(strings.NewReader(tt.input))
-			resp, err := ReadResponseWithTimeout(reader, tt.timeout)
+			client, reader, server := newPipeConn(t)
+			go func() {
+				_, _ = server.Write([]byte(tt.input))
+			}()
+
+			resp, err := ReadResponseWithTimeout(client, reader, tt.timeout)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ReadResponseWithTimeout() error = %v, wantErr %v", err, tt.wantErr)
@@ -161,14 +178,14 @@ func TestReadResponseWithTimeout_Success(t *testing.T) {
 }
 
 func TestReadResponseWithTimeout_Timeout(t *testing.T) {
-	// Create a reader that never returns data (simulates hanging server)
-	reader := bufio.NewReader(&neverEndingReader{})
+	// Server side never writes, simulating a hanging server.
+	client, reader, _ := newPipeConn(t)
 
 	// Use a very short timeout for testing
 	timeout := 50 * time.Millisecond
 
 	start := time.Now()
-	resp, err := ReadResponseWithTimeout(reader, timeout)
+	resp, err := ReadResponseWithTimeout(client, reader, timeout)
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -190,10 +207,13 @@ func TestReadResponseWithTimeout_Timeout(t *testing.T) {
 }
 
 func TestReadResponseWithTimeout_ErrorPropagation(t *testing.T) {
-	// Create a reader that returns an invalid response
-	reader := bufio.NewReader(strings.NewReader("invalid\r\n"))
+	// Server sends an invalid response
+	client, reader, server := newPipeConn(t)
+	go func() {
+		_, _ = server.Write([]byte("invalid\r\n"))
+	}()
 
-	resp, err := ReadResponseWithTimeout(reader, 1*time.Second)
+	resp, err := ReadResponseWithTimeout(client, reader, 1*time.Second)
 
 	if err == nil {
 		t.Fatal("ReadResponseWithTimeout() expected error for invalid response, got nil")
@@ -295,47 +315,21 @@ func TestSMTPResponseString(t *testing.T) {
 	}
 }
 
-// neverEndingReader is a reader that blocks forever (simulates hanging server)
-type neverEndingReader struct{}
-
-func (r *neverEndingReader) Read(p []byte) (n int, err error) {
-	// Block forever to simulate a hanging server
-	select {}
-}
-
-// slowReader simulates a slow server that sends data byte by byte with delays
-type slowReader struct {
-	data  []byte
-	pos   int
-	delay time.Duration
-}
-
-func (r *slowReader) Read(p []byte) (n int, err error) {
-	if r.pos >= len(r.data) {
-		return 0, bytes.ErrTooLarge
-	}
-
-	// Simulate slow server by adding delay
-	time.Sleep(r.delay)
-
-	// Return one byte at a time
-	p[0] = r.data[r.pos]
-	r.pos++
-	return 1, nil
-}
-
 func TestReadResponseWithTimeout_SlowResponse(t *testing.T) {
-	// Create a reader that sends data very slowly (1 byte every 10ms)
+	// Server sends data very slowly (1 byte every 10ms)
 	input := "250 OK\r\n"
-	reader := bufio.NewReader(&slowReader{
-		data:  []byte(input),
-		delay: 10 * time.Millisecond,
-	})
+	client, reader, server := newPipeConn(t)
+	go func() {
+		for i := 0; i < len(input); i++ {
+			time.Sleep(10 * time.Millisecond)
+			_, _ = server.Write([]byte{input[i]})
+		}
+	}()
 
 	// Timeout should be long enough to read the full response
-	timeout := 200 * time.Millisecond
+	timeout := 500 * time.Millisecond
 
-	resp, err := ReadResponseWithTimeout(reader, timeout)
+	resp, err := ReadResponseWithTimeout(client, reader, timeout)
 
 	if err != nil {
 		t.Fatalf("ReadResponseWithTimeout() unexpected error: %v", err)

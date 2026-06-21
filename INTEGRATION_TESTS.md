@@ -1,395 +1,193 @@
 # Integration Testing Guide
 
-This guide explains how to run integration tests for the Microsoft Graph EXO Mails/Calendar Golang Testing Tool.
-
 ## Overview
 
-The project provides two types of integration tests:
+Integration tests make real network connections to email servers and APIs. They are separate from unit tests and must be run explicitly.
 
-1. **Interactive Test Tool** (`integration_test_tool.go`) - Manual, interactive testing with user prompts
-2. **Automated Integration Tests** (`msgraphtool_integration_test.go`) - Automated Go tests using `testing` package
+## Test Types
 
-Both types:
-- ✅ Make real API calls to Microsoft Graph
-- ✅ Use actual Azure AD authentication
-- ✅ Send real emails and create real calendar events
-- ✅ **Excluded from regular builds** (require `-tags=integration` flag)
-- ✅ Use shared business logic from `shared.go` (no code duplication)
+| Type | Description | Requires |
+|------|-------------|---------|
+| SMTP | Connect to real SMTP servers | Network, optional credentials |
+| IMAP | Connect to real IMAP servers | Network, credentials |
+| POP3 | Connect to real POP3 servers | Network, credentials |
+| JMAP | Connect to real JMAP servers | Network, credentials / access token |
+| EWS | Connect to on-premises Exchange EWS endpoints | Network, credentials / access token |
+| Microsoft Graph | Exchange Online API operations | Azure AD app registration |
 
-## Architecture
+## Local SMTP Testing with Mailpit
 
-The codebase uses **build tags** to separate integration tests from the main application:
+For SMTP integration testing without a real mail server, use [Mailpit](https://github.com/axllent/mailpit):
 
-```
-src/
-├── shared.go                           # NO build tag - shared by all builds
-├── msgraphtool.go         # //go:build !integration - main CLI app
-├── integration_test_tool.go            # //go:build integration - interactive tests
-├── msgraphtool_integration_test.go  # //go:build integration - automated tests
-├── cert_windows.go                     # //go:build windows - Windows cert store
-└── cert_stub.go                        # //go:build !windows - stub for other platforms
-```
-
-**Build Modes:**
-- `go build ./src` → Builds **main CLI app only** (excludes integration tests)
-- `go build -tags=integration ./src` → Would fail (multiple `main()` functions)
-- `go run -tags=integration ./src/integration_test_tool.go` → Runs interactive test tool
-- `go test -tags=integration ./src` → Runs automated integration tests
-
-## Prerequisites
-
-### 1. Entra ID Application Registration
-Requires the following **Exchange Online RBAC permissions** (NOT Entra ID API permissions):
-- **Application Mail.ReadWrite** - For sendmail, getinbox actions
-- **Application Calendars.ReadWrite** - For getevents, sendinvite, getschedule actions
-
-**Important Notes**:
-- These are Exchange Online RBAC permissions assigned via PowerShell
-- **Documentation**: [Exchange Online Application RBAC](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac)
-- **Recommended Role**: Exchange Administrator (from PIM) to assign permissions
-- While Global Administrator can assign permissions, Exchange Administrator is recommended following the Principle of Least Privilege
-
-### 2. Authentication
-- **Client Secret** (certificate authentication not used in integration tests for simplicity)
-
-### 3. Test Mailbox
-- A dedicated test mailbox you have access to
-- **Do NOT use production mailboxes!**
-
-## Setup
-
-### Set Environment Variables
-
-**PowerShell:**
-```powershell
-$env:MSGRAPHTENANTID = "12345678-1234-1234-1234-123456789012"
-$env:MSGRAPHCLIENTID = "abcdefgh-5678-9012-abcd-ef1234567890"
-$env:MSGRAPHSECRET = "your-client-secret-here"
-$env:MSGRAPHMAILBOX = "test-user@example.com"
-```
-
-**Command Prompt:**
-```cmd
-set MSGRAPHTENANTID=12345678-1234-1234-1234-123456789012
-set MSGRAPHCLIENTID=abcdefgh-5678-9012-abcd-ef1234567890
-set MSGRAPHSECRET=your-client-secret-here
-set MSGRAPHMAILBOX=test-user@example.com
-```
-
-**Linux/macOS:**
 ```bash
-export MSGRAPHTENANTID="12345678-1234-1234-1234-123456789012"
-export MSGRAPHCLIENTID="abcdefgh-5678-9012-abcd-ef1234567890"
-export MSGRAPHSECRET="your-client-secret-here"
-export MSGRAPHMAILBOX="test-user@example.com"
+# Start Mailpit
+docker run -d --name mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
 ```
-
-### Verify Environment Variables
 
 ```powershell
-# PowerShell
-if ($env:MSGRAPHTENANTID -and $env:MSGRAPHCLIENTID -and $env:MSGRAPHSECRET -and $env:MSGRAPHMAILBOX) {
-    Write-Host "✅ All environment variables are set" -ForegroundColor Green
-} else {
-    Write-Host "❌ Missing environment variables" -ForegroundColor Red
-}
+# Test full SMTP pipeline against Mailpit
+gomailtest smtp testconnect --host localhost --port 1025
+gomailtest smtp testauth --host localhost --port 1025 --username test --password test
+gomailtest smtp sendmail --host localhost --port 1025 \
+  --from sender@test.local --to recipient@test.local \
+  --subject "Integration Test" --body "Testing SMTP"
 ```
 
-## Option 1: Interactive Test Tool
+View captured emails at [http://localhost:8025](http://localhost:8025).
 
-The interactive test tool provides a guided testing experience with user prompts.
-
-### Run Interactive Tests
+**Automated PowerShell test script:**
 
 ```powershell
-cd src
-go run -tags=integration integration_test_tool.go
+# integration-smtp.ps1
+$mailpitHost = "localhost"
+$mailpitPort  = 1025
+
+Write-Host "1. Testing connectivity..." -ForegroundColor Yellow
+gomailtest smtp testconnect --host $mailpitHost --port $mailpitPort
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+Write-Host "2. Testing authentication..." -ForegroundColor Yellow
+gomailtest smtp testauth --host $mailpitHost --port $mailpitPort `
+    --username test --password test
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+Write-Host "3. Sending test email..." -ForegroundColor Yellow
+gomailtest smtp sendmail --host $mailpitHost --port $mailpitPort `
+    --from integration@local --to testrecipient@local `
+    --subject "Integration Test $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" `
+    --body "Automated integration test"
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+Write-Host "`n✓ All SMTP integration tests passed!" -ForegroundColor Green
+Write-Host "View emails at: http://localhost:8025" -ForegroundColor Cyan
 ```
 
-**Features:**
-- ✅ Interactive prompts before write operations
-- ✅ Real-time test results display
-- ✅ Progress indicators
-- ✅ Pass/fail summary
-
-**What Gets Tested:**
-1. **Get Events** (auto-runs) - Retrieves calendar events
-2. **Send Mail** (prompts for confirmation) - Sends test email to self
-3. **Send Calendar Invite** (prompts for confirmation) - Creates calendar event
-4. **Get Inbox** (auto-runs) - Retrieves inbox messages
-
-### Example Output
-
-```
-=================================================================
-Microsoft Graph EXO Mails/Calendar Golang Testing Tool - Integration Test Suite
-=================================================================
-
-Configuration loaded:
-  Tenant ID: 1234****-****-****-****9012
-  Client ID: abcd****-****-****-****7890
-  Secret:    your********cret
-  Mailbox:   test-user@example.com
-
-Proceed with integration tests? (y/n): y
-
-Creating Microsoft Graph client...
-✅ Graph client created successfully
-
-─────────────────────────────────────────────────────────────────
-Test 1: Get Events
-─────────────────────────────────────────────────────────────────
-Retrieving 3 upcoming calendar events from test-user@example.com...
-Upcoming events for test-user@example.com:
-- Team Meeting (ID: AAMkAD...)
-- Project Review (ID: AAMkAE...)
-
-Total events retrieved: 2
-✅ PASSED: Successfully retrieved calendar events
-
-─────────────────────────────────────────────────────────────────
-Test 2: Send Mail
-─────────────────────────────────────────────────────────────────
-Send a test email to yourself? (y/n): y
-Sending test email to test-user@example.com...
-  Subject: Integration Test - 2026-01-05T14:30:00Z
-Email sent successfully from test-user@example.com.
-To: [test-user@example.com]
-Cc: []
-Bcc: []
-Subject: Integration Test - 2026-01-05T14:30:00Z
-Body Type: Text
-✅ PASSED: Email sent successfully
-  Check your inbox to verify delivery
-
-=================================================================
-Integration Test Results Summary
-=================================================================
-  ✅ Get Events:          PASSED
-  ✅ Send Mail:           PASSED
-  ✅ Send Invite:         PASSED
-  ✅ Get Inbox:           PASSED
-=================================================================
-
-Pass Rate: 4/4 (100%)
-✅ All integration tests passed!
-```
-
-## Option 2: Automated Integration Tests
-
-Standard Go tests using the `testing` package.
-
-### Run Automated Tests
-
-**Read-only tests (safe):**
-```powershell
-cd src
-go test -tags=integration -v
-```
-
-**All tests including write operations:**
-```powershell
-$env:MSGRAPH_INTEGRATION_WRITE = "true"
-go test -tags=integration -v ./src
-```
-
-**Run specific test:**
-```powershell
-go test -tags=integration -v -run TestIntegration_ListEvents ./src
-```
-
-### Available Tests
-
-| Test | Type | Description |
-|------|------|-------------|
-| `TestIntegration_Prerequisites` | Check | Verifies environment variables are set |
-| `TestIntegration_GraphClientCreation` | Read | Tests Graph client creation |
-| `TestIntegration_ListEvents` | Read | Retrieves calendar events |
-| `TestIntegration_ListInbox` | Read | Retrieves inbox messages |
-| `TestIntegration_SendEmail` | **Write** | Sends test email (requires `MSGRAPH_INTEGRATION_WRITE=true`) |
-| `TestIntegration_CreateCalendarEvent` | **Write** | Creates calendar event (requires `MSGRAPH_INTEGRATION_WRITE=true`) |
-| `TestIntegration_ValidateConfiguration` | Unit | Tests configuration validation logic |
-
-**⚠️ Write Tests:**
-- Require `MSGRAPH_INTEGRATION_WRITE=true` environment variable
-- Send real emails and create real calendar events
-- Automatically skipped if the environment variable is not set
-
-### Example Output
-
-```
-=== RUN   TestIntegration_Prerequisites
---- PASS: TestIntegration_Prerequisites (0.00s)
-=== RUN   TestIntegration_GraphClientCreation
-    msgraphtool_integration_test.go:59: ✅ Graph client created successfully
---- PASS: TestIntegration_GraphClientCreation (1.23s)
-=== RUN   TestIntegration_ListEvents
-    msgraphtool_integration_test.go:72: Retrieving 3 upcoming calendar events from test-user@example.com
-Upcoming events for test-user@example.com:
-- Team Meeting (ID: AAMkAD...)
-
-Total events retrieved: 1
-    msgraphtool_integration_test.go:78: ✅ Successfully retrieved calendar events
---- PASS: TestIntegration_ListEvents (0.82s)
-=== RUN   TestIntegration_ListInbox
-    msgraphtool_integration_test.go:89: Retrieving 3 newest inbox messages from test-user@example.com
-...
---- PASS: TestIntegration_ListInbox (0.95s)
-=== RUN   TestIntegration_SendEmail
---- SKIP: TestIntegration_SendEmail (0.00s)
-    msgraphtool_integration_test.go:104: Skipping write operation test - set MSGRAPH_INTEGRATION_WRITE=true to enable
-...
-PASS
-ok      msgraphtool        3.456s
-```
-
-## Troubleshooting
-
-### Authentication Errors
-
-**Error:** "Failed to create Graph client: authentication setup failed"
-
-**Solutions:**
-- Verify all environment variables are set correctly
-- Check that the client secret hasn't expired
-- Ensure the App Registration has the correct permissions
-- Verify admin consent has been granted
-
-### Permission Errors
-
-**Error:** "Insufficient privileges to complete the operation"
-
-**Solutions:**
-- Check Exchange Online RBAC permissions for Entra ID Application Registration:
-  - **Application Mail.ReadWrite**
-  - **Application Calendars.ReadWrite**
-- Verify Exchange Administrator role is assigned (PIM) - recommended for least privilege
-- Permissions must be assigned via PowerShell (see [Exchange Online Application RBAC](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac))
-- Grant Admin Consent for these permissions
-- Wait 5-10 minutes for permissions to propagate
-
-### Mailbox Access Denied
-
-**Error:** "Access is denied. Check credentials and try again."
-
-**Solutions:**
-- Verify the mailbox address is correct
-- Ensure the mailbox exists and is licensed
-- Check if Application Access Policies restrict this app
-- Verify the service principal has access to the mailbox
-
-### Network Errors
-
-**Error:** "dial tcp: i/o timeout" or "connection timeout"
-
-**Solutions:**
-- Check network connectivity to graph.microsoft.com
-- If behind a proxy, set `MSGRAPHPROXY` environment variable:
-  ```powershell
-  $env:MSGRAPHPROXY = "http://proxy.company.com:8080"
-  ```
-
-## Cleanup
-
-After testing, you may want to:
-
-1. **Delete test emails** from your inbox
-2. **Delete test calendar events** from your calendar
-3. **Clear environment variables** (for security):
+## IMAP Integration Testing
 
 ```powershell
-Remove-Item Env:\MSGRAPHSECRET
-Remove-Item Env:\MSGRAPHTENANTID
-Remove-Item Env:\MSGRAPHCLIENTID
-Remove-Item Env:\MSGRAPHMAILBOX
-Remove-Item Env:\MSGRAPH_INTEGRATION_WRITE
+# Against a real IMAP server (Gmail example)
+gomailtest imap testconnect --host imap.gmail.com --imaps
+gomailtest imap testauth --host imap.gmail.com --imaps `
+    --username user@gmail.com --password "app-password"
+gomailtest imap listfolders --host imap.gmail.com --imaps `
+    --username user@gmail.com --password "app-password"
 ```
 
-## Security Best Practices
+## JMAP Integration Testing
 
-⚠️ **Important Security Notes:**
-
-1. **Never commit credentials** to source control
-2. **Use environment variables** for all sensitive data
-3. **Clear secrets after testing:**
-   ```powershell
-   Remove-Item Env:\MSGRAPHSECRET
-   ```
-4. **Use dedicated test mailbox** - don't use production mailboxes
-5. **Rotate secrets regularly** - generate new client secrets every 90 days
-6. **Monitor API usage** - check Azure AD sign-in logs for test activity
-
-## CI/CD Integration
-
-To run integration tests in CI/CD pipelines:
-
-### GitHub Actions Example
-
-```yaml
-name: Integration Tests
-on:
-  workflow_dispatch:  # Manual trigger only (don't run on every commit)
-
-jobs:
-  integration-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.25'
-
-      - name: Run Integration Tests
-        env:
-          MSGRAPHTENANTID: ${{ secrets.MSGRAPH_TENANT_ID }}
-          MSGRAPHCLIENTID: ${{ secrets.MSGRAPH_CLIENT_ID }}
-          MSGRAPHSECRET: ${{ secrets.MSGRAPH_SECRET }}
-          MSGRAPHMAILBOX: ${{ secrets.MSGRAPH_TEST_MAILBOX }}
-          MSGRAPH_INTEGRATION_WRITE: "true"
-        run: |
-          cd src
-          go test -tags=integration -v
+```powershell
+# Against Fastmail
+gomailtest jmap testconnect --host jmap.fastmail.com
+gomailtest jmap testauth --host jmap.fastmail.com `
+    --username user@fastmail.com --accesstoken "fmu1-xxx..."
+gomailtest jmap getmailboxes --host jmap.fastmail.com `
+    --username user@fastmail.com --accesstoken "fmu1-xxx..."
 ```
 
-**Important:**
-- Use **workflow_dispatch** or manual triggers (not on every push)
-- Store credentials as **GitHub Secrets**
-- Use a dedicated test tenant
-- Monitor API quota usage
+## EWS Integration Testing
 
-## Comparison: Interactive vs Automated
+**Prerequisites:** Access to an on-premises Exchange Server with EWS enabled.
 
-| Feature | Interactive Tool | Automated Tests |
-|---------|------------------|-----------------|
-| **Run Command** | `go run -tags=integration integration_test_tool.go` | `go test -tags=integration -v` |
-| **User Prompts** | ✅ Yes | ❌ No |
-| **CI/CD Friendly** | ❌ No | ✅ Yes |
-| **Write Protection** | ✅ Prompts for confirmation | ✅ Requires `MSGRAPH_INTEGRATION_WRITE=true` |
-| **Output Format** | Pretty formatted | Standard Go test output |
-| **Use Case** | Manual testing, demos | Automated regression testing, CI/CD |
+```powershell
+# Test basic EWS connectivity (no credentials required)
+gomailtest ews testconnect --host mail.example.com
 
-## Limitations
+# Test NTLM authentication
+gomailtest ews testauth --host mail.example.com `
+    --username "CORP\user" --password "secret"
 
-- **Only tests client secret authentication** - certificate auth not included in integration tests
-- **Requires manual verification** - check inbox/calendar to confirm operations
-- **No automatic cleanup** - test emails and events must be deleted manually
-- **Network dependent** - requires internet access to graph.microsoft.com
-- **API quota consumption** - each test run consumes API calls against your quota
+# Test Basic authentication
+gomailtest ews testauth --host mail.example.com `
+    --username user@example.com --password "secret" --authmethod Basic
 
-## Support
+# Test Bearer (OAuth2) authentication
+gomailtest ews testauth --host mail.example.com `
+    --username user@example.com --accesstoken "eyJ0..."
 
-For issues or questions:
-- See main [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common errors
-- Check [SECURITY_PRACTICES.md](SECURITY_PRACTICES.md) for security guidance
-- Review [README.md](README.md) for general usage information
-- Report issues at: https://github.com/ehlo-pl/gomailtesttool/issues
+# Get Inbox folder properties
+gomailtest ews getfolder --host mail.example.com `
+    --username "CORP\user" --password "secret"
 
----
+# Run Autodiscover
+gomailtest ews autodiscover --host mail.example.com `
+    --username user@example.com
+```
 
-*Integration Testing Guide - Version 1.16.5 - 2026-01-05*
+Environment variable shortcut:
+
+```powershell
+$env:EWSHOST     = "mail.example.com"
+$env:EWSUSERNAME = "CORP\user"
+$env:EWSPASSWORD = "secret"
+
+gomailtest ews testconnect
+gomailtest ews testauth
+gomailtest ews getfolder
+```
+
+See [docs/protocols/ews.md](docs/protocols/ews.md) for full flag and environment variable reference.
+
+## Microsoft Graph Integration Testing
+
+**Prerequisites:** An Azure AD App Registration with appropriate Microsoft Graph permissions.
+
+```powershell
+# Set authentication
+$env:MSGRAPHTENANTID = "your-tenant-id"
+$env:MSGRAPHCLIENTID = "your-client-id"
+$env:MSGRAPHSECRET   = "your-secret"
+$env:MSGRAPHMAILBOX  = "user@example.com"
+
+# Run operations
+gomailtest msgraph getevents
+gomailtest msgraph getinbox --count 5
+gomailtest msgraph sendmail --to "test@example.com" --subject "Integration Test"
+```
+
+Required Azure AD permissions:
+- `Mail.Send` — for sendmail
+- `Calendars.ReadWrite` — for getevents, sendinvite, getschedule
+- `Mail.Read` — for getinbox, exportinbox, searchandexport
+
+See [docs/protocols/msgraph.md](docs/protocols/msgraph.md) for full permission details.
+
+## Load Balancer / Address Override Testing
+
+All protocols support `--address` to override the TCP connection address while keeping the original hostname for TLS SNI and certificate verification. Useful for testing specific backend nodes.
+
+```powershell
+# Connect to 192.168.1.10 but verify TLS cert for smtp.example.com
+gomailtest smtp testconnect --host smtp.example.com --address 192.168.1.10 --port 25
+
+# IMAP
+gomailtest imap testconnect --host imap.example.com --address 192.168.1.20 --imaps
+
+# JMAP
+gomailtest jmap testconnect --host jmap.example.com --address 10.0.0.5
+```
+
+## Proxy Testing
+
+```powershell
+# Via flag
+gomailtest smtp testconnect --host smtp.example.com --proxy "http://proxy.corp.com:8080"
+gomailtest msgraph getevents --proxy "http://proxy.corp.com:8080"
+
+# Via environment variable
+$env:SMTPPROXY = "http://proxy.corp.com:8080"
+gomailtest smtp testconnect --host smtp.example.com
+
+# SOCKS5 proxy
+gomailtest smtp testauth --host smtp.example.com `
+    --proxy "socks5://user:pass@socks-proxy.corp.com:1080" `
+    --username user@example.com --password secret
+```
+
+## Related Documentation
+
+- [UNIT_TESTS.md](UNIT_TESTS.md) — Unit test documentation
+- [docs/protocols/smtp.md](docs/protocols/smtp.md) — SMTP documentation (includes Mailpit guide)
+- [docs/protocols/ews.md](docs/protocols/ews.md) — EWS documentation
+- [BUILD.md](BUILD.md) — Build instructions
 
                           ..ooOO END OOoo..
-
-

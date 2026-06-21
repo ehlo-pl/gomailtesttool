@@ -188,6 +188,59 @@ func NewEmailQueryRequest(accountId Id, filter interface{}, limit uint32) *Reque
 	}
 }
 
+// NewEmailGetRequest creates a request to get emails by ID with the given properties.
+func NewEmailGetRequest(accountId Id, ids []Id, properties []string) *Request {
+	return &Request{
+		Using: []string{CoreCapability, MailCapability},
+		MethodCalls: []MethodCall{
+			{
+				Name: MethodEmailGet,
+				Arguments: GetRequest{
+					AccountId:  accountId,
+					Ids:        ids,
+					Properties: properties,
+				},
+				CallId: "0",
+			},
+		},
+	}
+}
+
+// ParseEmailGetResponse parses an Email/get response.
+func ParseEmailGetResponse(resp *MethodResponse) (*GetEmailsResponse, error) {
+	var result GetEmailsResponse
+	if err := json.Unmarshal(resp.Arguments, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// BuildEmailSearchFilter builds an Email/query filter (RFC 8621 §4.4.1) that
+// matches the given Message-ID header value and/or subject substring. At
+// least one of messageID/subject must be non-empty. When both are given, the
+// resulting filter requires both conditions (AND).
+func BuildEmailSearchFilter(messageID, subject string) map[string]interface{} {
+	var conditions []map[string]interface{}
+	if messageID != "" {
+		conditions = append(conditions, map[string]interface{}{
+			"header": []string{"Message-ID", messageID},
+		})
+	}
+	if subject != "" {
+		conditions = append(conditions, map[string]interface{}{
+			"subject": subject,
+		})
+	}
+
+	if len(conditions) == 1 {
+		return conditions[0]
+	}
+	return map[string]interface{}{
+		"operator":   "AND",
+		"conditions": conditions,
+	}
+}
+
 // ParseMailboxGetResponse parses a Mailbox/get response.
 func ParseMailboxGetResponse(resp *MethodResponse) (*GetMailboxesResponse, error) {
 	var result GetMailboxesResponse

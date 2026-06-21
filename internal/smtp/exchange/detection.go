@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gomailtesttool/internal/smtp/protocol"
+	"github.com/ehlo-pl/gomailtesttool/internal/smtp/protocol"
 )
 
 // ExchangeInfo holds information about a detected Exchange server.

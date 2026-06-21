@@ -16,7 +16,7 @@ Please include as much information as possible to help us reproduce the issue. W
 
 ### Tool Design and Context
 
-These tools (**msgraphtool** and **smtptool**) are designed as **diagnostic CLI utilities for authorized personnel**. Understanding the threat model is critical for proper security assessment:
+**gomailtest** (and its protocol sub-tools: smtp, imap, pop3, jmap, msgraph) are designed as **diagnostic CLI utilities for authorized personnel**. Understanding the threat model is critical for proper security assessment:
 
 **✅ Trusted Input Sources:**
 - **CLI flags** (`-host`, `-subject`, `-from`, etc.) are provided by authorized users
@@ -167,11 +167,11 @@ This guide outlines security best practices for using the Microsoft Graph EXO Ma
 ```powershell
 # WRONG - Secret in script file committed to Git
 $secret = "very-secret-value-12345"
-.\msgraphtool.exe -secret $secret ...
+gomailtest msgraph getevents --secret $secret ...
 
 # CORRECT - Secret in environment variable or secure vault
 $env:MSGRAPHSECRET = Get-Content "C:\SecureLocation\secret.txt"
-.\msgraphtool.exe -tenantid "..." -clientid "..." -mailbox "..." -action getevents
+gomailtest msgraph getevents --tenantid "..." --clientid "..." --mailbox "..."
 ```
 
 **Best Practices:**
@@ -192,7 +192,7 @@ $secret = (Get-AzKeyVaultSecret -VaultName "MyVault" -Name "GraphSecret").Secret
 $env:MSGRAPHSECRET = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret))
 
 # Run tool
-.\msgraphtool.exe -tenantid "..." -clientid "..." -mailbox "..." -action getevents
+gomailtest msgraph getevents --tenantid "..." --clientid "..." --mailbox "..."
 
 # Clear secret from memory
 Remove-Item Env:\MSGRAPHSECRET
@@ -210,7 +210,7 @@ $plainSecret = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System
 $env:MSGRAPHSECRET = $plainSecret
 
 # Run tool
-.\msgraphtool.exe -tenantid "..." -clientid "..." -mailbox "..." -action getevents
+gomailtest msgraph getevents --tenantid "..." --clientid "..." --mailbox "..."
 ```
 
 ---
@@ -238,7 +238,7 @@ $env:MSGRAPHSECRET = $plainSecret
 **Windows Certificate Store (Most Secure):**
 ```powershell
 # Recommended approach - certificate in Windows store, no file on disk
-.\msgraphtool.exe -tenantid "..." -clientid "..." -thumbprint "CD817B3329802E692CF30D8DDF896FE811B048AB" -mailbox "..." -action getevents
+gomailtest msgraph getevents --tenantid "..." --clientid "..." --thumbprint "CD817B3329802E692CF30D8DDF896FE811B048AB" --mailbox "..."
 
 # Benefits:
 # - No certificate file on disk (reduced attack surface)
@@ -265,7 +265,7 @@ $plainPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.R
 $env:MSGRAPHPFXPASS = $plainPass
 
 # Run tool
-.\msgraphtool.exe -tenantid "..." -clientid "..." -pfx $pfxPath -mailbox "..." -action getevents
+gomailtest msgraph getevents --tenantid "..." --clientid "..." --pfx $pfxPath --mailbox "..."
 ```
 
 **Certificate Rotation Strategy:**
@@ -277,7 +277,7 @@ $env:MSGRAPHPFXPASS = $plainPass
 # (Azure Portal → App Registrations → Certificates & secrets)
 
 # 3. Test with new certificate
-.\msgraphtool.exe -thumbprint "NEW_THUMBPRINT" ...
+gomailtest msgraph getevents --thumbprint "NEW_THUMBPRINT" ...
 
 # 4. Update production automation with new thumbprint
 # 5. Remove old certificate from Azure AD after grace period (7-30 days)
@@ -347,7 +347,7 @@ Test-ApplicationAccessPolicy -Identity "user@example.com" -AppId "YOUR_CLIENT_ID
 ```powershell
 # Set for current PowerShell session only (not permanent)
 $env:MSGRAPHSECRET = "your-secret"
-.\msgraphtool.exe -action getevents
+gomailtest msgraph getevents
 Remove-Item Env:\MSGRAPHSECRET  # Clear after use
 
 # For automation, use encrypted storage
@@ -364,7 +364,7 @@ $env:MSGRAPHSECRET = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([
 [System.Environment]::SetEnvironmentVariable("MSGRAPHSECRET", "secret", "Machine")
 
 # ❌ WRONG - Visible in process list and command history
-.\msgraphtool.exe -secret "my-secret-value" ...
+gomailtest msgraph getevents --secret "my-secret-value" ...
 ```
 
 **Best Practice:**
@@ -494,7 +494,7 @@ Token: eyJ0eXAi... (expires in 59m 59s)
 ```powershell
 # Use corporate proxy for traffic monitoring and compliance
 $env:MSGRAPHPROXY = "http://proxy.company.com:8080"
-.\msgraphtool.exe -action getevents
+gomailtest msgraph getevents
 
 # Proxy with authentication (if required)
 # Configure Windows proxy settings via:
@@ -534,7 +534,7 @@ $env:MSGRAPHPROXY = "http://proxy.company.com:8080"
 
 ```powershell
 # Set file permissions (Administrators and specific users only)
-$toolPath = "C:\Tools\msgraphtool.exe"
+$toolPath = "C:\Tools\gomailtest.exe"
 $acl = Get-Acl $toolPath
 $acl.SetAccessRuleProtection($true, $false)  # Remove inherited permissions
 

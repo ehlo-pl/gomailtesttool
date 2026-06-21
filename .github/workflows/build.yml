@@ -58,23 +58,21 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
         include:
           - os: windows-latest
             ext: .exe
             artifact_name: gomailtesttool-windows-amd64
-            zip_name: gomailtesttool-windows-amd64.zip
             goarch: amd64
           - os: ubuntu-latest
             ext: ''
             artifact_name: gomailtesttool-linux-amd64
-            zip_name: gomailtesttool-linux-amd64.zip
             goarch: amd64
           - os: macos-latest
             ext: ''
             artifact_name: gomailtesttool-macos-arm64
-            zip_name: gomailtesttool-macos-arm64.zip
             goarch: arm64
 
     steps:
@@ -88,69 +86,64 @@ jobs:
     - name: Create bin directory
       run: mkdir -p bin
 
-    - name: Build all tools
+    - name: Build binary
       env:
         GOARCH: ${{ matrix.goarch }}
       run: |
-        go build -ldflags="-s -w" -o bin/msgraphtool${{ matrix.ext }} ./cmd/msgraphtool
-        go build -ldflags="-s -w" -o bin/smtptool${{ matrix.ext }} ./cmd/smtptool
-        go build -ldflags="-s -w" -o bin/imaptool${{ matrix.ext }} ./cmd/imaptool
-        go build -ldflags="-s -w" -o bin/pop3tool${{ matrix.ext }} ./cmd/pop3tool
-        go build -ldflags="-s -w" -o bin/jmaptool${{ matrix.ext }} ./cmd/jmaptool
+        go build -ldflags="-s -w" -o bin/gomailtest${{ matrix.ext }} ./cmd/gomailtest
+
+    - name: Set ZIP name
+      shell: bash
+      run: echo "ZIP_NAME=${{ matrix.artifact_name }}-${{ github.ref_name }}.zip" >> "$GITHUB_ENV"
 
     - name: Verify build output (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        $tools = @("msgraphtool", "smtptool", "imaptool", "pop3tool", "jmaptool")
-        foreach ($tool in $tools) {
-          $binary = "bin\$tool${{ matrix.ext }}"
-          if (Test-Path $binary) {
-            Write-Host "✓ $tool build successful"
-            Get-Item $binary | Select-Object Name, Length
-          } else {
-            Write-Error "✗ $tool build failed"
-            exit 1
-          }
+        $binary = "bin\gomailtest${{ matrix.ext }}"
+        if (Test-Path $binary) {
+          Write-Host "✓ gomailtest build successful"
+          Get-Item $binary | Select-Object Name, Length
+        } else {
+          Write-Error "✗ gomailtest build failed"
+          exit 1
         }
 
     - name: Verify build output (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        for tool in msgraphtool smtptool imaptool pop3tool jmaptool; do
-          if [ -f "bin/$tool${{ matrix.ext }}" ]; then
-            echo "✓ $tool build successful"
-            ls -lh "bin/$tool${{ matrix.ext }}"
-          else
-            echo "✗ $tool build failed"
-            exit 1
-          fi
-        done
+        if [ -f "bin/gomailtest${{ matrix.ext }}" ]; then
+          echo "✓ gomailtest build successful"
+          ls -lh "bin/gomailtest${{ matrix.ext }}"
+        else
+          echo "✗ gomailtest build failed"
+          exit 1
+        fi
 
     - name: Create ZIP archive (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        Compress-Archive -Path bin\msgraphtool${{ matrix.ext }},bin\smtptool${{ matrix.ext }},bin\imaptool${{ matrix.ext }},bin\pop3tool${{ matrix.ext }},bin\jmaptool${{ matrix.ext }},README.md,IMAPTOOL_README.md,JMAPTOOL_README.md,MSGRAPHTOOL_README.md,POP3TOOL_README.md,SMTP_TOOL_README.md,EXAMPLES.md,LICENSE -DestinationPath ${{ matrix.zip_name }}
-        Write-Host "Created ZIP archive: ${{ matrix.zip_name }}"
-        Get-Item ${{ matrix.zip_name }} | Select-Object Name, Length
+        Compress-Archive -Path bin\gomailtest${{ matrix.ext }},README.md,TOOLS.md,LICENSE -DestinationPath $env:ZIP_NAME
+        Write-Host "Created ZIP archive: $env:ZIP_NAME"
+        Get-Item $env:ZIP_NAME | Select-Object Name, Length
 
     - name: Create ZIP archive (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        cd bin && zip ../${{ matrix.zip_name }} msgraphtool${{ matrix.ext }} smtptool${{ matrix.ext }} imaptool${{ matrix.ext }} pop3tool${{ matrix.ext }} jmaptool${{ matrix.ext }} && cd ..
-        zip -u ${{ matrix.zip_name }} README.md IMAPTOOL_README.md JMAPTOOL_README.md MSGRAPHTOOL_README.md POP3TOOL_README.md SMTP_TOOL_README.md EXAMPLES.md LICENSE
-        echo "Created ZIP archive: ${{ matrix.zip_name }}"
-        ls -lh ${{ matrix.zip_name }}
+        cd bin && zip ../$ZIP_NAME gomailtest${{ matrix.ext }} && cd ..
+        zip -u $ZIP_NAME README.md TOOLS.md LICENSE
+        echo "Created ZIP archive: $ZIP_NAME"
+        ls -lh $ZIP_NAME
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}
-        path: ${{ matrix.zip_name }}
+        path: ${{ env.ZIP_NAME }}
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: ${{ matrix.zip_name }}
+        files: ${{ env.ZIP_NAME }}
         body: |
           ## gomailtesttool Suite - Email Infrastructure Testing Tools
 
@@ -158,98 +151,83 @@ jobs:
 
           ### What's Included
 
-          Each ZIP archive contains 5 tools:
-          - **msgraphtool** - Microsoft Graph API tool for Exchange Online
-          - **smtptool** - SMTP connectivity and TLS testing
-          - **imaptool** - IMAP server testing with XOAUTH2 support
-          - **pop3tool** - POP3 server testing with XOAUTH2 support
-          - **jmaptool** - JMAP protocol testing
+          Each ZIP archive contains a single unified binary:
+          - **gomailtest** - Unified CLI for all protocols (smtp, imap, pop3, jmap, msgraph subcommands)
 
           Plus documentation:
           - **README.md** - Main documentation
-          - ** *_TOOL_README.md** - specific protocols tool guide
-          - **EXAMPLES.md** - Usage examples
+          - **TOOLS.md** - Protocol-specific tool guides
           - **LICENSE** - MIT License
 
           ### Installation
 
           **Windows (amd64):**
-          1. Download `gomailtesttool-windows-amd64.zip`
+          1. Download `gomailtesttool-windows-amd64-${{ github.ref_name }}.zip`
           2. Extract the ZIP file
-          3. Run any tool directly (e.g., `smtptool.exe -help`)
+          3. Run: `gomailtest.exe --help`
 
           **Linux (amd64):**
-          1. Download `gomailtesttool-linux-amd64.zip`
-          2. Extract: `unzip gomailtesttool-linux-amd64.zip`
-          3. Make executable: `chmod +x *tool`
-          4. Run: `./smtptool -help`
+          1. Download `gomailtesttool-linux-amd64-${{ github.ref_name }}.zip`
+          2. Extract: `unzip gomailtesttool-linux-amd64-${{ github.ref_name }}.zip`
+          3. Make executable: `chmod +x gomailtest`
+          4. Run: `./gomailtest --help`
 
           **macOS (Apple Silicon/arm64):**
-          1. Download `gomailtesttool-macos-arm64.zip`
-          2. Extract: `unzip gomailtesttool-macos-arm64.zip`
-          3. Make executable: `chmod +x *tool`
-          4. Run: `./smtptool -help`
+          1. Download `gomailtesttool-macos-arm64-${{ github.ref_name }}.zip`
+          2. Extract: `unzip gomailtesttool-macos-arm64-${{ github.ref_name }}.zip`
+          3. Make executable: `chmod +x gomailtest`
+          4. Run: `./gomailtest --help`
 
           **Note for macOS:** If you see "cannot be opened because the developer cannot be verified":
           - Right-click the binary and select "Open", or
-          - Run: `xattr -d com.apple.quarantine *tool`
+          - Run: `xattr -d com.apple.quarantine gomailtest`
 
           ### Quick Start Examples
 
           **SMTP Testing:**
           ```bash
           # Test connectivity
-          ./smtptool -action testconnect -host smtp.example.com -port 25
+          ./gomailtest smtp testconnect -host smtp.example.com -port 25
 
           # TLS diagnostics
-          ./smtptool -action teststarttls -host smtp.example.com -port 587
+          ./gomailtest smtp teststarttls -host smtp.example.com -port 587
           ```
 
           **IMAP Testing:**
           ```bash
           # Test connection
-          ./imaptool -action testconnect -host imap.gmail.com -imaps
+          ./gomailtest imap testconnect -host imap.gmail.com -imaps
 
           # List folders with OAuth2
-          ./imaptool -action listfolders -host imap.gmail.com -imaps \
+          ./gomailtest imap listfolders -host imap.gmail.com -imaps \
             -username user@gmail.com -accesstoken "ya29..."
           ```
 
           **POP3 Testing:**
           ```bash
           # Test connection
-          ./pop3tool -action testconnect -host pop.gmail.com -pop3s
+          ./gomailtest pop3 testconnect -host pop.gmail.com -pop3s
 
           # List mail
-          ./pop3tool -action listmail -host pop.gmail.com -pop3s \
+          ./gomailtest pop3 listmail -host pop.gmail.com -pop3s \
             -username user@gmail.com -password "app-password"
           ```
 
           **JMAP Testing:**
           ```bash
           # Discover session
-          ./jmaptool -action testconnect -host jmap.fastmail.com
+          ./gomailtest jmap testconnect -host jmap.fastmail.com
 
           # Get mailboxes
-          ./jmaptool -action getmailboxes -host jmap.fastmail.com \
+          ./gomailtest jmap getmailboxes -host jmap.fastmail.com \
             -username user@fastmail.com -accesstoken "token"
           ```
 
           **Microsoft Graph:**
           ```bash
-          ./msgraphtool -tenantid "..." -clientid "..." -secret "..." \
+          ./gomailtest msgraph -tenantid "..." -clientid "..." -secret "..." \
             -mailbox "user@example.com" -action getinbox
           ```
-
-          ### Tools Overview
-
-          | Tool | Protocol | Ports | Auth Methods |
-          |------|----------|-------|--------------|
-          | smtptool | SMTP | 25, 587, 465 | PLAIN, LOGIN, CRAM-MD5, XOAUTH2 |
-          | imaptool | IMAP | 143, 993 | PLAIN, LOGIN, XOAUTH2 |
-          | pop3tool | POP3 | 110, 995 | USER/PASS, APOP, XOAUTH2 |
-          | jmaptool | JMAP | 443 | Basic, Bearer |
-          | msgraphtool | Graph API | 443 | Client Secret, Certificate, Bearer |
 
           ### Documentation
           - Online: [GitHub Repository](https://github.com/${{ github.repository }})

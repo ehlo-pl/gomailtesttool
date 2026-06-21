@@ -3,11 +3,17 @@ package protocol
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"time"
 )
+
+// DefaultResponseTimeout is the default timeout for reading POP3 responses.
+// This prevents indefinite hangs when communicating with misbehaving servers.
+const DefaultResponseTimeout = 30 * time.Second
 
 // POP3Response represents a POP3 server response.
 type POP3Response struct {
@@ -40,10 +46,27 @@ func ReadResponse(reader *bufio.Reader) (*POP3Response, error) {
 	return parseResponseLine(line)
 }
 
-// ReadResponseWithTimeout reads a response with a timeout.
-func ReadResponseWithTimeout(reader *bufio.Reader, timeout time.Duration) (*POP3Response, error) {
-	// For now, just use the basic read - timeout should be set on the connection
-	return ReadResponse(reader)
+// ReadResponseWithTimeout reads and parses a POP3 response with a timeout.
+//
+// The timeout is enforced via conn.SetReadDeadline rather than a goroutine, so
+// no goroutine is left blocked on a read after this function returns. The read
+// deadline is cleared before returning so it doesn't affect later operations
+// on conn.
+func ReadResponseWithTimeout(conn net.Conn, reader *bufio.Reader, timeout time.Duration) (*POP3Response, error) {
+	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		return nil, fmt.Errorf("failed to set read deadline: %w", err)
+	}
+	defer conn.SetReadDeadline(time.Time{}) //nolint:errcheck
+
+	resp, err := ReadResponse(reader)
+	if err != nil {
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return nil, fmt.Errorf("timeout waiting for POP3 response after %v", timeout)
+		}
+		return nil, err
+	}
+	return resp, nil
 }
 
 // ReadMultilineResponse reads a multiline POP3 response.

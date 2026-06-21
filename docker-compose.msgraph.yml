@@ -1,0 +1,31 @@
+# docker-compose.msgraph.yml — gomailtest serve (Microsoft Graph backend)
+#
+# Use this override file together with docker-compose.yml to enable the
+# MS Graph sendmail endpoint in addition to (or instead of) SMTP:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.msgraph.yml up
+#
+# Required MS Graph environment variables:
+#   MSGRAPHTENANTID   — Azure AD Tenant ID (GUID)
+#   MSGRAPHCLIENTID   — Application (Client) ID (GUID)
+#
+# Authentication — set exactly one of:
+#   MSGRAPHSECRET       — Client Secret
+#   MSGRAPHPFX          — Path to .pfx certificate file (mount the file into the container)
+#   MSGRAPHPFXPASS      — Password for the .pfx file (if using MSGRAPHPFX)
+#   MSGRAPHBEARERTOKEN  — Pre-obtained Bearer token
+#
+# Optional MS Graph variables:
+#   MSGRAPHMAILBOX, MSGRAPHPROXY
+
+services:
+  gomailtest-serve:
+    environment:
+      MSGRAPHTENANTID: "${MSGRAPHTENANTID}"
+      MSGRAPHCLIENTID: "${MSGRAPHCLIENTID}"
+      MSGRAPHSECRET: "${MSGRAPHSECRET:-}"
+      MSGRAPHPFX: "${MSGRAPHPFX:-}"
+      MSGRAPHPFXPASS: "${MSGRAPHPFXPASS:-}"
+      MSGRAPHBEARERTOKEN: "${MSGRAPHBEARERTOKEN:-}"
+      MSGRAPHMAILBOX: "${MSGRAPHMAILBOX:-}"
+      MSGRAPHPROXY: "${MSGRAPHPROXY:-}"

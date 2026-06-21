@@ -26,6 +26,17 @@ func ValidateEmail(email string) error {
 	return nil
 }
 
+// ExtractEmailDomain returns the domain portion (after the last '@') of an
+// email address. Returns an error if there's no '@' or the domain part is empty.
+func ExtractEmailDomain(email string) (string, error) {
+	email = strings.TrimSpace(email)
+	idx := strings.LastIndex(email, "@")
+	if idx == -1 || idx == len(email)-1 {
+		return "", fmt.Errorf("cannot extract domain from email: %s", email)
+	}
+	return email[idx+1:], nil
+}
+
 // ValidateEmails validates a slice of email addresses.
 // Returns an error if any email in the slice is invalid.
 func ValidateEmails(emails []string, fieldName string) error {
