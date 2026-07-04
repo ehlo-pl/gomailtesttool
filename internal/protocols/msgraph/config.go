@@ -160,6 +160,7 @@ func BindEnvs(v *viper.Viper) {
 		"output":             "MSGRAPHOUTPUT",
 		"logformat":          "MSGRAPHLOGFORMAT",
 		"count":              "MSGRAPHCOUNT",
+		"header":             "MSGRAPHHEADER",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)

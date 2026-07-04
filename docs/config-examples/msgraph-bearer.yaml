@@ -1,0 +1,8 @@
+# Microsoft Graph — pre-obtained Bearer token auth
+# Usage: gomailtest msgraph testconnect|testauth|getevents|getinbox --config msgraph-bearer.yaml
+# Useful when a token has already been obtained outside gomailtest (e.g. via az cli or custom OAuth flow).
+tenantid: 00000000-0000-0000-0000-000000000000
+clientid: 00000000-0000-0000-0000-000000000000
+bearertoken: eyJ0eXAiOiJKV1Qi...your-bearer-token-here
+mailbox: user@example.com
+# proxy: http://proxy.example.com:8080

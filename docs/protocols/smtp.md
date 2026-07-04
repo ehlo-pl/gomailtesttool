@@ -182,7 +182,7 @@ vars). `teststarttls` requires either STARTTLS or `--smtps` to test, so
 | `--bodyhtml` | HTML body content; combine with `--body` for `multipart/alternative` | `SMTPBODYHTML` |
 | `--attachments` | Comma-separated file paths to attach | `SMTPATTACHMENTS` |
 | `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` | `SMTPINLINEATTACHMENTS` |
-| `--header` | Custom header in `"Name: Value"` form (repeatable) | — (CLI only) |
+| `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values) | `SMTPHEADER` |
 | `--priority` | Email priority: `high`, `normal`, `low`. `high`/`low` add `X-Priority`, `Importance`, and `Priority` headers; `normal` (default) adds no extra headers | `SMTPPRIORITY` |
 
 ## Environment Variables

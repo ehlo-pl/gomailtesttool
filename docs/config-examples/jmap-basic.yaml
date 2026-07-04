@@ -1,0 +1,9 @@
+# JMAP — Basic (password) auth for self-hosted JMAP servers (Cyrus IMAP, Apache James)
+# Usage: gomailtest jmap testconnect|testauth|getmailboxes --config jmap-basic.yaml
+host: jmap.example.com
+port: 443
+username: user@example.com
+password: change-me
+authmethod: basic
+# skipverify: true   # skip TLS certificate verification — useful for self-signed certs
+# address: 192.168.1.10  # connect to this IP instead of --host (host still used for TLS SNI)

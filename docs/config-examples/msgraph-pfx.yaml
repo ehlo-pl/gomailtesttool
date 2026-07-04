@@ -1,0 +1,10 @@
+# Microsoft Graph — PFX certificate file auth
+# Usage: gomailtest msgraph testconnect|testauth|getevents|getinbox --config msgraph-pfx.yaml
+tenantid: 00000000-0000-0000-0000-000000000000
+clientid: 00000000-0000-0000-0000-000000000000
+pfx: C:\Certs\app-cert.pfx
+pfxpass: certificate-password
+mailbox: user@example.com
+# proxy: http://proxy.example.com:8080
+# maxretries: 3
+# retrydelay: 2000

@@ -1,0 +1,10 @@
+# IMAP — XOAUTH2 token auth (Microsoft 365 / Google Workspace)
+# Usage: gomailtest imap testauth|listfolders --config imap-oauth2.yaml
+host: imap.gmail.com
+port: 993
+imaps: true
+username: user@example.com
+accesstoken: ya29.your-oauth2-token-here
+authmethod: XOAUTH2
+# skipverify: true   # skip TLS certificate verification (testing only)
+# proxy: http://proxy.example.com:8080

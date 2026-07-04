@@ -1,0 +1,14 @@
+# EWS — NTLM auth for on-premises Exchange with Active Directory
+# Usage: gomailtest ews testconnect|testauth|getfolder|autodiscover --config ews-ntlm.yaml
+host: mail.contoso.com
+port: 443
+username: CONTOSO\user
+password: change-me
+authmethod: NTLM
+# domain: CONTOSO  # alternative to embedding domain in username (DOMAIN\user form)
+# ewspath: /EWS/Exchange.asmx          # default; override for non-standard installations
+# autodiscoverpath: /autodiscover/autodiscover.svc  # used by the autodiscover action
+# mailbox: targetuser@contoso.com      # set for mailbox impersonation (service account scenario)
+# skipverify: true   # skip TLS certificate verification (testing only)
+# tlsversion: "1.3"  # minimum TLS version; default is 1.2
+# proxy: http://proxy.example.com:8080
