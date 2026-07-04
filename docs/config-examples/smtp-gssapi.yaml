@@ -1,0 +1,11 @@
+# SMTP — GSSAPI/Kerberos auth for on-premises Active Directory (port 25)
+# Usage: gomailtest smtp testconnect|testauth --config smtp-gssapi.yaml
+host: mail.contoso.com
+port: 25
+# username must be in user@REALM format; realm is auto-extracted
+username: alice@CONTOSO.COM
+password: change-me
+authmethod: GSSAPI
+# realm: CONTOSO.COM  # optional — auto-extracted from username if omitted
+# kdc: dc01.contoso.com  # optional — uses DNS SRV records if omitted; set when SRV records are missing
+# proxy: http://proxy.example.com:8080

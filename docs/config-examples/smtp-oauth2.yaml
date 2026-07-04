@@ -1,0 +1,11 @@
+# SMTP — OAuth2 token auth (XOAUTH2 for M365/Google, OAUTHBEARER for RFC 7628 servers)
+# Usage: gomailtest smtp testauth --config smtp-oauth2.yaml
+host: smtp.office365.com
+port: 587
+starttls: true
+username: user@example.com
+accesstoken: eyJ0eXAiOiJKV1Qi...your-oauth2-token-here
+# authmethod: XOAUTH2      # for Microsoft 365 and Google Workspace
+# authmethod: OAUTHBEARER  # for Dovecot and other RFC 7628-compliant servers
+authmethod: XOAUTH2
+# proxy: http://proxy.example.com:8080

@@ -1,0 +1,10 @@
+# Microsoft Graph — Windows certificate store auth via thumbprint (Windows only)
+# Usage: gomailtest msgraph testconnect|testauth|getevents|getinbox --config msgraph-thumbprint.yaml
+# Certificate must be present in the CurrentUser\My store on the machine running gomailtest.
+tenantid: 00000000-0000-0000-0000-000000000000
+clientid: 00000000-0000-0000-0000-000000000000
+thumbprint: CD817B3329802E692CF30D8DDF896FE811B048AB
+mailbox: user@example.com
+# proxy: http://proxy.example.com:8080
+# maxretries: 3
+# retrydelay: 2000

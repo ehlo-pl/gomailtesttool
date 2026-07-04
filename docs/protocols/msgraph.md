@@ -83,6 +83,8 @@ gomailtest msgraph sendmail \
     --header "X-Custom-Header: example-value"
 ```
 
+> **Note:** Microsoft Graph only passes through `X-`-prefixed custom headers. Standard RFC headers (From, To, Subject, Date, Message-ID, etc.) are set by the Graph API itself and cannot be overridden via `--header`.
+
 ### sendinvite — Create Calendar Invitations
 
 ```powershell
@@ -179,7 +181,7 @@ Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or
 | `--body-template` | Path to HTML template file | `MSGRAPHBODYTEMPLATE` |
 | `--attachments` | Comma-separated file paths | `MSGRAPHATTACHMENTS` |
 | `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` (referenced from `--bodyHTML`) | `MSGRAPHINLINEATTACHMENTS` |
-| `--header` | Custom header in `"Name: Value"` form (repeatable) | — (CLI only) |
+| `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values). **Microsoft Graph only passes through `X-`-prefixed custom headers** — standard RFC headers (From, To, Subject, etc.) are controlled by the API itself and cannot be injected here | `MSGRAPHHEADER` |
 | `--priority` | Email priority/importance: `high`, `normal`, `low` (maps to the Graph `importance` field) | `MSGRAPHPRIORITY` |
 | `--start` | Start time (RFC3339) | `MSGRAPHSTART` |
 | `--end` | End time (RFC3339) | `MSGRAPHEND` |

@@ -115,8 +115,8 @@ Output goes to `%TEMP%\export\{date}\msg_{message-id}.eml`, or
 | `--maxretries` | Maximum retry attempts | `POP3MAXRETRIES` | 3 |
 | `--retrydelay` | Retry delay (milliseconds) | `POP3RETRYDELAY` | 2000 |
 | `--ratelimit` | Max requests per second (0 = unlimited) | `POP3RATELIMIT` | 0 |
-| `--verbose` | Enable verbose output | — | false |
-| `--loglevel` | Log level: DEBUG, INFO, WARN, ERROR | — | INFO |
+| `--verbose` | Enable verbose output | `POP3VERBOSE` | false |
+| `--loglevel` | Log level: DEBUG, INFO, WARN, ERROR | `POP3LOGLEVEL` | INFO |
 | `--logformat` | Log file format: csv, json | `POP3LOGFORMAT` | csv |
 
 **Note:** `--pop3s` and `--starttls` cannot be used together. `--no-pop3s`+`--pop3s` and `--no-starttls`+`--starttls` are each mutually exclusive (useful to catch conflicting defaults from `--config`/env vars).

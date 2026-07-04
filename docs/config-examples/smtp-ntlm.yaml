@@ -1,0 +1,11 @@
+# SMTP — NTLM auth for on-premises Exchange / Windows SMTP relay (port 25)
+# Usage: gomailtest smtp testconnect|testauth --config smtp-ntlm.yaml
+host: mail.contoso.com
+port: 25
+# username in DOMAIN\user format; plain user@domain.com is also accepted
+username: CONTOSO\user
+password: change-me
+authmethod: NTLM
+# no-starttls: true  # force plain connection when the server advertises STARTTLS but you want to skip it
+# skipverify: true   # skip TLS certificate verification (testing only)
+# proxy: http://proxy.example.com:8080

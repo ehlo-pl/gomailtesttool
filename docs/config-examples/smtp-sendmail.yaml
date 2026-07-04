@@ -1,0 +1,23 @@
+# SMTP — full sendmail scenario: HTML body, CC/BCC, attachments, inline images, headers
+# Usage: gomailtest smtp sendmail --config smtp-sendmail.yaml
+host: smtp.example.com
+port: 587
+starttls: true
+username: user@example.com
+password: change-me
+from: sender@example.com
+to: recipient@example.com
+# cc: cc@example.com                     # visible in Cc: header and SMTP envelope
+# bcc: bcc@example.com                   # SMTP envelope only — never written to message headers
+subject: "Test Email from gomailtest"
+body: "Plain-text fallback for clients that do not render HTML."
+bodyhtml: "<p>Hello! This is a <strong>test</strong> message from gomailtest.</p>"
+# attachments: ./report.pdf,./data.csv   # comma-separated regular attachments
+# inline-attachments: ./logo.png         # embedded inline; reference as cid:logo.png in bodyhtml
+header:
+  - "X-Custom-Header: example-value"
+# priority: high   # high | normal (default) | low — adds X-Priority/Importance/Priority headers
+# use-mx: true     # resolve --to recipient domain MX and connect there directly
+# proxy: http://proxy.example.com:8080
+# maxretries: 3
+# retrydelay: 2000

@@ -108,8 +108,8 @@ Output goes to `%TEMP%\export\{date}\msg_{uid}.eml`, or
 | `--maxretries` | Maximum retry attempts | `IMAPMAXRETRIES` | 3 |
 | `--retrydelay` | Retry delay (milliseconds) | `IMAPRETRYDELAY` | 2000 |
 | `--ratelimit` | Max requests per second (0 = unlimited) | `IMAPRATELIMIT` | 0 |
-| `--verbose` | Enable verbose output | — | false |
-| `--loglevel` | Log level: DEBUG, INFO, WARN, ERROR | — | INFO |
+| `--verbose` | Enable verbose output | `IMAPVERBOSE` | false |
+| `--loglevel` | Log level: DEBUG, INFO, WARN, ERROR | `IMAPLOGLEVEL` | INFO |
 | `--output` | Output format: text, json | `IMAPOUTPUT` | text |
 | `--logformat` | Log file format: csv, json | `IMAPLOGFORMAT` | csv |
 

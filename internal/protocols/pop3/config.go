@@ -125,8 +125,8 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.Float64("ratelimit", 0, "Maximum POP3 requests per second (0 = unlimited) (env: POP3RATELIMIT)")
 
 	// Output
-	f.Bool("verbose", false, "Enable verbose output")
-	f.String("loglevel", "INFO", "Logging level: DEBUG, INFO, WARN, ERROR")
+	f.Bool("verbose", false, "Enable verbose output (env: POP3VERBOSE)")
+	f.String("loglevel", "INFO", "Logging level: DEBUG, INFO, WARN, ERROR (env: POP3LOGLEVEL)")
 	f.String("output", "text", "Output format: text, json (env: POP3OUTPUT)")
 	f.String("logformat", "csv", "Log file format: csv, json (env: POP3LOGFORMAT)")
 }
@@ -157,6 +157,8 @@ func BindEnvs(v *viper.Viper) {
 		"output":      "POP3OUTPUT",
 		"logformat":   "POP3LOGFORMAT",
 		"ratelimit":   "POP3RATELIMIT",
+		"verbose":     "POP3VERBOSE",
+		"loglevel":    "POP3LOGLEVEL",
 		"maxmessages": "POP3MAXMESSAGES",
 		"subject":     "POP3SUBJECT",
 		"messageid":   "POP3MESSAGEID",

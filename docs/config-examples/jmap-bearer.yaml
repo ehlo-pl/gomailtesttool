@@ -1,0 +1,11 @@
+# JMAP — Bearer token auth (Fastmail and similar providers)
+# Usage: gomailtest jmap testconnect|testauth|getmailboxes --config jmap-bearer.yaml
+host: jmap.fastmail.com
+port: 443
+username: user@fastmail.com
+accesstoken: fmu1-xxxxxxxx-your-api-token-here
+authmethod: bearer
+# skipverify: true   # skip TLS certificate verification (testing only)
+
+# Getting a Fastmail API token:
+#   Settings → Password & Security → API Tokens → New Token

@@ -1,0 +1,22 @@
+# Microsoft Graph — full sendmail scenario: HTML body, CC/BCC, attachments, inline images, headers
+# Usage: gomailtest msgraph sendmail --config msgraph-sendmail.yaml
+tenantid: 00000000-0000-0000-0000-000000000000
+clientid: 00000000-0000-0000-0000-000000000000
+secret: your-client-secret-here
+mailbox: sender@example.com
+to: recipient@example.com
+# cc: cc@example.com
+# bcc: bcc@example.com
+subject: "Test Email from gomailtest"
+body: "Plain-text fallback for clients that do not render HTML."
+bodyHTML: "<p>Hello! This is a <strong>test</strong> message from gomailtest.</p>"
+# attachments: C:\Reports\report.pdf,C:\Reports\data.csv
+# inline-attachments: C:\Branding\logo.png  # embedded inline; reference as cid:logo.png in bodyHTML
+# body-template: C:\Templates\email.html    # path to HTML template file (alternative to bodyHTML)
+# Graph only passes through X- prefixed custom headers; standard RFC headers are controlled by the API
+header:
+  - "X-Custom-Header: example-value"
+# priority: high   # high | normal (default) | low
+# proxy: http://proxy.example.com:8080
+# maxretries: 3
+# retrydelay: 2000

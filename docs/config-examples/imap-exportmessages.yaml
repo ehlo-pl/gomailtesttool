@@ -1,0 +1,16 @@
+# IMAP — export matching messages as .eml files
+# Usage: gomailtest imap exportmessages --config imap-exportmessages.yaml
+host: imap.example.com
+port: 993
+imaps: true
+username: user@example.com
+password: change-me
+# Search filters — at least one of subject or messageid is typically provided
+subject: "Invoice"
+# messageid: "<unique-id@example.com>"
+mailbox: INBOX
+count: 25
+exportdir: C:\exports
+# proxy: http://proxy.example.com:8080
+# maxretries: 3
+# retrydelay: 2000

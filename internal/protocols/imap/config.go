@@ -123,8 +123,8 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.Float64("ratelimit", 0, "Maximum IMAP requests per second (0 = unlimited) (env: IMAPRATELIMIT)")
 
 	// Output
-	f.Bool("verbose", false, "Enable verbose output")
-	f.String("loglevel", "INFO", "Logging level: DEBUG, INFO, WARN, ERROR")
+	f.Bool("verbose", false, "Enable verbose output (env: IMAPVERBOSE)")
+	f.String("loglevel", "INFO", "Logging level: DEBUG, INFO, WARN, ERROR (env: IMAPLOGLEVEL)")
 	f.String("output", "text", "Output format: text, json (env: IMAPOUTPUT)")
 	f.String("logformat", "csv", "Log file format: csv, json (env: IMAPLOGFORMAT)")
 }
@@ -155,6 +155,8 @@ func BindEnvs(v *viper.Viper) {
 		"output":      "IMAPOUTPUT",
 		"logformat":   "IMAPLOGFORMAT",
 		"ratelimit":   "IMAPRATELIMIT",
+		"verbose":     "IMAPVERBOSE",
+		"loglevel":    "IMAPLOGLEVEL",
 		"subject":     "IMAPSUBJECT",
 		"messageid":   "IMAPMESSAGEID",
 		"mailbox":     "IMAPMAILBOX",

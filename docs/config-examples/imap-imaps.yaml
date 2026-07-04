@@ -1,0 +1,19 @@
+# IMAP — implicit TLS / IMAPS (port 993): Gmail, Microsoft 365, Yahoo, iCloud
+# Usage: gomailtest imap testconnect|testauth|listfolders --config imap-imaps.yaml
+host: imap.example.com
+port: 993
+imaps: true
+username: user@example.com
+password: change-me
+# authmethod: auto   # auto-selects: PLAIN or LOGIN
+# skipverify: true   # skip TLS certificate verification (testing only)
+# tlsversion: "1.3"  # minimum TLS version; default is 1.2
+# proxy: http://proxy.example.com:8080
+# maxretries: 3
+# retrydelay: 2000
+
+# Provider quick-reference:
+#   Gmail:         host: imap.gmail.com         port: 993
+#   Microsoft 365: host: outlook.office365.com  port: 993
+#   Yahoo:         host: imap.mail.yahoo.com    port: 993
+#   iCloud:        host: imap.mail.me.com       port: 993

@@ -1,0 +1,12 @@
+# EWS — OAuth2 Bearer token auth with mailbox impersonation
+# Usage: gomailtest ews testauth|getfolder --config ews-bearer.yaml
+host: mail.example.com
+port: 443
+username: serviceaccount@example.com
+accesstoken: eyJ0eXAiOiJKV1Qi...your-oauth2-token-here
+authmethod: Bearer
+# mailbox is required when using a service account to access another user's mailbox
+mailbox: targetuser@example.com
+# ewspath: /EWS/Exchange.asmx   # default; override for non-standard installations
+# skipverify: true   # skip TLS certificate verification (testing only)
+# proxy: http://proxy.example.com:8080

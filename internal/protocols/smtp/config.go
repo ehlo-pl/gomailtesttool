@@ -136,8 +136,8 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.Float64("ratelimit", 0, "Maximum SMTP requests per second (0 = unlimited) (env: SMTPRATELIMIT)")
 
 	// Output
-	f.Bool("verbose", false, "Enable verbose output")
-	f.String("loglevel", "INFO", "Logging level: DEBUG, INFO, WARN, ERROR")
+	f.Bool("verbose", false, "Enable verbose output (env: SMTPVERBOSE)")
+	f.String("loglevel", "INFO", "Logging level: DEBUG, INFO, WARN, ERROR (env: SMTPLOGLEVEL)")
 	f.String("output", "text", "Output format: text, json (env: SMTPOUTPUT)")
 	f.String("logformat", "csv", "Log file format: csv, json (env: SMTPLOGFORMAT)")
 }
@@ -179,6 +179,9 @@ func BindEnvs(v *viper.Viper) {
 		"output":            "SMTPOUTPUT",
 		"logformat":         "SMTPLOGFORMAT",
 		"ratelimit":         "SMTPRATELIMIT",
+		"verbose":           "SMTPVERBOSE",
+		"loglevel":          "SMTPLOGLEVEL",
+		"header":            "SMTPHEADER",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)

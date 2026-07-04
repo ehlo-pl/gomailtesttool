@@ -1,0 +1,26 @@
+# Serve mode — HTTP REST server with SMTP and Microsoft Graph backends
+# Usage: gomailtest serve --config serve.yaml
+port: 8080
+listen: 127.0.0.1
+api-key: change-me
+
+# SMTP backend — seeds the /smtp/sendmail endpoint
+# Environment variables (SMTP*) take precedence over values here.
+smtp:
+  host: smtp.example.com
+  port: 587
+  starttls: true
+  username: user@example.com
+  password: change-me
+  from: sender@example.com
+  # skipverify: true
+  # proxy: http://proxy.example.com:8080
+
+# Microsoft Graph backend — seeds the /msgraph/sendmail endpoint
+# Environment variables (MSGRAPH*) take precedence over values here.
+msgraph:
+  tenantid: 00000000-0000-0000-0000-000000000000
+  clientid: 00000000-0000-0000-0000-000000000000
+  secret: your-client-secret-here
+  mailbox: sender@example.com
+  # proxy: http://proxy.example.com:8080

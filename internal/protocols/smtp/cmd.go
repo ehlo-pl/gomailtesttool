@@ -228,7 +228,7 @@ upgrades to TLS automatically, and logs the result (including TLS details) to CS
 	cmd.Flags().String("bodyhtml", "", "HTML body content; combine with --body for multipart/alternative (env: SMTPBODYHTML)")
 	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: SMTPATTACHMENTS)")
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: SMTPINLINEATTACHMENTS)")
-	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable)")
+	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: SMTPHEADER — comma-separated; avoid commas in header values)")
 	cmd.Flags().String("priority", "normal", "Email priority: high, normal, low; high/low add X-Priority, Importance, and Priority headers (env: SMTPPRIORITY)")
 
 	return cmd

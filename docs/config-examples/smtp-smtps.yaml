@@ -1,0 +1,11 @@
+# SMTP — password auth with implicit TLS / SMTPS (port 465)
+# Usage: gomailtest smtp testconnect|teststarttls|testauth --config smtp-smtps.yaml
+host: smtp.example.com
+port: 465
+smtps: true
+username: user@example.com
+password: change-me
+# authmethod: auto   # auto-selects strongest advertised method
+# skipverify: true   # skip TLS certificate verification (testing only)
+# tlsversion: "1.3"  # minimum TLS version; default is 1.2
+# proxy: http://proxy.example.com:8080
