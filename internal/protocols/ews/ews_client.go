@@ -147,7 +147,7 @@ func (c *EWSClient) Probe(ctx context.Context) (*http.Response, error) {
 	}
 	// drain body so connection can be reused, then close
 	_, _ = io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	return resp, nil
 }
 
@@ -174,7 +174,7 @@ func (c *EWSClient) SendSOAP(ctx context.Context, soapBody string) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if c.config.VerboseMode {
 		fmt.Printf("<<< HTTP %s\n", resp.Status)
@@ -215,7 +215,7 @@ func (c *EWSClient) SendAutodiscover(ctx context.Context, email string) ([]byte,
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if c.config.VerboseMode {
 		fmt.Printf("<<< HTTP %s\n", resp.Status)

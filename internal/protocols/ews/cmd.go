@@ -3,10 +3,10 @@ package ews
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // NewCmd returns the "ews" cobra.Command with all 4 action subcommands.
@@ -67,7 +67,7 @@ Reports TLS version, cipher suite, and certificate details.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -113,7 +113,7 @@ Auth method is auto-detected: NTLM if username contains backslash, Bearer if acc
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host)
@@ -158,7 +158,7 @@ total item count, unread count, and folder ID.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host)
@@ -204,7 +204,7 @@ Useful for diagnosing Exchange client configuration issues.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host)

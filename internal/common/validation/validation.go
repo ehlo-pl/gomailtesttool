@@ -171,8 +171,10 @@ func ValidateHostname(hostname string) error {
 
 	// Check for valid characters in hostname
 	for _, ch := range hostname {
-		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-			(ch >= '0' && ch <= '9') || ch == '.' || ch == '-') {
+		if (ch < 'a' || ch > 'z') &&
+			(ch < 'A' || ch > 'Z') &&
+			(ch < '0' || ch > '9') &&
+			ch != '.' && ch != '-' {
 			return fmt.Errorf("hostname contains invalid character: %c", ch)
 		}
 	}

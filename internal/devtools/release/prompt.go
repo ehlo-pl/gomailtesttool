@@ -9,7 +9,9 @@ import (
 
 // PromptLine reads a single line from r after printing the prompt to w.
 func PromptLine(w io.Writer, r io.Reader, prompt string) (string, error) {
-	fmt.Fprint(w, prompt)
+	if _, err := fmt.Fprint(w, prompt); err != nil {
+		return "", err
+	}
 	scanner := bufio.NewScanner(r)
 	if scanner.Scan() {
 		return strings.TrimSpace(scanner.Text()), nil
@@ -27,7 +29,9 @@ func PromptYesNo(w io.Writer, r io.Reader, question string, defaultYes bool) (bo
 	if defaultYes {
 		hint = "[Y/n]"
 	}
-	fmt.Fprintf(w, "%s %s: ", question, hint)
+	if _, err := fmt.Fprintf(w, "%s %s: ", question, hint); err != nil {
+		return false, err
+	}
 	scanner := bufio.NewScanner(r)
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
@@ -48,11 +52,21 @@ func PromptVersion(w io.Writer, r io.Reader, current string) (string, error) {
 	nextPatch, _ := SuggestNextPatch(current)
 	nextMinor, _ := SuggestNextMinor(current)
 
-	fmt.Fprintf(w, "Current version: %s\n", current)
-	fmt.Fprintf(w, "  [1] Next patch: %s\n", nextPatch)
-	fmt.Fprintf(w, "  [2] Next minor: %s\n", nextMinor)
-	fmt.Fprintf(w, "  [3] Custom version\n")
-	fmt.Fprint(w, "Choice [1]: ")
+	if _, err := fmt.Fprintf(w, "Current version: %s\n", current); err != nil {
+		return "", err
+	}
+	if _, err := fmt.Fprintf(w, "  [1] Next patch: %s\n", nextPatch); err != nil {
+		return "", err
+	}
+	if _, err := fmt.Fprintf(w, "  [2] Next minor: %s\n", nextMinor); err != nil {
+		return "", err
+	}
+	if _, err := fmt.Fprintf(w, "  [3] Custom version\n"); err != nil {
+		return "", err
+	}
+	if _, err := fmt.Fprint(w, "Choice [1]: "); err != nil {
+		return "", err
+	}
 
 	scanner := bufio.NewScanner(r)
 	if !scanner.Scan() {
@@ -66,7 +80,9 @@ func PromptVersion(w io.Writer, r io.Reader, current string) (string, error) {
 	case "2":
 		return nextMinor, nil
 	case "3":
-		fmt.Fprint(w, "Enter version: ")
+		if _, err := fmt.Fprint(w, "Enter version: "); err != nil {
+			return "", err
+		}
 		if !scanner.Scan() {
 			return "", fmt.Errorf("no version entered")
 		}
@@ -87,11 +103,11 @@ func PromptVersion(w io.Writer, r io.Reader, current string) (string, error) {
 // PromptLines collects multiple lines for a changelog section until the user enters an empty line.
 // Returns nil if no items were entered.
 func PromptLines(w io.Writer, r io.Reader, section string) []string {
-	fmt.Fprintf(w, "%s (one item per line, empty line to finish):\n", section)
+	_, _ = fmt.Fprintf(w, "%s (one item per line, empty line to finish):\n", section)
 	scanner := bufio.NewScanner(r)
 	var items []string
 	for {
-		fmt.Fprint(w, "  > ")
+		_, _ = fmt.Fprint(w, "  > ")
 		if !scanner.Scan() {
 			break
 		}

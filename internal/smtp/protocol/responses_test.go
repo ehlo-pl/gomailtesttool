@@ -18,8 +18,8 @@ func newPipeConn(t *testing.T) (net.Conn, *bufio.Reader, net.Conn) {
 	t.Helper()
 	client, server := net.Pipe()
 	t.Cleanup(func() {
-		client.Close()
-		server.Close()
+		_ = client.Close()
+		_ = server.Close()
 	})
 	return client, bufio.NewReader(client), server
 }
@@ -232,15 +232,15 @@ func TestReadResponseWithTimeout_ErrorPropagation(t *testing.T) {
 // TestSMTPResponseMethods tests the helper methods on SMTPResponse
 func TestSMTPResponseMethods(t *testing.T) {
 	tests := []struct {
-		name                  string
-		code                  int
-		wantIsSuccess         bool
-		wantIsTemporaryError  bool
-		wantIsPermanentError  bool
-		wantCodeClass         int
-		wantIsAuthRequired    bool
-		wantIsMailboxUnavail  bool
-		wantIsRateLimited     bool
+		name                 string
+		code                 int
+		wantIsSuccess        bool
+		wantIsTemporaryError bool
+		wantIsPermanentError bool
+		wantCodeClass        int
+		wantIsAuthRequired   bool
+		wantIsMailboxUnavail bool
+		wantIsRateLimited    bool
 	}{
 		{"Success 2xx", 250, true, false, false, 2, false, false, false},
 		{"Success 220", 220, true, false, false, 2, false, false, false},
@@ -290,19 +290,19 @@ func TestSMTPResponseMethods(t *testing.T) {
 
 func TestSMTPResponseString(t *testing.T) {
 	tests := []struct {
-		name     string
-		resp     *SMTPResponse
-		wantStr  string
+		name    string
+		resp    *SMTPResponse
+		wantStr string
 	}{
 		{
-			name:     "Single line",
-			resp:     &SMTPResponse{Code: 250, Message: "OK", Lines: []string{"OK"}},
-			wantStr:  "250 OK",
+			name:    "Single line",
+			resp:    &SMTPResponse{Code: 250, Message: "OK", Lines: []string{"OK"}},
+			wantStr: "250 OK",
 		},
 		{
-			name:     "Multiline",
-			resp:     &SMTPResponse{Code: 250, Message: "First\nSecond\nThird", Lines: []string{"First", "Second", "Third"}},
-			wantStr:  "250 (multiline, 3 lines)",
+			name:    "Multiline",
+			resp:    &SMTPResponse{Code: 250, Message: "First\nSecond\nThird", Lines: []string{"First", "Second", "Third"}},
+			wantStr: "250 (multiline, 3 lines)",
 		},
 	}
 

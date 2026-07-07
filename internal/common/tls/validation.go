@@ -8,21 +8,21 @@ import (
 
 // TLSInfo holds information about a TLS connection.
 type TLSInfo struct {
-	Version            string // TLS version (e.g., "TLS 1.3")
-	CipherSuite        string // Cipher suite name
+	Version             string // TLS version (e.g., "TLS 1.3")
+	CipherSuite         string // Cipher suite name
 	CipherSuiteStrength string // "strong", "weak", or "deprecated"
-	ServerName         string // SNI server name
-	NegotiatedProtocol string // ALPN negotiated protocol (if any)
+	ServerName          string // SNI server name
+	NegotiatedProtocol  string // ALPN negotiated protocol (if any)
 }
 
 // AnalyzeTLSConnection extracts and analyzes TLS connection details.
 func AnalyzeTLSConnection(state *tls.ConnectionState) *TLSInfo {
 	return &TLSInfo{
-		Version:            TLSVersionString(state.Version),
-		CipherSuite:        tls.CipherSuiteName(state.CipherSuite),
+		Version:             TLSVersionString(state.Version),
+		CipherSuite:         tls.CipherSuiteName(state.CipherSuite),
 		CipherSuiteStrength: AnalyzeCipherStrength(state.CipherSuite),
-		ServerName:         state.ServerName,
-		NegotiatedProtocol: state.NegotiatedProtocol,
+		ServerName:          state.ServerName,
+		NegotiatedProtocol:  state.NegotiatedProtocol,
 	}
 }
 
@@ -108,9 +108,10 @@ func CheckTLSWarnings(tlsInfo *TLSInfo, certInfo *CertificateInfo, skipVerify bo
 	}
 
 	// Cipher suite warnings
-	if tlsInfo.CipherSuiteStrength == "deprecated" {
+	switch tlsInfo.CipherSuiteStrength {
+	case "deprecated":
 		warnings = append(warnings, fmt.Sprintf("Deprecated cipher suite: %s", tlsInfo.CipherSuite))
-	} else if tlsInfo.CipherSuiteStrength == "weak" {
+	case "weak":
 		warnings = append(warnings, fmt.Sprintf("Weak cipher suite: %s (consider upgrading server configuration)", tlsInfo.CipherSuite))
 	}
 

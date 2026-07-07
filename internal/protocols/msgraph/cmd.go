@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 )
 
 // NewCmd returns the "msgraph" cobra.Command with all 8 action subcommands.
@@ -71,12 +71,12 @@ func newGetEventsCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -118,12 +118,12 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			// Load body template if provided
@@ -189,12 +189,12 @@ func newSendInviteCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -249,12 +249,12 @@ func newGetInboxCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -296,12 +296,12 @@ func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -343,12 +343,12 @@ func newExportInboxCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -391,12 +391,12 @@ func newSearchAndExportCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -443,12 +443,12 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)

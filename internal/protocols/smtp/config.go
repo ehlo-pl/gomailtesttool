@@ -5,11 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // Config holds all smtptool configuration.
@@ -374,7 +374,7 @@ func validateConfiguration(config *Config) error {
 
 	// Validate host (required for all actions, except sendmail with --use-mx,
 	// where the MX lookup domain is derived from --to instead).
-	if !(config.Action == ActionSendMail && config.UseMX) {
+	if config.Action != ActionSendMail || !config.UseMX {
 		if config.Host == "" {
 			return fmt.Errorf("host is required (-host flag)")
 		}

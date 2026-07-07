@@ -101,11 +101,11 @@ func (c *POP3Client) Connect(ctx context.Context) error {
 	// Read server greeting
 	resp, err := protocol.ReadResponse(c.reader)
 	if err != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		return fmt.Errorf("failed to read greeting: %w", err)
 	}
 	if !resp.Success {
-		c.conn.Close()
+		_ = c.conn.Close()
 		return fmt.Errorf("server rejected connection: %s", resp.Message)
 	}
 	c.greeting = resp.Message

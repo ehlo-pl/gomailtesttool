@@ -59,7 +59,7 @@ func testAuth(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		}
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if config.SMTPS {
 		if config.ConnectAddress != "" {

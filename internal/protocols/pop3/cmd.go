@@ -3,10 +3,10 @@ package pop3
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // NewCmd returns the "pop3" cobra.Command with all 3 action subcommands.
@@ -68,7 +68,7 @@ and (for POP3S) TLS state.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "POP3 Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -114,7 +114,7 @@ Automatically upgrades to TLS via STLS when --starttls is set.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "POP3 Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -159,7 +159,7 @@ Shows message count, total size, and per-message size and UIDL (if supported).`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "POP3 Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -209,7 +209,7 @@ full message (via RETR) as a .eml file.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "POP3 Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)

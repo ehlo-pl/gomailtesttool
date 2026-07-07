@@ -69,7 +69,7 @@ func exportCertFromStore(thumbprintStr string) ([]byte, string, error) {
 	if hSourceStore == 0 {
 		return nil, "", fmt.Errorf("failed to open system certificate store: %v", err)
 	}
-	defer procCertCloseStore.Call(hSourceStore, 0)
+	defer func() { _, _, _ = procCertCloseStore.Call(hSourceStore, 0) }()
 
 	// 3. Find the certificate by SHA1 Hash
 	hashBlob := CryptoApiBlob{
@@ -89,7 +89,7 @@ func exportCertFromStore(thumbprintStr string) ([]byte, string, error) {
 	if pCertContext == 0 {
 		return nil, "", fmt.Errorf("certificate with thumbprint %s not found", thumbprintStr)
 	}
-	defer procCertFreeCertificateContext.Call(pCertContext)
+	defer func() { _, _, _ = procCertFreeCertificateContext.Call(pCertContext) }()
 
 	// 4. Create a temporary memory store
 	hTempStore, _, err := procCertOpenStore.Call(
@@ -99,7 +99,7 @@ func exportCertFromStore(thumbprintStr string) ([]byte, string, error) {
 	if hTempStore == 0 {
 		return nil, "", fmt.Errorf("failed to create temporary memory store: %v", err)
 	}
-	defer procCertCloseStore.Call(hTempStore, 0)
+	defer func() { _, _, _ = procCertCloseStore.Call(hTempStore, 0) }()
 
 	// 5. Add the certificate to the memory store
 	// This makes sure we only export this specific certificate
@@ -167,7 +167,7 @@ func generateRandomPassword() (string, error) {
 // isHexString validates that a string contains only hexadecimal characters (0-9, a-f, A-F)
 func isHexString(s string) bool {
 	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
 			return false
 		}
 	}

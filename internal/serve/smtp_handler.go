@@ -29,7 +29,7 @@ func (s *Server) handleSMTPSendMail(w http.ResponseWriter, r *http.Request) {
 
 	csvLogger := newServeCSVLogger(s.logger, "smtp-sendmail")
 	if csvLogger != nil {
-		defer csvLogger.Close()
+		defer func() { _ = csvLogger.Close() }()
 	}
 
 	if se := s.sendSMTP(r.Context(), req, csvLogger); se != nil {

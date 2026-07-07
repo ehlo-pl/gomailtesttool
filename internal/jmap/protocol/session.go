@@ -102,12 +102,12 @@ func (s *Session) GetCoreCapability() (*CoreCapabilityInfo, error) {
 
 // MailCapabilityInfo contains parsed mail capability information.
 type MailCapabilityInfo struct {
-	MaxMailboxesPerEmail *int64 `json:"maxMailboxesPerEmail"`
-	MaxMailboxDepth      *int   `json:"maxMailboxDepth"`
-	MaxSizeMailboxName   int    `json:"maxSizeMailboxName"`
-	MaxSizeAttachmentsPerEmail int64 `json:"maxSizeAttachmentsPerEmail"`
-	EmailQuerySortOptions []string `json:"emailQuerySortOptions"`
-	MayCreateTopLevelMailbox bool `json:"mayCreateTopLevelMailbox"`
+	MaxMailboxesPerEmail       *int64   `json:"maxMailboxesPerEmail"`
+	MaxMailboxDepth            *int     `json:"maxMailboxDepth"`
+	MaxSizeMailboxName         int      `json:"maxSizeMailboxName"`
+	MaxSizeAttachmentsPerEmail int64    `json:"maxSizeAttachmentsPerEmail"`
+	EmailQuerySortOptions      []string `json:"emailQuerySortOptions"`
+	MayCreateTopLevelMailbox   bool     `json:"mayCreateTopLevelMailbox"`
 }
 
 // GetMailCapability parses and returns the mail capability information.
@@ -140,9 +140,9 @@ func (s *Session) Validate() error {
 // Summary returns a human-readable summary of the session.
 func (s *Session) Summary() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Username: %s\n", s.Username))
-	sb.WriteString(fmt.Sprintf("API URL: %s\n", s.APIURL))
-	sb.WriteString(fmt.Sprintf("Accounts: %d\n", len(s.Accounts)))
-	sb.WriteString(fmt.Sprintf("Capabilities: %s\n", strings.Join(s.GetCapabilityNames(), ", ")))
+	_, _ = fmt.Fprintf(&sb, "Username: %s\n", s.Username)
+	_, _ = fmt.Fprintf(&sb, "API URL: %s\n", s.APIURL)
+	_, _ = fmt.Fprintf(&sb, "Accounts: %d\n", len(s.Accounts))
+	_, _ = fmt.Fprintf(&sb, "Capabilities: %s\n", strings.Join(s.GetCapabilityNames(), ", "))
 	return sb.String()
 }

@@ -33,8 +33,8 @@ type VarStatus struct {
 
 // ShowVars writes the masked status of all MSGRAPH* variables to w.
 func ShowVars(w io.Writer) {
-	fmt.Fprintln(w, "MSGRAPH environment variables:")
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "MSGRAPH environment variables:")
+	_, _ = fmt.Fprintln(w)
 
 	allVars := append(RequiredVars, OptionalVars...)
 	for _, name := range allVars {
@@ -47,9 +47,9 @@ func ShowVars(w io.Writer) {
 			}
 		}
 		if val == "" {
-			fmt.Fprintf(w, "  %-24s %s  (not set)\n", name, tag)
+			_, _ = fmt.Fprintf(w, "  %-24s %s  (not set)\n", name, tag)
 		} else {
-			fmt.Fprintf(w, "  %-24s %s  %s\n", name, tag, maskVar(name, val))
+			_, _ = fmt.Fprintf(w, "  %-24s %s  %s\n", name, tag, maskVar(name, val))
 		}
 	}
 }
@@ -60,7 +60,7 @@ func ShowVars(w io.Writer) {
 func ClearCommands(w io.Writer) {
 	allVars := append(RequiredVars, OptionalVars...)
 	for _, name := range allVars {
-		fmt.Fprintf(w, "unset %s\n", name)
+		_, _ = fmt.Fprintf(w, "unset %s\n", name)
 	}
 }
 
