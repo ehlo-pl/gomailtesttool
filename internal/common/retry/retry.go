@@ -59,10 +59,40 @@ func IsSMTPRetryableError(smtpCode int) bool {
 	return false
 }
 
+// Classifier decides whether an error is worth retrying. A returned
+// retryAfter > 0 requests that specific delay before the next attempt
+// (e.g. from an HTTP Retry-After header) instead of exponential backoff.
+type Classifier func(err error) (retryable bool, retryAfter time.Duration)
+
+const (
+	// maxBackoffDelay caps the exponential backoff delay.
+	maxBackoffDelay = 30 * time.Second
+	// maxRetryAfterDelay caps a server-provided Retry-After delay so a
+	// pathological header value cannot stall the tool indefinitely.
+	maxRetryAfterDelay = 5 * time.Minute
+)
+
+// nextDelay computes the wait before the next attempt: a server-provided
+// retryAfter (capped at maxRetryAfterDelay) when given, otherwise
+// exponential backoff from baseDelay (capped at maxBackoffDelay).
+func nextDelay(attempt int, baseDelay, retryAfter time.Duration) time.Duration {
+	if retryAfter > 0 {
+		return min(retryAfter, maxRetryAfterDelay)
+	}
+	delay := baseDelay * time.Duration(1<<uint(attempt))
+	if delay <= 0 || delay > maxBackoffDelay {
+		// <= 0 guards against shift overflow with very large attempt counts
+		delay = maxBackoffDelay
+	}
+	return delay
+}
+
 // RetryWithBackoff wraps an operation with exponential backoff retry logic.
 // The operation is retried up to maxRetries times with exponentially increasing delays.
 // Base delay doubles on each attempt (capped at 30 seconds).
 // Context cancellation is respected and will stop retries immediately.
+// Errors are classified with IsRetryableError; use RetryWithBackoffFunc to
+// supply a custom classifier (e.g. protocol-aware status-code checks).
 //
 // Example usage:
 //
@@ -70,6 +100,15 @@ func IsSMTPRetryableError(smtpCode int) bool {
 //	    return doSomethingThatMightFail()
 //	})
 func RetryWithBackoff(ctx context.Context, maxRetries int, baseDelay time.Duration, operation func() error) error {
+	return RetryWithBackoffFunc(ctx, maxRetries, baseDelay, operation, func(err error) (bool, time.Duration) {
+		return IsRetryableError(err), 0
+	})
+}
+
+// RetryWithBackoffFunc is RetryWithBackoff with a caller-supplied Classifier,
+// letting protocols recognize their own transient failures (e.g. Graph API
+// 429/503 OData errors) and honor server-provided Retry-After delays.
+func RetryWithBackoffFunc(ctx context.Context, maxRetries int, baseDelay time.Duration, operation func() error, classify Classifier) error {
 	var lastErr error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -85,7 +124,8 @@ func RetryWithBackoff(ctx context.Context, maxRetries int, baseDelay time.Durati
 		}
 
 		// Check if error is retryable
-		if !IsRetryableError(lastErr) {
+		retryable, retryAfter := classify(lastErr)
+		if !retryable {
 			// Non-retryable error - fail immediately
 			return lastErr
 		}
@@ -95,11 +135,7 @@ func RetryWithBackoff(ctx context.Context, maxRetries int, baseDelay time.Durati
 			return fmt.Errorf("operation failed after %d retries: %w", maxRetries, lastErr)
 		}
 
-		// Calculate exponential backoff delay (cap at 30 seconds)
-		delay := baseDelay * time.Duration(1<<uint(attempt))
-		if delay > 30*time.Second {
-			delay = 30 * time.Second
-		}
+		delay := nextDelay(attempt, baseDelay, retryAfter)
 
 		log.Printf("Retryable error encountered (attempt %d/%d): %v. Retrying in %v...",
 			attempt+1, maxRetries, lastErr, delay)

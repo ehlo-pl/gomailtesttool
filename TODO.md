@@ -61,3 +61,10 @@ Outstanding work items for gomailtesttool. Carried over from [CODE_REVIEW.md](CO
   - Follow-up for `sendmail`: `--use-mx` is now also mutually exclusive with `--host` (in addition to `--address`); the MX lookup domain is instead derived from the first `--to` recipient, so it resolves the MX of where the mail is actually being delivered. `testconnect`/`teststarttls`/`testauth` keep the original `--host`-as-domain behavior.
 - [x] claify in --help output difference between --address (addtional parameter, not obligatory and --host - most case needed to connect some official service FQDN/name)
   - `--host` help text now states it's the required service hostname used for the connection, TLS SNI/cert checks, and auth; `--address` help text now says it's an optional override of the dialed IP/host (e.g. behind a load balancer) while `--host` is still used for SNI/cert checks/auth. Updated for SMTP, IMAP, POP3, JMAP (`internal/protocols/*/config.go` and `docs/protocols/*.md`); EWS/MS Graph have no `--address` flag.
+
+## Serve mode
+
+- [x] expose serve mode over MCP in addition to the HTTP/S REST server (3.5.0)
+  - Same sendmail capabilities as the REST endpoints are exposed as MCP tools (`smtp_sendmail`, `msgraph_sendmail`, `list_backends`) over two transports from one `mcp.Server`: **Streamable HTTP** mounted at `POST /mcp` on the existing server (behind `X-API-Key`, enabled by default via `--mcp`), and **stdio** via `serve --mcp-stdio` for local AI clients (no API key, HTTP server not started).
+  - HTTP handlers and MCP tools now share a transport-agnostic send core (`internal/serve/send.go`: `sendSMTP`/`sendMsgraph`); existing REST behavior is unchanged (`server_test.go` passes as-is). Uses `github.com/modelcontextprotocol/go-sdk` (v1.6.1, requires Go 1.25). Plan: `migration/3.5.MCP.md`; docs: `docs/protocols/serve.md`.
+  - stdout hygiene: in stdio mode `os.Stdout` is repointed to stderr before logging init (the reused send functions and CSV logger print progress to stdout), and the MCP JSON-RPC channel uses the preserved real stdout via `mcp.IOTransport`.
