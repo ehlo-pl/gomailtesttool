@@ -1,8 +1,8 @@
 # Serve Mode — gomailtest
 
-HTTP REST server for sending emails programmatically via API calls.
+Server for sending emails programmatically — over an HTTP REST API **and** over MCP (Model Context Protocol).
 
-Credentials are loaded from environment variables at startup. Each HTTP request carries only message content — no credentials in request bodies.
+Credentials are loaded from environment variables at startup. Each request carries only message content — no credentials in request bodies. The MCP tools expose the same sendmail capabilities as the REST endpoints (see [MCP (Model Context Protocol)](#mcp-model-context-protocol) below).
 
 ## Quick Start
 
@@ -59,6 +59,7 @@ Missing or incorrect keys return `401 Unauthorized`:
 | `POST` | `/smtp/sendmail` | Yes | Send email via SMTP |
 | `POST` | `/msgraph/sendmail` | Yes | Send email via Microsoft Graph |
 | `POST` | `/ews/sendmail` | Yes | Not yet implemented (returns 501) |
+| `POST` | `/mcp` | Yes | MCP (Streamable HTTP) endpoint exposing the sendmail tools; enabled by default (see [MCP](#mcp-model-context-protocol)) |
 
 ### GET /health
 
@@ -261,6 +262,61 @@ $body = @{ to = @("recipient@example.com"); subject = "Test"; body = "Hello" } |
 Invoke-RestMethod -Method POST -Uri "http://localhost:8080/smtp/sendmail" `
   -Headers $headers -Body $body
 ```
+
+## MCP (Model Context Protocol)
+
+Serve mode also exposes the sendmail capabilities as MCP tools, so AI clients (e.g. Claude Desktop/Code) and other MCP callers can send mail through the same configured backends. The MCP tools reuse the exact validation and send logic as the REST endpoints.
+
+### Transports
+
+| Transport | How to enable | Auth | Use case |
+|-----------|---------------|------|----------|
+| **Streamable HTTP** | On by default when the HTTP server runs; disable with `--mcp=false` (`SERVE_MCP`) | `X-API-Key` header (same as REST) | Networked / remote MCP callers |
+| **stdio** | `serve --mcp-stdio` (`SERVE_MCP_STDIO`) | None (local subprocess) | Local AI clients that launch the binary |
+
+In `--mcp-stdio` mode no HTTP server is started, `--api-key` is not required, and all diagnostic output goes to **stderr** (stdout is reserved for the MCP JSON-RPC channel).
+
+### Tools
+
+| Tool | Backend | Arguments |
+|------|---------|-----------|
+| `smtp_sendmail` | SMTP | `to` (required), `cc`, `bcc`, `from`, `subject` (required), `body`, `priority` — see [POST /smtp/sendmail](#post-smtpsendmail) |
+| `msgraph_sendmail` | Microsoft Graph | `to`/`cc`/`bcc` (at least one), `subject` (required), `body`, `bodyHTML`, `priority` — see [POST /msgraph/sendmail](#post-msgraphsendmail). Attachments are not supported. |
+| `list_backends` | — | none; reports which backends are configured and available |
+
+A tool call against an unconfigured backend returns an error result (mirroring the REST `503`), rather than the tool being hidden.
+
+### Streamable HTTP endpoint
+
+Point an MCP client at `http://<host>:<port>/mcp` and send the API key as a header:
+
+```
+X-API-Key: <value set via --api-key or SERVE_API_KEY>
+```
+
+### stdio (Claude Desktop / Claude Code)
+
+Run the server as a subprocess with credentials in its environment. Example MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "gomailtest": {
+      "command": "gomailtest",
+      "args": ["serve", "--mcp-stdio"],
+      "env": {
+        "SMTPHOST": "smtp.example.com",
+        "SMTPPORT": "587",
+        "SMTPUSERNAME": "user@example.com",
+        "SMTPPASSWORD": "yourpassword",
+        "SMTPFROM": "sender@example.com"
+      }
+    }
+  }
+}
+```
+
+For Claude Code you can register the same command with `claude mcp add gomailtest -- gomailtest serve --mcp-stdio` (supply the `SMTP*`/`MSGRAPH*` environment variables to the process).
 
 ## Related Documentation
 

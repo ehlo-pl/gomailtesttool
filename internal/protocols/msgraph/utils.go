@@ -7,6 +7,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -194,8 +195,55 @@ func enrichGraphAPIError(err error, csvLogger logger.Logger, operation string) e
 	return err
 }
 
-// retryWithBackoff is a wrapper around the common retry package for backward compatibility
-// with existing Graph tool code.
+// isRetryableGraphError classifies Graph API errors for retry purposes.
+// Throttling (429 TooManyRequests/activityLimitReached) and transient service
+// errors (503 ServiceUnavailable, 504 GatewayTimeout) are retryable, honoring
+// the Retry-After response header when present. Other OData errors (auth
+// failures, 4xx) are permanent. Non-OData errors fall back to the generic
+// network-error classification.
+func isRetryableGraphError(err error) (bool, time.Duration) {
+	var odataErr *odataerrors.ODataError
+	if !errors.As(err, &odataErr) {
+		return retry.IsRetryableError(err), 0
+	}
+
+	code := ""
+	if errorInfo := odataErr.GetErrorEscaped(); errorInfo != nil && errorInfo.GetCode() != nil {
+		code = *errorInfo.GetCode()
+	}
+
+	switch {
+	case odataErr.ResponseStatusCode == 429 || code == "TooManyRequests" || code == "activityLimitReached",
+		odataErr.ResponseStatusCode == 503 || code == "ServiceUnavailable",
+		odataErr.ResponseStatusCode == 504 || code == "GatewayTimeout":
+		return true, graphRetryAfter(odataErr)
+	}
+
+	return false, 0
+}
+
+// graphRetryAfter extracts the Retry-After header (delay in seconds) from a
+// Graph API error response. Returns 0 when absent or unparsable, which makes
+// the retry loop fall back to exponential backoff.
+func graphRetryAfter(odataErr *odataerrors.ODataError) time.Duration {
+	headers := odataErr.GetResponseHeaders()
+	if headers == nil {
+		return 0
+	}
+	values := headers.Get("Retry-After")
+	if len(values) == 0 {
+		return 0
+	}
+	seconds, err := strconv.Atoi(strings.TrimSpace(values[0]))
+	if err != nil || seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+// retryWithBackoff wraps the common retry package with Graph-aware error
+// classification, so throttling and transient service errors are actually
+// retried (and Retry-After is honored) instead of failing on the first attempt.
 func retryWithBackoff(ctx context.Context, maxRetries int, baseDelay time.Duration, operation func() error) error {
-	return retry.RetryWithBackoff(ctx, maxRetries, baseDelay, operation)
+	return retry.RetryWithBackoffFunc(ctx, maxRetries, baseDelay, operation, isRetryableGraphError)
 }
