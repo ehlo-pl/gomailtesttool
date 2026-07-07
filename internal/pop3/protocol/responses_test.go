@@ -12,8 +12,8 @@ func newPipeConn(t *testing.T) (net.Conn, *bufio.Reader, net.Conn) {
 	t.Helper()
 	client, server := net.Pipe()
 	t.Cleanup(func() {
-		client.Close()
-		server.Close()
+		_ = client.Close()
+		_ = server.Close()
 	})
 	return client, bufio.NewReader(client), server
 }

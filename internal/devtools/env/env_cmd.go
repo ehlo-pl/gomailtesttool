@@ -38,7 +38,7 @@ To set variables (PowerShell):
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ShowVars(cmd.OutOrStdout())
 			if missing := Missing(); len(missing) > 0 {
-				fmt.Fprintf(cmd.ErrOrStderr(), "\nmissing required variables: %s\n", strings.Join(missing, ", "))
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\nmissing required variables: %s\n", strings.Join(missing, ", "))
 				return fmt.Errorf("not all required variables are set")
 			}
 			return nil
@@ -88,11 +88,11 @@ func newCheckCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			missing := Missing()
 			if len(missing) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "All required MSGRAPH* variables are set.")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "All required MSGRAPH* variables are set.")
 				return nil
 			}
 			for _, name := range missing {
-				fmt.Fprintf(os.Stderr, "missing: %s\n", name)
+				_, _ = fmt.Fprintf(os.Stderr, "missing: %s\n", name)
 			}
 			return fmt.Errorf("%d required variable(s) not set", len(missing))
 		},

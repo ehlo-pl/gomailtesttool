@@ -56,7 +56,7 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 		}
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if config.SMTPS {
 		if config.ConnectAddress != "" {

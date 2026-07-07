@@ -3,10 +3,10 @@ package smtp
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // NewCmd returns the "smtp" cobra.Command with all 4 action subcommands.
@@ -68,7 +68,7 @@ and (for SMTPS) TLS state. Detects Exchange Online servers.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "SMTP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -113,7 +113,7 @@ protocol version, cipher suite, certificate chain, SANs, expiry, and security wa
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "SMTP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -159,7 +159,7 @@ Automatically upgrades to TLS via STARTTLS when available on ports 25/587.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "SMTP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -204,7 +204,7 @@ upgrades to TLS automatically, and logs the result (including TLS details) to CS
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "SMTP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)

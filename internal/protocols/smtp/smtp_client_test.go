@@ -80,7 +80,7 @@ func TestDebugLogCommand(t *testing.T) {
 			client.debugLogCommand(tt.command)
 
 			// Restore stdout
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 
 			// Read captured output
@@ -190,7 +190,7 @@ func TestDebugLogResponse(t *testing.T) {
 			client.debugLogResponse(tt.response)
 
 			// Restore stdout
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 
 			// Read captured output
@@ -275,7 +275,7 @@ func TestDebugLogMessage(t *testing.T) {
 			client.debugLogMessage(tt.message)
 
 			// Restore stdout
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 
 			// Read captured output
@@ -365,7 +365,7 @@ func TestDebugLogging_MultilineResponseFormatting(t *testing.T) {
 
 	client.debugLogResponse(response)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer

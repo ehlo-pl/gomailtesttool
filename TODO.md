@@ -19,6 +19,7 @@ Outstanding work items for gomailtesttool. Carried over from [CODE_REVIEW.md](CO
   - Registered once on `rootCmd` (`cmd/gomailtest/root.go`), loaded via `bootstrap.LoadConfigFile` in every subcommand's `RunE`
   - Precedence: CLI flags > env vars > `--config` file > built-in defaults (see [docs/config-file.md](docs/config-file.md))
   - `serve` mode also supported via `bootstrap.LoadConfigFileSection`: top-level keys configure the server; nested `smtp:`/`msgraph:` sections provide defaults below `SMTP*`/`MSGRAPH*` env vars
+
 ## Connection / TLS
 
 - [x] `--no-starttls` (SMTP, IMAP, POP3) and `--no-smtps`/`--no-imaps`/`--no-pop3s`: force a plain-text connection for one run
@@ -41,6 +42,10 @@ Outstanding work items for gomailtesttool. Carried over from [CODE_REVIEW.md](CO
 
 - [x] Address goroutine leak in the SMTP protocol's response handling when timeouts occur (`internal/smtp/protocol/responses.go`), and unify it with POP3's standard `SetReadDeadline` approach.
   - `ReadResponseWithTimeout` now takes the underlying `net.Conn` and uses `SetReadDeadline` (cleared afterwards) instead of spawning a goroutine with a channel/`time.After`.
+- [x] Fix Microsoft Graph retry handling so throttling/service OData errors are actually retried instead of failing on the first attempt.
+  - `internal/common/retry.RetryWithBackoffFunc` now accepts a protocol-specific classifier that can mark errors retryable and request a specific delay (for example from `Retry-After`), while `RetryWithBackoff` keeps the generic network-error classifier.
+  - `internal/protocols/msgraph/retryWithBackoff` now uses `isRetryableGraphError` to retry typed `*odataerrors.ODataError` responses for HTTP 429/503/504 and Graph codes like `TooManyRequests`, `activityLimitReached`, `ServiceUnavailable`, and `GatewayTimeout`, honoring `Retry-After` when present and capping it at 5 minutes.
+  - Added regression/unit coverage in `internal/common/retry/retry_test.go` and `internal/protocols/msgraph/retry_classification_test.go`, including retry-after handling, classifier overrides, Graph throttling retries, and `IsSMTPRetryableError` coverage.
 
 ## Configuration follow-ups
 
@@ -51,7 +56,7 @@ Outstanding work items for gomailtesttool. Carried over from [CODE_REVIEW.md](CO
 - [x] add --ipv4 and --ipv6 commands to all modes (to ask resolver to connect AAAA or A records)
   - New shared `internal/common/network` package: `ResolveForDial` resolves `--host`/`--address` to a single A (`--ipv4`) or AAAA (`--ipv6`) record (or validates a literal IP against the requested family), and `ValidateIPVersionFlags` rejects combining both. Added `--ipv4`/`--ipv6` to SMTP, IMAP, POP3, JMAP, and EWS (config struct, flags, env vars `*IPV4`/`*IPV6`, validation, and dial wiring); see `docs/protocols/*.md`.
   - MS Graph is intentionally excluded: it has no `--host`/dial configuration — the Azure SDK manages connections to Microsoft's cloud endpoints internally, so forcing an address family isn't meaningful there.
-- [x] addure that pointing server in IPv6 is possible
+- [x] assure that pointing server in IPv6 is possible
   - Fixed `internal/serve/server.go` to build the listen address with `net.JoinHostPort` instead of `fmt.Sprintf("%s:%d", ...)`, so IPv6 literals like `::1` are correctly bracketed (`[::1]:8080`) — verified the server binds and serves over `http://[::1]:<port>`.
   - Also fixed IPv6-unsafe URL construction for JMAP (`GetDiscoveryURL`) and EWS (EWS/autodiscover URLs), which previously produced malformed URLs like `https://::1:443` for IPv6 hosts; both now use `net.JoinHostPort`/bracketing.
 - [x] for SMTP allow --use-MX instead --host
@@ -59,7 +64,7 @@ Outstanding work items for gomailtesttool. Carried over from [CODE_REVIEW.md](CO
   - Verified end-to-end against `gmail.com`: `smtp teststarttls --host gmail.com --use-mx` resolves to `gmail-smtp-in.l.google.com` and passes full certificate verification (no `--skipverify` needed).
   - MX is resolved for `--host` (the domain you're testing), not for `--to` recipient domains — i.e. "use the MX of the host I gave you" rather than "use the MX for where this mail would actually be delivered". Flag if recipient-domain MX was intended instead.
   - Follow-up for `sendmail`: `--use-mx` is now also mutually exclusive with `--host` (in addition to `--address`); the MX lookup domain is instead derived from the first `--to` recipient, so it resolves the MX of where the mail is actually being delivered. `testconnect`/`teststarttls`/`testauth` keep the original `--host`-as-domain behavior.
-- [x] claify in --help output difference between --address (addtional parameter, not obligatory and --host - most case needed to connect some official service FQDN/name)
+- [x] clarify in --help output difference between --address (additional parameter, not obligatory and --host - most case needed to connect some official service FQDN/name)
   - `--host` help text now states it's the required service hostname used for the connection, TLS SNI/cert checks, and auth; `--address` help text now says it's an optional override of the dialed IP/host (e.g. behind a load balancer) while `--host` is still used for SNI/cert checks/auth. Updated for SMTP, IMAP, POP3, JMAP (`internal/protocols/*/config.go` and `docs/protocols/*.md`); EWS/MS Graph have no `--address` flag.
 
 ## Serve mode
@@ -67,4 +72,4 @@ Outstanding work items for gomailtesttool. Carried over from [CODE_REVIEW.md](CO
 - [x] expose serve mode over MCP in addition to the HTTP/S REST server (3.5.0)
   - Same sendmail capabilities as the REST endpoints are exposed as MCP tools (`smtp_sendmail`, `msgraph_sendmail`, `list_backends`) over two transports from one `mcp.Server`: **Streamable HTTP** mounted at `POST /mcp` on the existing server (behind `X-API-Key`, enabled by default via `--mcp`), and **stdio** via `serve --mcp-stdio` for local AI clients (no API key, HTTP server not started).
   - HTTP handlers and MCP tools now share a transport-agnostic send core (`internal/serve/send.go`: `sendSMTP`/`sendMsgraph`); existing REST behavior is unchanged (`server_test.go` passes as-is). Uses `github.com/modelcontextprotocol/go-sdk` (v1.6.1, requires Go 1.25). Plan: `migration/3.5.MCP.md`; docs: `docs/protocols/serve.md`.
-  - stdout hygiene: in stdio mode `os.Stdout` is repointed to stderr before logging init (the reused send functions and CSV logger print progress to stdout), and the MCP JSON-RPC channel uses the preserved real stdout via `mcp.IOTransport`.
+  - stdout hygiene: in stdio mode `os.Stdout` is re-pointed to stderr before logging init (the reused send functions and CSV logger print progress to stdout), and the MCP JSON-RPC channel uses the preserved real stdout via `mcp.IOTransport`.

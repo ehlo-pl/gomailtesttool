@@ -164,7 +164,7 @@ func (c *SMTPClient) Connect(ctx context.Context) error {
 	// Read banner (220 response) with timeout
 	resp, err := protocol.ReadResponseWithTimeout(c.conn, c.reader, protocol.DefaultResponseTimeout)
 	if err != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		return fmt.Errorf("failed to read banner: %w", err)
 	}
 
@@ -172,7 +172,7 @@ func (c *SMTPClient) Connect(ctx context.Context) error {
 	c.debugLogResponse(resp)
 
 	if !resp.IsSuccess() {
-		c.conn.Close()
+		_ = c.conn.Close()
 		return fmt.Errorf("unexpected banner response: %d %s", resp.Code, resp.Message)
 	}
 

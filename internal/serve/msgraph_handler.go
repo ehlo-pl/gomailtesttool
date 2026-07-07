@@ -35,7 +35,7 @@ func (s *Server) handleMsgraphSendMail(w http.ResponseWriter, r *http.Request) {
 
 	csvLogger := newServeCSVLogger(s.logger, "msgraph-sendmail")
 	if csvLogger != nil {
-		defer csvLogger.Close()
+		defer func() { _ = csvLogger.Close() }()
 	}
 
 	if se := s.sendMsgraph(r.Context(), req, csvLogger); se != nil {

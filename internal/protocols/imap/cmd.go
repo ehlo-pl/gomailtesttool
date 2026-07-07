@@ -3,10 +3,10 @@ package imap
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // NewCmd returns the "imap" cobra.Command with all 3 action subcommands.
@@ -67,7 +67,7 @@ and (for IMAPS/STARTTLS) TLS state.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "IMAP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -113,7 +113,7 @@ Use --starttls or --imaps to establish TLS before authenticating.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "IMAP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -159,7 +159,7 @@ raw RFC822 message as a .eml file.`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "IMAP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -210,7 +210,7 @@ Shows folder name, attributes, message count, and unseen count for each folder.`
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "IMAP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)

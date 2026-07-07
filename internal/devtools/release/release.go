@@ -31,7 +31,7 @@ func (o *Options) versionFile() string {
 
 func (o *Options) printf(format string, args ...any) {
 	if o.Out != nil {
-		fmt.Fprintf(o.Out, format, args...)
+		_, _ = fmt.Fprintf(o.Out, format, args...)
 	}
 }
 

@@ -3,10 +3,10 @@ package jmap
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // NewCmd returns the "jmap" cobra.Command with all 3 action subcommands.
@@ -66,7 +66,7 @@ the JMAP session object from the well-known discovery URL (/.well-known/jmap).`,
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "JMAP Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -111,7 +111,7 @@ Supports Bearer token (--accesstoken) and Basic auth (--username + --password).`
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "JMAP Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
@@ -156,7 +156,7 @@ using the Mailbox/get JMAP method. Shows mailbox name, role, and message counts.
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			logger.LogInfo(slogger, "JMAP Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)

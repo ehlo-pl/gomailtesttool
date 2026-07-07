@@ -54,9 +54,10 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 
 	// Any HTTP response (including 401/403) means the server is alive.
 	fmt.Printf("✓ EWS endpoint responded: HTTP %s\n", httpStatus)
-	if statusCode == http.StatusUnauthorized {
+	switch statusCode {
+	case http.StatusUnauthorized:
 		fmt.Println("  (401 Unauthorized — server is alive, credentials required for further operations)")
-	} else if statusCode == http.StatusForbidden {
+	case http.StatusForbidden:
 		fmt.Println("  (403 Forbidden — server is alive, check permissions)")
 	}
 

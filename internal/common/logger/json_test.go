@@ -54,8 +54,8 @@ func TestNewJSONLogger(t *testing.T) {
 				if logger == nil {
 					t.Fatal("NewJSONLogger() returned nil logger with no error")
 				}
-				defer logger.Close()
-				defer os.Remove(logger.file.Name())
+				defer func() { _ = logger.Close() }()
+				defer func() { _ = os.Remove(logger.file.Name()) }()
 
 				// Verify file was created
 				if _, err := os.Stat(logger.file.Name()); os.IsNotExist(err) {
@@ -77,8 +77,8 @@ func TestJSONLogger_WriteHeaderAndRow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewJSONLogger() error = %v", err)
 	}
-	defer logger.Close()
-	defer os.Remove(logger.file.Name())
+	defer func() { _ = logger.Close() }()
+	defer func() { _ = os.Remove(logger.file.Name()) }()
 
 	// Write header
 	columns := []string{"Action", "Status", "Server", "Port"}
@@ -93,7 +93,7 @@ func TestJSONLogger_WriteHeaderAndRow(t *testing.T) {
 	}
 
 	// Force close to flush
-	logger.Close()
+	_ = logger.Close()
 
 	// Read and verify the file
 	data, err := os.ReadFile(logger.file.Name())
@@ -139,14 +139,14 @@ func TestJSONLogger_MultipleRows(t *testing.T) {
 	tempDir := os.TempDir()
 	dateStr := time.Now().Format("2006-01-02")
 	testFile := filepath.Join(tempDir, "_testtool_testaction_"+dateStr+".jsonl")
-	os.Remove(testFile)
+	_ = os.Remove(testFile)
 
 	logger, err := NewJSONLogger("testtool", "testaction")
 	if err != nil {
 		t.Fatalf("NewJSONLogger() error = %v", err)
 	}
-	defer logger.Close()
-	defer os.Remove(logger.file.Name())
+	defer func() { _ = logger.Close() }()
+	defer func() { _ = os.Remove(logger.file.Name()) }()
 
 	// Write header
 	columns := []string{"ID", "Status"}
@@ -167,7 +167,7 @@ func TestJSONLogger_MultipleRows(t *testing.T) {
 		}
 	}
 
-	logger.Close()
+	_ = logger.Close()
 
 	// Read and verify
 	data, err := os.ReadFile(logger.file.Name())
@@ -195,8 +195,8 @@ func TestJSONLogger_ErrorCases(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewJSONLogger() error = %v", err)
 		}
-		defer logger.Close()
-		defer os.Remove(logger.file.Name())
+		defer func() { _ = logger.Close() }()
+		defer func() { _ = os.Remove(logger.file.Name()) }()
 
 		// Try to write row without header
 		row := []string{"value1", "value2"}
@@ -211,8 +211,8 @@ func TestJSONLogger_ErrorCases(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewJSONLogger() error = %v", err)
 		}
-		defer logger.Close()
-		defer os.Remove(logger.file.Name())
+		defer func() { _ = logger.Close() }()
+		defer func() { _ = os.Remove(logger.file.Name()) }()
 
 		// Write header with 2 columns
 		if err := logger.WriteHeader([]string{"Col1", "Col2"}); err != nil {
@@ -234,29 +234,29 @@ func TestJSONLogger_Append(t *testing.T) {
 	fileName := filepath.Join(tempDir, "_testtool_testaction_"+dateStr+".jsonl")
 
 	// Clean up any existing file
-	os.Remove(fileName)
+	_ = os.Remove(fileName)
 
 	// Create first logger and write data
 	logger1, err := NewJSONLogger("testtool", "testaction")
 	if err != nil {
 		t.Fatalf("NewJSONLogger() error = %v", err)
 	}
-	defer os.Remove(logger1.file.Name())
+	defer func() { _ = os.Remove(logger1.file.Name()) }()
 
 	_ = logger1.WriteHeader([]string{"ID"})
 	_ = logger1.WriteRow([]string{"1"})
-	logger1.Close()
+	_ = logger1.Close()
 
 	// Create second logger (should append)
 	logger2, err := NewJSONLogger("testtool", "testaction")
 	if err != nil {
 		t.Fatalf("NewJSONLogger() error = %v", err)
 	}
-	defer logger2.Close()
+	defer func() { _ = logger2.Close() }()
 
 	_ = logger2.WriteHeader([]string{"ID"})
 	_ = logger2.WriteRow([]string{"2"})
-	logger2.Close()
+	_ = logger2.Close()
 
 	// Verify both rows exist
 	data, err := os.ReadFile(fileName)
@@ -276,8 +276,8 @@ func TestJSONLogger_ShouldWriteHeader(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewJSONLogger() error = %v", err)
 		}
-		defer logger.Close()
-		defer os.Remove(logger.file.Name())
+		defer func() { _ = logger.Close() }()
+		defer func() { _ = os.Remove(logger.file.Name()) }()
 
 		shouldWrite, err := logger.ShouldWriteHeader()
 		if err != nil {
@@ -293,18 +293,18 @@ func TestJSONLogger_ShouldWriteHeader(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewJSONLogger() error = %v", err)
 		}
-		defer os.Remove(logger.file.Name())
+		defer func() { _ = os.Remove(logger.file.Name()) }()
 
 		_ = logger.WriteHeader([]string{"ID"})
 		_ = logger.WriteRow([]string{"1"})
-		logger.Close()
+		_ = logger.Close()
 
 		// Reopen
 		logger2, err := NewJSONLogger("testtool", "testaction")
 		if err != nil {
 			t.Fatalf("NewJSONLogger() error = %v", err)
 		}
-		defer logger2.Close()
+		defer func() { _ = logger2.Close() }()
 
 		shouldWrite, err := logger2.ShouldWriteHeader()
 		if err != nil {
@@ -321,8 +321,8 @@ func TestJSONLogger_PeriodicFlushing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewJSONLogger() error = %v", err)
 	}
-	defer logger.Close()
-	defer os.Remove(logger.file.Name())
+	defer func() { _ = logger.Close() }()
+	defer func() { _ = os.Remove(logger.file.Name()) }()
 
 	// Write header
 	_ = logger.WriteHeader([]string{"ID"})
@@ -342,7 +342,7 @@ func TestJSONLogger_PeriodicFlushing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open log file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	lineCount := 0

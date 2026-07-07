@@ -101,7 +101,7 @@ func (c *JMAPClient) Discover(ctx context.Context) (*protocol.Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch session: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -238,7 +238,7 @@ func (c *JMAPClient) makeAPIRequest(ctx context.Context, request protocol.Reques
 	if err != nil {
 		return nil, fmt.Errorf("API request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)

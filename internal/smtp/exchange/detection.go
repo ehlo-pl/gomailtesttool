@@ -168,9 +168,10 @@ func GetExchangeRecommendations(port int, capabilities protocol.Capabilities) []
 		authMethods := capabilities.GetAuthMechanisms()
 		hasSecureAuth := false
 		for _, method := range authMethods {
-			if method == "LOGIN" || method == "PLAIN" {
+			switch method {
+			case "LOGIN", "PLAIN":
 				// These are insecure without TLS
-			} else if method == "CRAM-MD5" || method == "NTLM" {
+			case "CRAM-MD5", "NTLM":
 				hasSecureAuth = true
 			}
 		}
@@ -199,8 +200,8 @@ func FormatExchangeInfo(info *ExchangeInfo, capabilities protocol.Capabilities) 
 	result.WriteString("═══════════════════════════════════════════════════════════\n")
 	result.WriteString("  Microsoft Exchange Server Detected\n")
 	result.WriteString("═══════════════════════════════════════════════════════════\n")
-	result.WriteString(fmt.Sprintf("Version: %s\n", info.Version))
-	result.WriteString(fmt.Sprintf("Banner:  %s\n", info.Banner))
+	_, _ = fmt.Fprintf(&result, "Version: %s\n", info.Version)
+	_, _ = fmt.Fprintf(&result, "Banner:  %s\n", info.Banner)
 	result.WriteString("\n")
 
 	// Diagnostics
@@ -208,7 +209,7 @@ func FormatExchangeInfo(info *ExchangeInfo, capabilities protocol.Capabilities) 
 	if len(diagnostics) > 0 {
 		result.WriteString("Exchange Capabilities:\n")
 		for _, diag := range diagnostics {
-			result.WriteString(fmt.Sprintf("  • %s\n", diag))
+			_, _ = fmt.Fprintf(&result, "  • %s\n", diag)
 		}
 		result.WriteString("\n")
 	}
@@ -217,7 +218,7 @@ func FormatExchangeInfo(info *ExchangeInfo, capabilities protocol.Capabilities) 
 	result.WriteString("Exchange Notes:\n")
 	warnings := GetExchangeWarnings()
 	for _, warning := range warnings {
-		result.WriteString(fmt.Sprintf("  ⚠ %s\n", warning))
+		_, _ = fmt.Fprintf(&result, "  ⚠ %s\n", warning)
 	}
 
 	result.WriteString("═══════════════════════════════════════════════════════════\n")
