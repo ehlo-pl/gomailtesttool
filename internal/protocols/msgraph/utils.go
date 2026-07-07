@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/retry"
@@ -246,4 +247,55 @@ func graphRetryAfter(odataErr *odataerrors.ODataError) time.Duration {
 // retried (and Retry-After is honored) instead of failing on the first attempt.
 func retryWithBackoff(ctx context.Context, maxRetries int, baseDelay time.Duration, operation func() error) error {
 	return retry.RetryWithBackoffFunc(ctx, maxRetries, baseDelay, operation, isRetryableGraphError)
+}
+
+// errResultNotYetVisible signals that a mailbox query succeeded but returned
+// no messages. Graph is eventually consistent: a just-sent message may not be
+// indexed yet, so this condition is retried like a transient error.
+var errResultNotYetVisible = errors.New("no messages matched the filter (message may not be indexed yet)")
+
+// isRetryableGraphErrorOrEmptyResult extends isRetryableGraphError so an
+// empty (but successful) result set is retried with exponential backoff,
+// while real Graph errors keep their existing classification and
+// Retry-After handling.
+func isRetryableGraphErrorOrEmptyResult(err error) (bool, time.Duration) {
+	if errors.Is(err, errResultNotYetVisible) {
+		return true, 0
+	}
+	return isRetryableGraphError(err)
+}
+
+// fetchMessagesWithRetry runs fetch under Graph-aware retry logic and
+// additionally retries when the result set is empty, because Graph is
+// eventually consistent and a just-delivered message may not be visible to
+// $filter queries yet. Exhausting retries on an empty result is NOT an
+// error: it returns (nil, nil) and the caller reports "no messages found"
+// as before. Real API errors, network errors, and context cancellation
+// propagate.
+func fetchMessagesWithRetry(ctx context.Context, maxRetries int, baseDelay time.Duration, operation string, fetch func() ([]models.Messageable, error)) ([]models.Messageable, error) {
+	var messages []models.Messageable
+	attempt := 0
+	err := retry.RetryWithBackoffFunc(ctx, maxRetries, baseDelay, func() error {
+		attempt++
+		result, apiErr := fetch()
+		if apiErr != nil {
+			return apiErr
+		}
+		messages = result
+		// On the final attempt an empty result is accepted as the answer
+		// (return nil, not the sentinel) so the retry loop does not log a
+		// misleading failure for an ordinary not-found outcome.
+		if len(messages) == 0 && attempt <= maxRetries {
+			log.Printf("[INFO] %s: no matching messages yet (attempt %d/%d); message may not be indexed yet, retrying...", operation, attempt, maxRetries+1)
+			return errResultNotYetVisible
+		}
+		return nil
+	}, isRetryableGraphErrorOrEmptyResult)
+	if errors.Is(err, errResultNotYetVisible) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return messages, nil
 }

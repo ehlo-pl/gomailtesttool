@@ -147,9 +147,67 @@ gomailtest msgraph sendmail --to "test@example.com" --subject "Integration Test"
 Required Azure AD permissions:
 - `Mail.Send` — for sendmail
 - `Calendars.ReadWrite` — for getevents, sendinvite, getschedule
-- `Mail.Read` — for getinbox, exportinbox, searchandexport
+- `Mail.Read` — for getinbox, exportinbox, searchandexport, exportmessages
 
 See [docs/protocols/msgraph.md](docs/protocols/msgraph.md) for full permission details.
+
+## Testing Graph Eventual Consistency
+
+Microsoft Graph is eventually consistent: a just-sent message may not be
+visible to `$filter` queries until Exchange finishes indexing it. The
+`searchandexport` and `exportmessages` actions therefore retry a
+successful-but-empty result with exponential backoff (governed by
+`--maxretries` / `--retrydelay`) before reporting "no messages found". See
+[docs/protocols/msgraph.md](docs/protocols/msgraph.md) for details.
+
+**Prerequisites:** same Azure AD setup as above, with `Mail.Send` + `Mail.Read`.
+
+**Positive path — send, then immediately search:**
+
+```powershell
+# Send a message with a unique subject, then search for it right away.
+# Expect zero or more "[INFO] exportMessages: no matching messages yet
+# (attempt X/Y)" lines while indexing catches up, then a successful export.
+$subject = "EC-Test $(Get-Date -Format 'yyyyMMdd-HHmmss')"
+
+gomailtest msgraph sendmail --to $env:MSGRAPHMAILBOX --subject $subject --body "eventual consistency test"
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+gomailtest msgraph exportmessages --subject $subject `
+    --maxretries 5 --retrydelay 1000 --verbose
+if ($LASTEXITCODE -ne 0) { exit 1 }
+```
+
+**Exhaustion path — message that never appears:**
+
+```powershell
+# Expect two "[INFO] searchAndExport: no matching messages yet (attempt X/3)"
+# lines with ~0.5s/1s waits, then the unchanged "No message found with
+# Internet Message ID: ..." report and exit code 0 (not-found is not an error).
+gomailtest msgraph searchandexport --messageid "<does-not-exist-123@example.com>" `
+    --maxretries 2 --retrydelay 500 --verbose
+
+# JSON output sanity: still prints [] after retries are exhausted
+gomailtest msgraph searchandexport --messageid "<does-not-exist-123@example.com>" `
+    --maxretries 2 --retrydelay 500 --output json
+```
+
+Set `--maxretries 0` to restore single-attempt behavior (no consistency wait).
+
+**Unit tests with the race detector:**
+
+The retry logic itself is covered by unit tests in
+`internal/protocols/msgraph/empty_result_retry_test.go` (no tenant needed).
+Running them with `-race` requires cgo, which on Windows needs a gcc
+toolchain:
+
+```powershell
+# One-time setup: standalone gcc toolchain, then open a new terminal
+winget install BrechtSanders.WinLibs.POSIX.UCRT
+
+# Run the msgraph tests with the race detector
+$env:CGO_ENABLED = "1"; go test -race ./internal/protocols/msgraph/ ./internal/common/retry/
+```
 
 ## Load Balancer / Address Override Testing
 
