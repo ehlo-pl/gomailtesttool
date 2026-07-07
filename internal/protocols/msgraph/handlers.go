@@ -637,14 +637,14 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 
 	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/messages?$filter=%s", mailbox, filter)
 
-	// Execute API call with retry logic
-	var getValueFunc func() []models.Messageable
-	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+	// Execute API call with retry logic; empty results are also retried
+	// because Graph is eventually consistent for just-delivered messages.
+	messages, err := fetchMessagesWithRetry(ctx, config.MaxRetries, config.RetryDelay, "searchAndExport", func() ([]models.Messageable, error) {
 		apiResult, apiErr := client.Users().ByUserId(mailbox).Messages().Get(ctx, requestConfig)
-		if apiErr == nil {
-			getValueFunc = apiResult.GetValue
+		if apiErr != nil {
+			return nil, apiErr
 		}
-		return apiErr
+		return apiResult.GetValue(), nil
 	})
 
 	if err != nil {
@@ -652,7 +652,6 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 		return fmt.Errorf("error searching message for %s: %w", mailbox, enrichedErr)
 	}
 
-	messages := getValueFunc()
 	messageCount := len(messages)
 
 	logVerbose(config.VerboseMode, "API response received: %d messages", messageCount)
@@ -728,14 +727,14 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 
 	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/messages?$filter=%s&$top=%d", mailbox, filter, count)
 
-	// Execute API call with retry logic
-	var getValueFunc func() []models.Messageable
-	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+	// Execute API call with retry logic; empty results are also retried
+	// because Graph is eventually consistent for just-delivered messages.
+	messages, err := fetchMessagesWithRetry(ctx, config.MaxRetries, config.RetryDelay, "exportMessages", func() ([]models.Messageable, error) {
 		apiResult, apiErr := client.Users().ByUserId(mailbox).Messages().Get(ctx, requestConfig)
-		if apiErr == nil {
-			getValueFunc = apiResult.GetValue
+		if apiErr != nil {
+			return nil, apiErr
 		}
-		return apiErr
+		return apiResult.GetValue(), nil
 	})
 
 	if err != nil {
@@ -743,7 +742,6 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 		return fmt.Errorf("error searching messages for %s: %w", mailbox, enrichedErr)
 	}
 
-	messages := getValueFunc()
 	messageCount := len(messages)
 
 	logVerbose(config.VerboseMode, "API response received: %d messages", messageCount)

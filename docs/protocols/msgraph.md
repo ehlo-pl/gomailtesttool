@@ -129,6 +129,11 @@ Output goes to `%TEMP%\export\{date}\message_{n}_{timestamp}.json`.
 gomailtest msgraph searchandexport --messageid "<message-id@example.com>"
 ```
 
+If the query returns no matches, the tool retries with exponential backoff
+(governed by `--maxretries` / `--retrydelay`) because Graph is eventually
+consistent — a just-sent message may not be indexed yet. "No message found"
+is reported only after all retries are exhausted (~14 s with defaults).
+
 ### exportmessages — Export Matching Messages as .eml
 
 Searches messages by Internet Message-ID and/or a subject substring (OData
@@ -144,6 +149,10 @@ gomailtest msgraph exportmessages --subject "Invoice" --exportdir "C:\exports"
 
 Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or
 `<exportdir>\{date}\msg_{id}.eml` when `--exportdir` is given.
+
+Like `searchandexport`, an empty result is retried with exponential backoff
+(`--maxretries` / `--retrydelay`) to absorb Graph's eventual-consistency
+indexing delay; "No messages found" is reported only after the last attempt.
  
 
 ## Flags
@@ -306,6 +315,8 @@ gomailtest msgraph sendmail --maxretries 0
 ```
 
 Retry uses exponential backoff: 2s → 4s → 8s → 16s → 30s (capped). Retries on HTTP 429, 503, 504, network timeouts. Never retries authentication failures or 4xx errors.
+
+For `searchandexport` and `exportmessages`, a successful-but-empty result is also retried with the same backoff, because Graph is eventually consistent and a just-sent message may not be indexed yet. Only after the last attempt does the tool report that no messages were found.
 
 ## Required Azure AD Permissions
 
