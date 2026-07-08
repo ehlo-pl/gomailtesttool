@@ -153,6 +153,20 @@ Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or
 Like `searchandexport`, an empty result is retried with exponential backoff
 (`--maxretries` / `--retrydelay`) to absorb Graph's eventual-consistency
 indexing delay; "No messages found" is reported only after the last attempt.
+
+### exportbearertoken — Print access token
+
+Acquires a Microsoft Graph bearer token using configured auth (`--secret`,
+`--pfx`, `--thumbprint`) and prints it. If `--bearertoken` is already
+provided, this command prints that value directly.
+
+```powershell
+# Plain token string (default)
+gomailtest msgraph exportbearertoken --tenantid "..." --clientid "..." --secret "..."
+
+# JSON output
+gomailtest msgraph exportbearertoken --tenantid "..." --clientid "..." --secret "..." --output json
+```
  
 
 ## Flags

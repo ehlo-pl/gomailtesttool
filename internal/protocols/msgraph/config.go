@@ -92,14 +92,15 @@ func NewConfig() *Config {
 
 // Action constants
 const (
-	ActionGetEvents       = "getevents"
-	ActionSendMail        = "sendmail"
-	ActionSendInvite      = "sendinvite"
-	ActionGetInbox        = "getinbox"
-	ActionGetSchedule     = "getschedule"
-	ActionExportInbox     = "exportinbox"
-	ActionSearchAndExport = "searchandexport"
-	ActionExportMessages  = "exportmessages"
+	ActionGetEvents         = "getevents"
+	ActionSendMail          = "sendmail"
+	ActionSendInvite        = "sendinvite"
+	ActionGetInbox          = "getinbox"
+	ActionGetSchedule       = "getschedule"
+	ActionExportInbox       = "exportinbox"
+	ActionSearchAndExport   = "searchandexport"
+	ActionExportMessages    = "exportmessages"
+	ActionExportBearerToken = "exportbearertoken"
 )
 
 // RegisterPersistentFlags registers flags shared by all msgraph subcommands
@@ -348,6 +349,8 @@ func validateConfiguration(config *Config) error {
 		if err := validateFilePath(config.PfxPath, "PFX certificate file"); err != nil {
 			return err
 		}
+	if err := validateAuthConfiguration(config); err != nil {
+		return err
 	}
 
 	// Validate attachment file paths
@@ -454,6 +457,59 @@ func validateConfiguration(config *Config) error {
 			if err := validateSearchSubject(config.Subject); err != nil {
 				return fmt.Errorf("invalid subject: %w", err)
 			}
+		}
+	}
+
+	return nil
+}
+
+// validateExportBearerTokenConfiguration validates config for exportbearertoken action.
+func validateExportBearerTokenConfiguration(config *Config) error {
+	if config.BearerToken == "" {
+		if err := validateGUID(config.TenantID, "Tenant ID"); err != nil {
+			return err
+		}
+		if err := validateGUID(config.ClientID, "Client ID"); err != nil {
+			return err
+		}
+	}
+
+	if err := validateAuthConfiguration(config); err != nil {
+		return err
+	}
+
+	if config.OutputFormat != "text" && config.OutputFormat != "json" {
+		return fmt.Errorf("invalid output format: %s (use: text, json)", config.OutputFormat)
+	}
+
+	return nil
+}
+
+func validateAuthConfiguration(config *Config) error {
+	authMethodCount := 0
+	if config.Secret != "" {
+		authMethodCount++
+	}
+	if config.PfxPath != "" {
+		authMethodCount++
+	}
+	if config.Thumbprint != "" {
+		authMethodCount++
+	}
+	if config.BearerToken != "" {
+		authMethodCount++
+	}
+
+	if authMethodCount == 0 {
+		return fmt.Errorf("missing authentication: must provide one of --secret, --pfx, --thumbprint, or --bearertoken")
+	}
+	if authMethodCount > 1 {
+		return fmt.Errorf("multiple authentication methods provided: use only one of --secret, --pfx, --thumbprint, or --bearertoken")
+	}
+
+	if config.PfxPath != "" {
+		if err := validateFilePath(config.PfxPath, "PFX certificate file"); err != nil {
+			return err
 		}
 	}
 
