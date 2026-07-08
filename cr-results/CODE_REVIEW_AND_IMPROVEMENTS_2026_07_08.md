@@ -8,7 +8,13 @@
 > shared delegated-aware `validateAuthConfiguration`, `effectiveScopes` +
 > `EnableCAE` in exportbearertoken, `EnableCAE` on the verbose pre-flight,
 > serve guard for `MSGRAPHDELEGATED`, `scp` claim in verbose token info, and
-> `RedirectURL` trimming. Full test suite green. PR B (2.2–2.4, §3) remains open.
+> `RedirectURL` trimming. Full test suite green.
+>
+> PR B (items 6, 8–10, i.e. findings 2.2–2.4 + §3) is implemented in commit
+> `eea8b72`: `defaultDelegatedScopes` owned solely by `effectiveScopes` (no
+> more pre-fill in `ConfigFromViper`), shared `AuthFlowDeviceCode`/`AuthFlowBrowser`
+> constants, `getCredential(config, logger)` signature, and the redundant
+> slice copies removed. All findings from this review are now closed.
 
 ## 1. Correctness findings
 
