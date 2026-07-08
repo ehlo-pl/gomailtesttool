@@ -3,6 +3,13 @@
 **Scope:** Diff review of PR #89 (`git diff HEAD~1`, merge commit `e483abd`) — delegated-permissions auth flow for msgraph. 5 files, +210/−16: `docs/protocols/msgraph.md`, `internal/protocols/msgraph/{auth,cmd,config,config_test}.go`. Review date 2026-07-08, branch `b3.5.4` (identical to `main` at time of review).
 **Method:** 8 independent finder angles (line-by-line, removed-behavior, cross-file tracing, reuse, simplification, efficiency, altitude, conventions) → 31 raw candidates → dedup to 11 → one verifier per candidate. **All 11 confirmed**; 10 reported below (one trivial cleanup cut by cap, noted in §3). One candidate refuted during verification (§4).
 
+> **Status update (same day):** PR A (items 1–5 + 7 of the backlog, i.e. findings
+> 1.1–1.6 + 2.1) is implemented in commit `f66a40c` on branch `b3.5.4`:
+> shared delegated-aware `validateAuthConfiguration`, `effectiveScopes` +
+> `EnableCAE` in exportbearertoken, `EnableCAE` on the verbose pre-flight,
+> serve guard for `MSGRAPHDELEGATED`, `scp` claim in verbose token info, and
+> `RedirectURL` trimming. Full test suite green. PR B (2.2–2.4, §3) remains open.
+
 ## 1. Correctness findings
 
 ### 1.1 Major: `exportbearertoken` was never updated for delegated mode
