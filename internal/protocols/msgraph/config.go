@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // Config holds all application configuration including command-line flags,
@@ -22,11 +22,15 @@ type Config struct {
 	Action      string // Operation to perform (getevents, sendmail, sendinvite, getinbox, getschedule)
 
 	// Authentication configuration (mutually exclusive)
-	Secret      string // Client Secret for authentication
-	PfxPath     string // Path to .pfx certificate file
-	PfxPass     string // Password for .pfx certificate file
-	Thumbprint  string // SHA1 thumbprint of certificate in Windows Certificate Store
-	BearerToken string // Pre-obtained Bearer token for authentication
+	Secret      string   // Client Secret for authentication
+	PfxPath     string   // Path to .pfx certificate file
+	PfxPass     string   // Password for .pfx certificate file
+	Thumbprint  string   // SHA1 thumbprint of certificate in Windows Certificate Store
+	Delegated   bool     // Use delegated permissions flow instead of application permissions
+	AuthFlow    string   // Delegated auth flow: devicecode, browser
+	RedirectURL string   // Redirect URL for browser auth flow
+	Scopes      []string // OAuth scopes to request (delegated mode)
+	BearerToken string   // Pre-obtained Bearer token for authentication
 
 	// Email recipients (using stringSlice type for comma-separated lists)
 	To                    stringSlice // To recipients for email
@@ -110,6 +114,10 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.String("pfx", "", "Path to the .pfx certificate file (env: MSGRAPHPFX)")
 	f.String("pfxpass", "", "Password for the .pfx file (env: MSGRAPHPFXPASS)")
 	f.String("thumbprint", "", "Thumbprint of the certificate in the CurrentUser\\My store (env: MSGRAPHTHUMBPRINT)")
+	f.Bool("delegated", false, "Use delegated permissions auth flow (env: MSGRAPHDELEGATED)")
+	f.String("authflow", "devicecode", "Delegated auth flow: devicecode, browser (env: MSGRAPHAUTHFLOW)")
+	f.String("redirecturl", "", "Redirect URL for browser auth flow (env: MSGRAPHREDIRECTURL)")
+	f.String("scope", "", "Comma-separated delegated scopes; default covers mail/calendar operations (env: MSGRAPHSCOPE)")
 	f.String("bearertoken", "", "Pre-obtained Bearer token for authentication (env: MSGRAPHBEARERTOKEN)")
 
 	// Target
@@ -137,6 +145,10 @@ func BindEnvs(v *viper.Viper) {
 		"pfx":                "MSGRAPHPFX",
 		"pfxpass":            "MSGRAPHPFXPASS",
 		"thumbprint":         "MSGRAPHTHUMBPRINT",
+		"delegated":          "MSGRAPHDELEGATED",
+		"authflow":           "MSGRAPHAUTHFLOW",
+		"redirecturl":        "MSGRAPHREDIRECTURL",
+		"scope":              "MSGRAPHSCOPE",
 		"bearertoken":        "MSGRAPHBEARERTOKEN",
 		"mailbox":            "MSGRAPHMAILBOX",
 		"to":                 "MSGRAPHTO",
@@ -217,6 +229,16 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		logFormat = defaults.LogFormat
 	}
 
+	scopes := []string{
+		"https://graph.microsoft.com/Mail.ReadWrite",
+		"https://graph.microsoft.com/Mail.Send",
+		"https://graph.microsoft.com/Calendars.ReadWrite",
+		"offline_access",
+	}
+	if rawScopes := parseStringSlice(v.GetString("scope")); len(rawScopes) > 0 {
+		scopes = append([]string(nil), rawScopes...)
+	}
+
 	return &Config{
 		TenantID:              v.GetString("tenantid"),
 		ClientID:              v.GetString("clientid"),
@@ -226,6 +248,10 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		PfxPass:               v.GetString("pfxpass"),
 		Thumbprint:            v.GetString("thumbprint"),
 		BearerToken:           v.GetString("bearertoken"),
+		Delegated:             v.GetBool("delegated"),
+		AuthFlow:              strings.ToLower(v.GetString("authflow")),
+		RedirectURL:           v.GetString("redirecturl"),
+		Scopes:                scopes,
 		To:                    parseStringSlice(v.GetString("to")),
 		Cc:                    parseStringSlice(v.GetString("cc")),
 		Bcc:                   parseStringSlice(v.GetString("bcc")),
@@ -276,6 +302,18 @@ func validateConfiguration(config *Config) error {
 		return fmt.Errorf("invalid mailbox: %w", err)
 	}
 
+	if config.Delegated {
+		switch config.AuthFlow {
+		case "", "devicecode":
+		case "browser":
+			if strings.TrimSpace(config.RedirectURL) == "" {
+				return fmt.Errorf("browser delegated flow requires --redirecturl")
+			}
+		default:
+			return fmt.Errorf("invalid -authflow: %s (must be one of: devicecode, browser)", config.AuthFlow)
+		}
+	}
+
 	// Check that at least one authentication method is provided
 	authMethodCount := 0
 	if config.Secret != "" {
@@ -291,10 +329,17 @@ func validateConfiguration(config *Config) error {
 		authMethodCount++
 	}
 
-	if authMethodCount == 0 {
+	if config.Delegated {
+		if config.BearerToken == "" {
+			if config.Secret != "" || config.PfxPath != "" || config.Thumbprint != "" {
+				return fmt.Errorf("delegated mode without --bearertoken does not support --secret, --pfx, or --thumbprint")
+			}
+		} else if authMethodCount > 1 {
+			return fmt.Errorf("multiple authentication methods provided: in delegated mode with --bearertoken, do not combine with --secret, --pfx, or --thumbprint")
+		}
+	} else if authMethodCount == 0 {
 		return fmt.Errorf("missing authentication: must provide one of --secret, --pfx, --thumbprint, or --bearertoken")
-	}
-	if authMethodCount > 1 {
+	} else if authMethodCount > 1 {
 		return fmt.Errorf("multiple authentication methods provided: use only one of --secret, --pfx, --thumbprint, or --bearertoken")
 	}
 

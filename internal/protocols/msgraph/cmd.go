@@ -24,7 +24,9 @@ Supports sending emails, listing calendar events, checking availability,
 exporting inbox messages, and searching by Message-ID.
 
 Authentication methods: --secret (client secret), --pfx (certificate file),
---thumbprint (Windows certificate store), --bearertoken (pre-obtained token).`,
+--thumbprint (Windows certificate store), --bearertoken (pre-obtained token).
+Delegated permissions: use --delegated with --authflow devicecode|browser
+(browser flow requires --redirecturl).`,
 	}
 
 	RegisterPersistentFlags(cmd)
