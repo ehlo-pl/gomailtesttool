@@ -50,3 +50,72 @@ func TestValidateConfiguration_Priority(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateExportBearerTokenConfiguration(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    *Config
+		wantError string
+	}{
+		{
+			name: "accepts pre-obtained bearer token without tenant and client IDs",
+			config: &Config{
+				BearerToken:  "token",
+				OutputFormat: "text",
+			},
+		},
+		{
+			name: "accepts client secret flow with tenant and client IDs",
+			config: &Config{
+				TenantID:     "00000000-0000-0000-0000-000000000001",
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				Secret:       "secret",
+				OutputFormat: "json",
+			},
+		},
+		{
+			name: "requires tenant id when not using pre-obtained token",
+			config: &Config{
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				Secret:       "secret",
+				OutputFormat: "text",
+			},
+			wantError: "Tenant ID",
+		},
+		{
+			name: "requires exactly one auth method",
+			config: &Config{
+				TenantID:     "00000000-0000-0000-0000-000000000001",
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				OutputFormat: "text",
+			},
+			wantError: "missing authentication",
+		},
+		{
+			name: "validates output format",
+			config: &Config{
+				BearerToken:  "token",
+				OutputFormat: "yaml",
+			},
+			wantError: "invalid output format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateExportBearerTokenConfiguration(tt.config)
+			if tt.wantError == "" {
+				if err != nil {
+					t.Fatalf("validateExportBearerTokenConfiguration() unexpected error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("validateExportBearerTokenConfiguration() expected error containing %q, got nil", tt.wantError)
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("validateExportBearerTokenConfiguration() error = %v, want substring %q", err, tt.wantError)
+			}
+		})
+	}
+}
