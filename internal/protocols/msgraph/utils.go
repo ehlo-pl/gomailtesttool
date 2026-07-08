@@ -47,6 +47,16 @@ func ifEmpty(s, defaultVal string) string {
 	return s
 }
 
+// derefOr dereferences a *string, returning fallback when the pointer is nil.
+// Graph SDK getters return nil for absent fields (e.g. a message with no
+// subject), so use this before dereferencing values that may be unset.
+func derefOr(p *string, fallback string) string {
+	if p == nil {
+		return fallback
+	}
+	return *p
+}
+
 // truncate truncates a string to maxLen characters, adding ellipsis if truncated
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
