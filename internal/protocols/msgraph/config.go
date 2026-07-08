@@ -103,6 +103,12 @@ const (
 	ActionExportBearerToken = "exportbearertoken"
 )
 
+// Delegated auth flows accepted by --authflow; an empty AuthFlow means device code.
+const (
+	AuthFlowDeviceCode = "devicecode"
+	AuthFlowBrowser    = "browser"
+)
+
 // RegisterPersistentFlags registers flags shared by all msgraph subcommands
 // on the given parent command (the "msgraph" cobra.Command).
 func RegisterPersistentFlags(cmd *cobra.Command) {
@@ -116,7 +122,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.String("pfxpass", "", "Password for the .pfx file (env: MSGRAPHPFXPASS)")
 	f.String("thumbprint", "", "Thumbprint of the certificate in the CurrentUser\\My store (env: MSGRAPHTHUMBPRINT)")
 	f.Bool("delegated", false, "Use delegated permissions auth flow (env: MSGRAPHDELEGATED)")
-	f.String("authflow", "devicecode", "Delegated auth flow: devicecode, browser (env: MSGRAPHAUTHFLOW)")
+	f.String("authflow", AuthFlowDeviceCode, "Delegated auth flow: devicecode, browser (env: MSGRAPHAUTHFLOW)")
 	f.String("redirecturl", "", "Redirect URL for browser auth flow (env: MSGRAPHREDIRECTURL)")
 	f.String("scope", "", "Comma-separated delegated scopes; default covers mail/calendar operations (env: MSGRAPHSCOPE)")
 	f.String("bearertoken", "", "Pre-obtained Bearer token for authentication (env: MSGRAPHBEARERTOKEN)")
@@ -230,16 +236,6 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		logFormat = defaults.LogFormat
 	}
 
-	scopes := []string{
-		"https://graph.microsoft.com/Mail.ReadWrite",
-		"https://graph.microsoft.com/Mail.Send",
-		"https://graph.microsoft.com/Calendars.ReadWrite",
-		"offline_access",
-	}
-	if rawScopes := parseStringSlice(v.GetString("scope")); len(rawScopes) > 0 {
-		scopes = append([]string(nil), rawScopes...)
-	}
-
 	return &Config{
 		TenantID:              v.GetString("tenantid"),
 		ClientID:              v.GetString("clientid"),
@@ -252,7 +248,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Delegated:             v.GetBool("delegated"),
 		AuthFlow:              strings.ToLower(v.GetString("authflow")),
 		RedirectURL:           strings.TrimSpace(v.GetString("redirecturl")),
-		Scopes:                scopes,
+		Scopes:                parseStringSlice(v.GetString("scope")),
 		To:                    parseStringSlice(v.GetString("to")),
 		Cc:                    parseStringSlice(v.GetString("cc")),
 		Bcc:                   parseStringSlice(v.GetString("bcc")),
@@ -442,13 +438,13 @@ func validateExportBearerTokenConfiguration(config *Config) error {
 func validateAuthConfiguration(config *Config) error {
 	if config.Delegated {
 		switch config.AuthFlow {
-		case "", "devicecode":
-		case "browser":
+		case "", AuthFlowDeviceCode:
+		case AuthFlowBrowser:
 			if config.RedirectURL == "" {
 				return fmt.Errorf("browser delegated flow requires --redirecturl")
 			}
 		default:
-			return fmt.Errorf("invalid -authflow: %s (must be one of: devicecode, browser)", config.AuthFlow)
+			return fmt.Errorf("invalid -authflow: %s (must be one of: %s, %s)", config.AuthFlow, AuthFlowDeviceCode, AuthFlowBrowser)
 		}
 
 		if config.Secret != "" || config.PfxPath != "" || config.Thumbprint != "" {

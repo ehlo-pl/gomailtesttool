@@ -66,7 +66,7 @@ func NewGraphServiceClient(ctx context.Context, config *Config, logger *slog.Log
 	logDebug(logger, "Setting up Microsoft Graph client", "tenantID", security.MaskGUID(config.TenantID), "clientID", security.MaskGUID(config.ClientID))
 	scopes := effectiveScopes(config)
 
-	cred, err := getCredential(config.TenantID, config.ClientID, config.Secret, config.PfxPath, config.PfxPass, config.Thumbprint, config, logger)
+	cred, err := getCredential(config, logger)
 	if err != nil {
 		return nil, fmt.Errorf("authentication setup failed: %w", err)
 	}
@@ -100,7 +100,7 @@ func NewGraphServiceClient(ctx context.Context, config *Config, logger *slog.Log
 	return client, nil
 }
 
-func getCredential(tenantID, clientID, secret, pfxPath, pfxPass, thumbprint string, config *Config, logger *slog.Logger) (azcore.TokenCredential, error) {
+func getCredential(config *Config, logger *slog.Logger) (azcore.TokenCredential, error) {
 	if config.Delegated {
 		return getDelegatedCredential(config, logger)
 	}
@@ -112,34 +112,34 @@ func getCredential(tenantID, clientID, secret, pfxPath, pfxPass, thumbprint stri
 	}
 
 	// 2. Client Secret
-	if secret != "" {
+	if config.Secret != "" {
 		logDebug(logger, "Authentication method: Client Secret")
 		logDebug(logger, "Creating ClientSecretCredential")
-		return azidentity.NewClientSecretCredential(tenantID, clientID, secret, nil)
+		return azidentity.NewClientSecretCredential(config.TenantID, config.ClientID, config.Secret, nil)
 	}
 
 	// 3. PFX File
-	if pfxPath != "" {
-		logDebug(logger, "Authentication method: PFX Certificate File", "path", pfxPath)
-		pfxData, err := os.ReadFile(pfxPath)
+	if config.PfxPath != "" {
+		logDebug(logger, "Authentication method: PFX Certificate File", "path", config.PfxPath)
+		pfxData, err := os.ReadFile(config.PfxPath)
 		if err != nil {
-			logError(logger, "Failed to read PFX file", "path", pfxPath, "error", err)
+			logError(logger, "Failed to read PFX file", "path", config.PfxPath, "error", err)
 			return nil, fmt.Errorf("failed to read PFX file: %w", err)
 		}
 		logDebug(logger, "PFX file read successfully", "bytes", len(pfxData))
-		return createCertCredential(tenantID, clientID, pfxData, pfxPass, logger)
+		return createCertCredential(config.TenantID, config.ClientID, pfxData, config.PfxPass, logger)
 	}
 
 	// 4. Windows Cert Store (Thumbprint)
-	if thumbprint != "" {
-		logDebug(logger, "Authentication method: Windows Certificate Store", "thumbprint", thumbprint)
+	if config.Thumbprint != "" {
+		logDebug(logger, "Authentication method: Windows Certificate Store", "thumbprint", config.Thumbprint)
 		logDebug(logger, "Exporting certificate from CurrentUser\\My store")
-		pfxData, tempPass, err := exportCertFromStore(thumbprint)
+		pfxData, tempPass, err := exportCertFromStore(config.Thumbprint)
 		if err != nil {
 			return nil, fmt.Errorf("failed to export cert from store: %w", err)
 		}
 		logDebug(logger, "Certificate exported successfully", "bytes", len(pfxData))
-		return createCertCredential(tenantID, clientID, pfxData, tempPass, logger)
+		return createCertCredential(config.TenantID, config.ClientID, pfxData, tempPass, logger)
 	}
 
 	return nil, fmt.Errorf("no valid authentication method provided (use -secret, -pfx, -thumbprint, or -bearertoken)")
@@ -153,7 +153,7 @@ func getDelegatedCredential(config *Config, logger *slog.Logger) (azcore.TokenCr
 	}
 
 	switch config.AuthFlow {
-	case "", "devicecode":
+	case "", AuthFlowDeviceCode:
 		logDebug(logger, "Delegated authentication method: Device Code")
 		return azidentity.NewDeviceCodeCredential(&azidentity.DeviceCodeCredentialOptions{
 			TenantID: config.TenantID,
@@ -163,7 +163,7 @@ func getDelegatedCredential(config *Config, logger *slog.Logger) (azcore.TokenCr
 				return err
 			},
 		})
-	case "browser":
+	case AuthFlowBrowser:
 		logDebug(logger, "Delegated authentication method: Interactive Browser")
 		return azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{
 			TenantID:    config.TenantID,
@@ -175,17 +175,21 @@ func getDelegatedCredential(config *Config, logger *slog.Logger) (azcore.TokenCr
 	}
 }
 
+// defaultDelegatedScopes covers the mail and calendar operations the tool
+// performs; offline_access enables refresh tokens for the interactive flows.
+var defaultDelegatedScopes = []string{
+	"https://graph.microsoft.com/Mail.ReadWrite",
+	"https://graph.microsoft.com/Mail.Send",
+	"https://graph.microsoft.com/Calendars.ReadWrite",
+	"offline_access",
+}
+
 func effectiveScopes(config *Config) []string {
 	if config.Delegated {
 		if len(config.Scopes) > 0 {
-			return append([]string(nil), config.Scopes...)
+			return config.Scopes
 		}
-		return []string{
-			"https://graph.microsoft.com/Mail.ReadWrite",
-			"https://graph.microsoft.com/Mail.Send",
-			"https://graph.microsoft.com/Calendars.ReadWrite",
-			"offline_access",
-		}
+		return defaultDelegatedScopes
 	}
 	return []string{"https://graph.microsoft.com/.default"}
 }
