@@ -341,6 +341,10 @@ Operations are logged to `%TEMP%\_msgraphtool_{action}_{date}.csv`.
 | `sendmail` | Timestamp, Action, Status, Mailbox, To, CC, BCC, Subject, Body Type, Attachments |
 | `sendinvite` | Timestamp, Action, Status, Mailbox, Subject, Start Time, End Time, Event ID |
 | `getinbox` | Timestamp, Action, Status, Mailbox, Subject, From, To, Received DateTime |
+| `getschedule` | Timestamp, Action, Status, Mailbox, Recipient, Check DateTime, Availability |
+| `exportinbox` | Timestamp, Action, Status, Mailbox, Detail, Export Dir |
+| `searchandexport` | Timestamp, Action, Status, Mailbox, Detail, Message ID |
+| `exportmessages` | Timestamp, Action, Status, Mailbox, Detail, Message ID, Filename |
 
 ## Retry Configuration
 

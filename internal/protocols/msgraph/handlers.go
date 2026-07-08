@@ -689,10 +689,10 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 			return fmt.Errorf("failed to export message: %w", err)
 		}
 		if config.OutputFormat != "json" {
-			fmt.Printf("Successfully exported message: %s\n", *message.GetSubject())
+			fmt.Printf("Successfully exported message: %s\n", derefOr(message.GetSubject(), "(no subject)"))
 		}
 		if logger != nil {
-			_ = logger.WriteRow([]string{ActionSearchAndExport, StatusSuccess, mailbox, "Exported successfully", *message.GetId()})
+			_ = logger.WriteRow([]string{ActionSearchAndExport, StatusSuccess, mailbox, "Exported successfully", derefOr(message.GetId(), "")})
 		}
 	}
 
@@ -753,7 +753,7 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 			fmt.Println("No messages found matching the given criteria.")
 		}
 		if logger != nil {
-			_ = logger.WriteRow([]string{ActionExportMessages, StatusSuccess, mailbox, "No messages found (0 messages)", "N/A"})
+			_ = logger.WriteRow([]string{ActionExportMessages, StatusSuccess, mailbox, "No messages found (0 messages)", "", ""})
 		}
 		return nil
 	}
@@ -775,21 +775,22 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 
 	successCount := 0
 	for _, message := range messages {
+		messageID := derefOr(message.GetId(), "")
 		filePath, err := exportMessageToEML(ctx, client, mailbox, message, exportDir, config)
 		if err != nil {
-			log.Printf("Error exporting message ID %s: %v", *message.GetId(), err)
+			log.Printf("Error exporting message ID %s: %v", messageID, err)
 			if logger != nil {
-				_ = logger.WriteRow([]string{ActionExportMessages, StatusError, mailbox, err.Error(), *message.GetId()})
+				_ = logger.WriteRow([]string{ActionExportMessages, StatusError, mailbox, err.Error(), messageID, ""})
 			}
 			continue
 		}
 
 		successCount++
 		if config.OutputFormat != "json" {
-			fmt.Printf("Successfully exported message: %s -> %s\n", *message.GetSubject(), filePath)
+			fmt.Printf("Successfully exported message: %s -> %s\n", derefOr(message.GetSubject(), "(no subject)"), filePath)
 		}
 		if logger != nil {
-			_ = logger.WriteRow([]string{ActionExportMessages, StatusSuccess, mailbox, "Exported successfully", *message.GetId(), filePath})
+			_ = logger.WriteRow([]string{ActionExportMessages, StatusSuccess, mailbox, "Exported successfully", messageID, filePath})
 		}
 	}
 
