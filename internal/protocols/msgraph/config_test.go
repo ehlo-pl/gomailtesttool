@@ -98,6 +98,8 @@ func TestValidateConfiguration_Delegated(t *testing.T) {
 			t.Fatalf("expected delegated mode validation error, got: %v", err)
 		}
 	})
+}
+
 func TestValidateExportBearerTokenConfiguration(t *testing.T) {
 	tests := []struct {
 		name      string

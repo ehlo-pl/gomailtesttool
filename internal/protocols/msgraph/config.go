@@ -349,8 +349,6 @@ func validateConfiguration(config *Config) error {
 		if err := validateFilePath(config.PfxPath, "PFX certificate file"); err != nil {
 			return err
 		}
-	if err := validateAuthConfiguration(config); err != nil {
-		return err
 	}
 
 	// Validate attachment file paths
