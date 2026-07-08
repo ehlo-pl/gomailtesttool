@@ -251,7 +251,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		BearerToken:           v.GetString("bearertoken"),
 		Delegated:             v.GetBool("delegated"),
 		AuthFlow:              strings.ToLower(v.GetString("authflow")),
-		RedirectURL:           v.GetString("redirecturl"),
+		RedirectURL:           strings.TrimSpace(v.GetString("redirecturl")),
 		Scopes:                scopes,
 		To:                    parseStringSlice(v.GetString("to")),
 		Cc:                    parseStringSlice(v.GetString("cc")),
@@ -303,52 +303,8 @@ func validateConfiguration(config *Config) error {
 		return fmt.Errorf("invalid mailbox: %w", err)
 	}
 
-	if config.Delegated {
-		switch config.AuthFlow {
-		case "", "devicecode":
-		case "browser":
-			if strings.TrimSpace(config.RedirectURL) == "" {
-				return fmt.Errorf("browser delegated flow requires --redirecturl")
-			}
-		default:
-			return fmt.Errorf("invalid -authflow: %s (must be one of: devicecode, browser)", config.AuthFlow)
-		}
-	}
-
-	// Check that at least one authentication method is provided
-	authMethodCount := 0
-	if config.Secret != "" {
-		authMethodCount++
-	}
-	if config.PfxPath != "" {
-		authMethodCount++
-	}
-	if config.Thumbprint != "" {
-		authMethodCount++
-	}
-	if config.BearerToken != "" {
-		authMethodCount++
-	}
-
-	if config.Delegated {
-		if config.BearerToken == "" {
-			if config.Secret != "" || config.PfxPath != "" || config.Thumbprint != "" {
-				return fmt.Errorf("delegated mode without --bearertoken does not support --secret, --pfx, or --thumbprint")
-			}
-		} else if authMethodCount > 1 {
-			return fmt.Errorf("multiple authentication methods provided: in delegated mode with --bearertoken, do not combine with --secret, --pfx, or --thumbprint")
-		}
-	} else if authMethodCount == 0 {
-		return fmt.Errorf("missing authentication: must provide one of --secret, --pfx, --thumbprint, or --bearertoken")
-	} else if authMethodCount > 1 {
-		return fmt.Errorf("multiple authentication methods provided: use only one of --secret, --pfx, --thumbprint, or --bearertoken")
-	}
-
-	// Validate PFX file path if provided
-	if config.PfxPath != "" {
-		if err := validateFilePath(config.PfxPath, "PFX certificate file"); err != nil {
-			return err
-		}
+	if err := validateAuthConfiguration(config); err != nil {
+		return err
 	}
 
 	// Validate attachment file paths
@@ -484,6 +440,26 @@ func validateExportBearerTokenConfiguration(config *Config) error {
 }
 
 func validateAuthConfiguration(config *Config) error {
+	if config.Delegated {
+		switch config.AuthFlow {
+		case "", "devicecode":
+		case "browser":
+			if config.RedirectURL == "" {
+				return fmt.Errorf("browser delegated flow requires --redirecturl")
+			}
+		default:
+			return fmt.Errorf("invalid -authflow: %s (must be one of: devicecode, browser)", config.AuthFlow)
+		}
+
+		if config.Secret != "" || config.PfxPath != "" || config.Thumbprint != "" {
+			if config.BearerToken != "" {
+				return fmt.Errorf("multiple authentication methods provided: in delegated mode with --bearertoken, do not combine with --secret, --pfx, or --thumbprint")
+			}
+			return fmt.Errorf("delegated mode without --bearertoken does not support --secret, --pfx, or --thumbprint")
+		}
+		return nil
+	}
+
 	authMethodCount := 0
 	if config.Secret != "" {
 		authMethodCount++

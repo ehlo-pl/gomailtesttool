@@ -506,7 +506,8 @@ func newExportBearerTokenCmd(v *viper.Viper) *cobra.Command {
 			}
 
 			token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-				Scopes: []string{"https://graph.microsoft.com/.default"},
+				Scopes:    effectiveScopes(config),
+				EnableCAE: true,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to acquire bearer token: %w", err)

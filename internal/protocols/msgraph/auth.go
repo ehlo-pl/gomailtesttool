@@ -71,10 +71,14 @@ func NewGraphServiceClient(ctx context.Context, config *Config, logger *slog.Log
 		return nil, fmt.Errorf("authentication setup failed: %w", err)
 	}
 
-	// Get and display token information if verbose
+	// Get and display token information if verbose.
+	// EnableCAE must match the Graph SDK's token requests: azidentity keeps
+	// separate CAE and non-CAE token caches, and a mismatch would force a
+	// second interactive sign-in in delegated mode.
 	if config.VerboseMode {
 		token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-			Scopes: scopes,
+			Scopes:    scopes,
+			EnableCAE: true,
 		})
 		if err != nil {
 			logVerbose(config.VerboseMode, "Warning: Could not retrieve token for verbose display: %v", err)
@@ -242,31 +246,33 @@ func printTokenInfo(token azcore.AccessToken) {
 	}
 	fmt.Printf("Token length: %d characters\n", len(tokenStr))
 
-	// Parse and display JWT claims (application name and roles)
+	// Parse and display JWT claims (application name, roles, delegated scopes)
 	fmt.Println()
 	fmt.Println("JWT Claims:")
-	appName, roles, err := parseTokenClaims(tokenStr)
+	appName, roles, scopes, err := parseTokenClaims(tokenStr)
 	if err != nil {
 		fmt.Printf("  (Could not parse JWT claims: %v)\n", err)
 	} else {
 		fmt.Printf("  Application Name: %s\n", appName)
 		fmt.Printf("  Assigned Roles: %s\n", roles)
+		fmt.Printf("  Delegated Scopes: %s\n", scopes)
 	}
 
 	fmt.Println()
 }
 
-// parseTokenClaims extracts application name and assigned roles from a JWT access token.
-func parseTokenClaims(tokenString string) (string, string, error) {
+// parseTokenClaims extracts application name, assigned roles (application
+// permissions), and delegated scopes (scp claim) from a JWT access token.
+func parseTokenClaims(tokenString string) (string, string, string, error) {
 	// Parse without verification (token already validated by Azure SDK)
 	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, &TokenClaims{})
 	if err != nil {
-		return "", "", fmt.Errorf("failed to parse JWT: %w", err)
+		return "", "", "", fmt.Errorf("failed to parse JWT: %w", err)
 	}
 
 	claims, ok := token.Claims.(*TokenClaims)
 	if !ok {
-		return "", "", fmt.Errorf("failed to extract claims from token")
+		return "", "", "", fmt.Errorf("failed to extract claims from token")
 	}
 
 	// Extract app display name (may be empty)
@@ -281,5 +287,11 @@ func parseTokenClaims(tokenString string) (string, string, error) {
 		rolesStr = strings.Join(claims.Roles, ", ")
 	}
 
-	return appName, rolesStr, nil
+	// Delegated tokens carry scopes in scp instead of roles
+	scopesStr := "(none)"
+	if claims.Scopes != "" {
+		scopesStr = strings.Join(strings.Fields(claims.Scopes), ", ")
+	}
+
+	return appName, rolesStr, scopesStr, nil
 }

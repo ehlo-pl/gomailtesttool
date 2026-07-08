@@ -117,6 +117,10 @@ The same sendmail capabilities are also exposed over MCP (Model Context Protocol
 
 			if loadedBase.TenantID == "" || loadedBase.ClientID == "" {
 				slogger.Warn("MSGRAPHTENANTID or MSGRAPHCLIENTID not set — POST /msgraph/sendmail will return 503")
+			} else if loadedBase.Delegated && loadedBase.BearerToken == "" {
+				// Delegated device-code/browser flows need an interactive sign-in,
+				// which would block headless server startup on a console prompt.
+				slogger.Warn("MSGRAPHDELEGATED requires an interactive sign-in the server cannot perform — set MSGRAPHBEARERTOKEN or unset MSGRAPHDELEGATED; POST /msgraph/sendmail will return 503")
 			} else {
 				if loadedBase.ProxyURL != "" {
 					os.Setenv("HTTP_PROXY", loadedBase.ProxyURL)  //nolint:errcheck
