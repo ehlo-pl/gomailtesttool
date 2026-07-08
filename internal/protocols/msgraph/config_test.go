@@ -148,6 +148,60 @@ func TestValidateExportBearerTokenConfiguration(t *testing.T) {
 			},
 			wantError: "invalid output format",
 		},
+		{
+			name: "accepts delegated devicecode flow without app credentials",
+			config: &Config{
+				TenantID:     "00000000-0000-0000-0000-000000000001",
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				Delegated:    true,
+				AuthFlow:     "devicecode",
+				OutputFormat: "text",
+			},
+		},
+		{
+			name: "accepts delegated browser flow with redirect URL",
+			config: &Config{
+				TenantID:     "00000000-0000-0000-0000-000000000001",
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				Delegated:    true,
+				AuthFlow:     "browser",
+				RedirectURL:  "http://localhost:8400/callback",
+				OutputFormat: "text",
+			},
+		},
+		{
+			name: "delegated browser flow requires redirect URL",
+			config: &Config{
+				TenantID:     "00000000-0000-0000-0000-000000000001",
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				Delegated:    true,
+				AuthFlow:     "browser",
+				OutputFormat: "text",
+			},
+			wantError: "--redirecturl",
+		},
+		{
+			name: "delegated rejects invalid auth flow",
+			config: &Config{
+				TenantID:     "00000000-0000-0000-0000-000000000001",
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				Delegated:    true,
+				AuthFlow:     "bogus",
+				OutputFormat: "text",
+			},
+			wantError: "invalid -authflow",
+		},
+		{
+			name: "delegated without bearer token rejects app credentials",
+			config: &Config{
+				TenantID:     "00000000-0000-0000-0000-000000000001",
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				Delegated:    true,
+				Secret:       "app-secret",
+				OutputFormat: "text",
+			},
+			wantError: "delegated mode",
+		},
 	}
 
 	for _, tt := range tests {

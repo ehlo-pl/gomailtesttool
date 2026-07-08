@@ -66,15 +66,19 @@ func NewGraphServiceClient(ctx context.Context, config *Config, logger *slog.Log
 	logDebug(logger, "Setting up Microsoft Graph client", "tenantID", security.MaskGUID(config.TenantID), "clientID", security.MaskGUID(config.ClientID))
 	scopes := effectiveScopes(config)
 
-	cred, err := getCredential(config.TenantID, config.ClientID, config.Secret, config.PfxPath, config.PfxPass, config.Thumbprint, config, logger)
+	cred, err := getCredential(config, logger)
 	if err != nil {
 		return nil, fmt.Errorf("authentication setup failed: %w", err)
 	}
 
-	// Get and display token information if verbose
+	// Get and display token information if verbose.
+	// EnableCAE must match the Graph SDK's token requests: azidentity keeps
+	// separate CAE and non-CAE token caches, and a mismatch would force a
+	// second interactive sign-in in delegated mode.
 	if config.VerboseMode {
 		token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-			Scopes: scopes,
+			Scopes:    scopes,
+			EnableCAE: true,
 		})
 		if err != nil {
 			logVerbose(config.VerboseMode, "Warning: Could not retrieve token for verbose display: %v", err)
@@ -96,7 +100,7 @@ func NewGraphServiceClient(ctx context.Context, config *Config, logger *slog.Log
 	return client, nil
 }
 
-func getCredential(tenantID, clientID, secret, pfxPath, pfxPass, thumbprint string, config *Config, logger *slog.Logger) (azcore.TokenCredential, error) {
+func getCredential(config *Config, logger *slog.Logger) (azcore.TokenCredential, error) {
 	if config.Delegated {
 		return getDelegatedCredential(config, logger)
 	}
@@ -108,34 +112,34 @@ func getCredential(tenantID, clientID, secret, pfxPath, pfxPass, thumbprint stri
 	}
 
 	// 2. Client Secret
-	if secret != "" {
+	if config.Secret != "" {
 		logDebug(logger, "Authentication method: Client Secret")
 		logDebug(logger, "Creating ClientSecretCredential")
-		return azidentity.NewClientSecretCredential(tenantID, clientID, secret, nil)
+		return azidentity.NewClientSecretCredential(config.TenantID, config.ClientID, config.Secret, nil)
 	}
 
 	// 3. PFX File
-	if pfxPath != "" {
-		logDebug(logger, "Authentication method: PFX Certificate File", "path", pfxPath)
-		pfxData, err := os.ReadFile(pfxPath)
+	if config.PfxPath != "" {
+		logDebug(logger, "Authentication method: PFX Certificate File", "path", config.PfxPath)
+		pfxData, err := os.ReadFile(config.PfxPath)
 		if err != nil {
-			logError(logger, "Failed to read PFX file", "path", pfxPath, "error", err)
+			logError(logger, "Failed to read PFX file", "path", config.PfxPath, "error", err)
 			return nil, fmt.Errorf("failed to read PFX file: %w", err)
 		}
 		logDebug(logger, "PFX file read successfully", "bytes", len(pfxData))
-		return createCertCredential(tenantID, clientID, pfxData, pfxPass, logger)
+		return createCertCredential(config.TenantID, config.ClientID, pfxData, config.PfxPass, logger)
 	}
 
 	// 4. Windows Cert Store (Thumbprint)
-	if thumbprint != "" {
-		logDebug(logger, "Authentication method: Windows Certificate Store", "thumbprint", thumbprint)
+	if config.Thumbprint != "" {
+		logDebug(logger, "Authentication method: Windows Certificate Store", "thumbprint", config.Thumbprint)
 		logDebug(logger, "Exporting certificate from CurrentUser\\My store")
-		pfxData, tempPass, err := exportCertFromStore(thumbprint)
+		pfxData, tempPass, err := exportCertFromStore(config.Thumbprint)
 		if err != nil {
 			return nil, fmt.Errorf("failed to export cert from store: %w", err)
 		}
 		logDebug(logger, "Certificate exported successfully", "bytes", len(pfxData))
-		return createCertCredential(tenantID, clientID, pfxData, tempPass, logger)
+		return createCertCredential(config.TenantID, config.ClientID, pfxData, tempPass, logger)
 	}
 
 	return nil, fmt.Errorf("no valid authentication method provided (use -secret, -pfx, -thumbprint, or -bearertoken)")
@@ -149,7 +153,7 @@ func getDelegatedCredential(config *Config, logger *slog.Logger) (azcore.TokenCr
 	}
 
 	switch config.AuthFlow {
-	case "", "devicecode":
+	case "", AuthFlowDeviceCode:
 		logDebug(logger, "Delegated authentication method: Device Code")
 		return azidentity.NewDeviceCodeCredential(&azidentity.DeviceCodeCredentialOptions{
 			TenantID: config.TenantID,
@@ -159,7 +163,7 @@ func getDelegatedCredential(config *Config, logger *slog.Logger) (azcore.TokenCr
 				return err
 			},
 		})
-	case "browser":
+	case AuthFlowBrowser:
 		logDebug(logger, "Delegated authentication method: Interactive Browser")
 		return azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{
 			TenantID:    config.TenantID,
@@ -171,17 +175,21 @@ func getDelegatedCredential(config *Config, logger *slog.Logger) (azcore.TokenCr
 	}
 }
 
+// defaultDelegatedScopes covers the mail and calendar operations the tool
+// performs; offline_access enables refresh tokens for the interactive flows.
+var defaultDelegatedScopes = []string{
+	"https://graph.microsoft.com/Mail.ReadWrite",
+	"https://graph.microsoft.com/Mail.Send",
+	"https://graph.microsoft.com/Calendars.ReadWrite",
+	"offline_access",
+}
+
 func effectiveScopes(config *Config) []string {
 	if config.Delegated {
 		if len(config.Scopes) > 0 {
-			return append([]string(nil), config.Scopes...)
+			return config.Scopes
 		}
-		return []string{
-			"https://graph.microsoft.com/Mail.ReadWrite",
-			"https://graph.microsoft.com/Mail.Send",
-			"https://graph.microsoft.com/Calendars.ReadWrite",
-			"offline_access",
-		}
+		return defaultDelegatedScopes
 	}
 	return []string{"https://graph.microsoft.com/.default"}
 }
@@ -242,31 +250,33 @@ func printTokenInfo(token azcore.AccessToken) {
 	}
 	fmt.Printf("Token length: %d characters\n", len(tokenStr))
 
-	// Parse and display JWT claims (application name and roles)
+	// Parse and display JWT claims (application name, roles, delegated scopes)
 	fmt.Println()
 	fmt.Println("JWT Claims:")
-	appName, roles, err := parseTokenClaims(tokenStr)
+	appName, roles, scopes, err := parseTokenClaims(tokenStr)
 	if err != nil {
 		fmt.Printf("  (Could not parse JWT claims: %v)\n", err)
 	} else {
 		fmt.Printf("  Application Name: %s\n", appName)
 		fmt.Printf("  Assigned Roles: %s\n", roles)
+		fmt.Printf("  Delegated Scopes: %s\n", scopes)
 	}
 
 	fmt.Println()
 }
 
-// parseTokenClaims extracts application name and assigned roles from a JWT access token.
-func parseTokenClaims(tokenString string) (string, string, error) {
+// parseTokenClaims extracts application name, assigned roles (application
+// permissions), and delegated scopes (scp claim) from a JWT access token.
+func parseTokenClaims(tokenString string) (string, string, string, error) {
 	// Parse without verification (token already validated by Azure SDK)
 	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, &TokenClaims{})
 	if err != nil {
-		return "", "", fmt.Errorf("failed to parse JWT: %w", err)
+		return "", "", "", fmt.Errorf("failed to parse JWT: %w", err)
 	}
 
 	claims, ok := token.Claims.(*TokenClaims)
 	if !ok {
-		return "", "", fmt.Errorf("failed to extract claims from token")
+		return "", "", "", fmt.Errorf("failed to extract claims from token")
 	}
 
 	// Extract app display name (may be empty)
@@ -281,5 +291,11 @@ func parseTokenClaims(tokenString string) (string, string, error) {
 		rolesStr = strings.Join(claims.Roles, ", ")
 	}
 
-	return appName, rolesStr, nil
+	// Delegated tokens carry scopes in scp instead of roles
+	scopesStr := "(none)"
+	if claims.Scopes != "" {
+		scopesStr = strings.Join(strings.Fields(claims.Scopes), ", ")
+	}
+
+	return appName, rolesStr, scopesStr, nil
 }

@@ -500,13 +500,14 @@ func newExportBearerTokenCmd(v *viper.Viper) *cobra.Command {
 				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
-			cred, err := getCredential(config.TenantID, config.ClientID, config.Secret, config.PfxPath, config.PfxPass, config.Thumbprint, config, slogger)
+			cred, err := getCredential(config, slogger)
 			if err != nil {
 				return err
 			}
 
 			token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-				Scopes: []string{"https://graph.microsoft.com/.default"},
+				Scopes:    effectiveScopes(config),
+				EnableCAE: true,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to acquire bearer token: %w", err)
