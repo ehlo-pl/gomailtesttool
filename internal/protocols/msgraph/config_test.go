@@ -51,6 +51,55 @@ func TestValidateConfiguration_Priority(t *testing.T) {
 	}
 }
 
+func validConfigForDelegatedTest() *Config {
+	cfg := NewConfig()
+	cfg.TenantID = "00000000-0000-0000-0000-000000000001"
+	cfg.ClientID = "00000000-0000-0000-0000-000000000002"
+	cfg.Mailbox = "user@example.com"
+	cfg.Delegated = true
+	cfg.AuthFlow = "devicecode"
+	return cfg
+}
+
+func TestValidateConfiguration_Delegated(t *testing.T) {
+	t.Run("devicecode without bearer token is valid", func(t *testing.T) {
+		cfg := validConfigForDelegatedTest()
+		if err := validateConfiguration(cfg); err != nil {
+			t.Fatalf("validateConfiguration() unexpected error = %v", err)
+		}
+	})
+
+	t.Run("browser flow requires redirect URL", func(t *testing.T) {
+		cfg := validConfigForDelegatedTest()
+		cfg.AuthFlow = "browser"
+
+		err := validateConfiguration(cfg)
+		if err == nil || !strings.Contains(err.Error(), "--redirecturl") {
+			t.Fatalf("expected redirect URL validation error, got: %v", err)
+		}
+	})
+
+	t.Run("browser flow with redirect URL is valid", func(t *testing.T) {
+		cfg := validConfigForDelegatedTest()
+		cfg.AuthFlow = "browser"
+		cfg.RedirectURL = "http://localhost:8400/callback"
+
+		if err := validateConfiguration(cfg); err != nil {
+			t.Fatalf("validateConfiguration() unexpected error = %v", err)
+		}
+	})
+
+	t.Run("delegated without bearer token rejects app credentials", func(t *testing.T) {
+		cfg := validConfigForDelegatedTest()
+		cfg.Secret = "app-secret"
+
+		err := validateConfiguration(cfg)
+		if err == nil || !strings.Contains(err.Error(), "delegated mode") {
+			t.Fatalf("expected delegated mode validation error, got: %v", err)
+		}
+	})
+}
+
 func TestValidateExportBearerTokenConfiguration(t *testing.T) {
 	tests := []struct {
 		name      string

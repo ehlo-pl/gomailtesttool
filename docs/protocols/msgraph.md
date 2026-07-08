@@ -182,6 +182,10 @@ gomailtest msgraph exportbearertoken --tenantid "..." --clientid "..." --secret 
 | `--pfx` | Path to .pfx certificate file | `MSGRAPHPFX` | — |
 | `--pfxpass` | Password for .pfx certificate | `MSGRAPHPFXPASS` | — |
 | `--thumbprint` | Certificate thumbprint (Windows only) | `MSGRAPHTHUMBPRINT` | — |
+| `--delegated` | Use delegated permissions auth flow | `MSGRAPHDELEGATED` | false |
+| `--authflow` | Delegated auth flow: `devicecode` or `browser` | `MSGRAPHAUTHFLOW` | devicecode |
+| `--redirecturl` | Redirect URL used by browser delegated flow | `MSGRAPHREDIRECTURL` | — |
+| `--scope` | Comma-separated delegated scopes | `MSGRAPHSCOPE` | Mail.ReadWrite,Mail.Send,Calendars.ReadWrite,offline_access |
 | `--bearertoken` | Pre-obtained Bearer token | `MSGRAPHBEARERTOKEN` | — |
 | `--proxy` | HTTP/HTTPS proxy URL | `MSGRAPHPROXY` | — |
 | `--maxretries` | Maximum retry attempts | `MSGRAPHMAXRETRIES` | 3 |
@@ -257,6 +261,26 @@ gomailtest msgraph getevents \
     --tenantid "..." --clientid "..." \
     --bearertoken "eyJ0eXAi..." \
     --mailbox "user@example.com"
+```
+
+### Delegated Permissions (Device Code)
+
+```powershell
+gomailtest msgraph getinbox \
+    --tenantid "..." --clientid "..." \
+    --delegated --authflow devicecode \
+    --mailbox "user@example.com"
+```
+
+### Delegated Permissions (Browser + Redirect URL)
+
+```powershell
+gomailtest msgraph sendmail \
+    --tenantid "..." --clientid "..." \
+    --delegated --authflow browser \
+    --redirecturl "http://localhost:8400/callback" \
+    --mailbox "user@example.com" \
+    --to "recipient@example.com"
 ```
 
 ## Environment Variables
