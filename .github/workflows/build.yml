@@ -187,46 +187,46 @@ jobs:
           **SMTP Testing:**
           ```bash
           # Test connectivity
-          ./gomailtest smtp testconnect -host smtp.example.com -port 25
+          ./gomailtest smtp testconnect --host smtp.example.com --port 25
 
           # TLS diagnostics
-          ./gomailtest smtp teststarttls -host smtp.example.com -port 587
+          ./gomailtest smtp teststarttls --host smtp.example.com --port 587
           ```
 
           **IMAP Testing:**
           ```bash
           # Test connection
-          ./gomailtest imap testconnect -host imap.gmail.com -imaps
+          ./gomailtest imap testconnect --host imap.gmail.com --imaps
 
           # List folders with OAuth2
-          ./gomailtest imap listfolders -host imap.gmail.com -imaps \
-            -username user@gmail.com -accesstoken "ya29..."
+          ./gomailtest imap listfolders --host imap.gmail.com --imaps \
+            --username user@gmail.com --accesstoken "ya29..."
           ```
 
           **POP3 Testing:**
           ```bash
           # Test connection
-          ./gomailtest pop3 testconnect -host pop.gmail.com -pop3s
+          ./gomailtest pop3 testconnect --host pop.gmail.com --pop3s
 
           # List mail
-          ./gomailtest pop3 listmail -host pop.gmail.com -pop3s \
-            -username user@gmail.com -password "app-password"
+          ./gomailtest pop3 listmail --host pop.gmail.com --pop3s \
+            --username user@gmail.com --password "app-password"
           ```
 
           **JMAP Testing:**
           ```bash
           # Discover session
-          ./gomailtest jmap testconnect -host jmap.fastmail.com
+          ./gomailtest jmap testconnect --host jmap.fastmail.com
 
           # Get mailboxes
-          ./gomailtest jmap getmailboxes -host jmap.fastmail.com \
-            -username user@fastmail.com -accesstoken "token"
+          ./gomailtest jmap getmailboxes --host jmap.fastmail.com \
+            --username user@fastmail.com --accesstoken "token"
           ```
 
           **Microsoft Graph:**
           ```bash
-          ./gomailtest msgraph -tenantid "..." -clientid "..." -secret "..." \
-            -mailbox "user@example.com" -action getinbox
+          ./gomailtest msgraph getinbox --tenantid "..." --clientid "..." --secret "..." \
+            --mailbox "user@example.com"
           ```
 
           ### Documentation
