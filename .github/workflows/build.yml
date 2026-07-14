@@ -18,12 +18,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
-        go-version: '1.24'
+        go-version: '1.25'
 
     - name: Run Tests
       run: go test -v -race ./...
@@ -39,17 +39,17 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true  # Allow lint to report issues without blocking build
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
-        go-version: '1.24'
+        go-version: '1.25'
 
     - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v9
       with:
-        version: latest
+        version: v2.12.2
         args: --timeout=5m
 
   # Build job runs after test, only on tag push
@@ -76,12 +76,12 @@ jobs:
             goarch: arm64
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
-        go-version: '1.24'
+        go-version: '1.25'
 
     - name: Create bin directory
       run: mkdir -p bin
@@ -135,13 +135,13 @@ jobs:
         ls -lh $ZIP_NAME
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.artifact_name }}
         path: ${{ env.ZIP_NAME }}
 
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         files: ${{ env.ZIP_NAME }}
         body: |
@@ -187,46 +187,46 @@ jobs:
           **SMTP Testing:**
           ```bash
           # Test connectivity
-          ./gomailtest smtp testconnect -host smtp.example.com -port 25
+          ./gomailtest smtp testconnect --host smtp.example.com --port 25
 
           # TLS diagnostics
-          ./gomailtest smtp teststarttls -host smtp.example.com -port 587
+          ./gomailtest smtp teststarttls --host smtp.example.com --port 587
           ```
 
           **IMAP Testing:**
           ```bash
           # Test connection
-          ./gomailtest imap testconnect -host imap.gmail.com -imaps
+          ./gomailtest imap testconnect --host imap.gmail.com --imaps
 
           # List folders with OAuth2
-          ./gomailtest imap listfolders -host imap.gmail.com -imaps \
-            -username user@gmail.com -accesstoken "ya29..."
+          ./gomailtest imap listfolders --host imap.gmail.com --imaps \
+            --username user@gmail.com --accesstoken "ya29..."
           ```
 
           **POP3 Testing:**
           ```bash
           # Test connection
-          ./gomailtest pop3 testconnect -host pop.gmail.com -pop3s
+          ./gomailtest pop3 testconnect --host pop.gmail.com --pop3s
 
           # List mail
-          ./gomailtest pop3 listmail -host pop.gmail.com -pop3s \
-            -username user@gmail.com -password "app-password"
+          ./gomailtest pop3 listmail --host pop.gmail.com --pop3s \
+            --username user@gmail.com --password "app-password"
           ```
 
           **JMAP Testing:**
           ```bash
           # Discover session
-          ./gomailtest jmap testconnect -host jmap.fastmail.com
+          ./gomailtest jmap testconnect --host jmap.fastmail.com
 
           # Get mailboxes
-          ./gomailtest jmap getmailboxes -host jmap.fastmail.com \
-            -username user@fastmail.com -accesstoken "token"
+          ./gomailtest jmap getmailboxes --host jmap.fastmail.com \
+            --username user@fastmail.com --accesstoken "token"
           ```
 
           **Microsoft Graph:**
           ```bash
-          ./gomailtest msgraph -tenantid "..." -clientid "..." -secret "..." \
-            -mailbox "user@example.com" -action getinbox
+          ./gomailtest msgraph getinbox --tenantid "..." --clientid "..." --secret "..." \
+            --mailbox "user@example.com"
           ```
 
           ### Documentation

@@ -129,6 +129,11 @@ Output goes to `%TEMP%\export\{date}\message_{n}_{timestamp}.json`.
 gomailtest msgraph searchandexport --messageid "<message-id@example.com>"
 ```
 
+If the query returns no matches, the tool retries with exponential backoff
+(governed by `--maxretries` / `--retrydelay`) because Graph is eventually
+consistent — a just-sent message may not be indexed yet. "No message found"
+is reported only after all retries are exhausted (~14 s with defaults).
+
 ### exportmessages — Export Matching Messages as .eml
 
 Searches messages by Internet Message-ID and/or a subject substring (OData
@@ -144,6 +149,24 @@ gomailtest msgraph exportmessages --subject "Invoice" --exportdir "C:\exports"
 
 Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or
 `<exportdir>\{date}\msg_{id}.eml` when `--exportdir` is given.
+
+Like `searchandexport`, an empty result is retried with exponential backoff
+(`--maxretries` / `--retrydelay`) to absorb Graph's eventual-consistency
+indexing delay; "No messages found" is reported only after the last attempt.
+
+### exportbearertoken — Print access token
+
+Acquires a Microsoft Graph bearer token using configured auth (`--secret`,
+`--pfx`, `--thumbprint`) and prints it. If `--bearertoken` is already
+provided, this command prints that value directly.
+
+```powershell
+# Plain token string (default)
+gomailtest msgraph exportbearertoken --tenantid "..." --clientid "..." --secret "..."
+
+# JSON output
+gomailtest msgraph exportbearertoken --tenantid "..." --clientid "..." --secret "..." --output json
+```
  
 
 ## Flags
@@ -159,6 +182,10 @@ Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or
 | `--pfx` | Path to .pfx certificate file | `MSGRAPHPFX` | — |
 | `--pfxpass` | Password for .pfx certificate | `MSGRAPHPFXPASS` | — |
 | `--thumbprint` | Certificate thumbprint (Windows only) | `MSGRAPHTHUMBPRINT` | — |
+| `--delegated` | Use delegated permissions auth flow | `MSGRAPHDELEGATED` | false |
+| `--authflow` | Delegated auth flow: `devicecode` or `browser` | `MSGRAPHAUTHFLOW` | devicecode |
+| `--redirecturl` | Redirect URL used by browser delegated flow | `MSGRAPHREDIRECTURL` | — |
+| `--scope` | Comma-separated delegated scopes | `MSGRAPHSCOPE` | Mail.ReadWrite,Mail.Send,Calendars.ReadWrite,offline_access |
 | `--bearertoken` | Pre-obtained Bearer token | `MSGRAPHBEARERTOKEN` | — |
 | `--proxy` | HTTP/HTTPS proxy URL | `MSGRAPHPROXY` | — |
 | `--maxretries` | Maximum retry attempts | `MSGRAPHMAXRETRIES` | 3 |
@@ -236,6 +263,26 @@ gomailtest msgraph getevents \
     --mailbox "user@example.com"
 ```
 
+### Delegated Permissions (Device Code)
+
+```powershell
+gomailtest msgraph getinbox \
+    --tenantid "..." --clientid "..." \
+    --delegated --authflow devicecode \
+    --mailbox "user@example.com"
+```
+
+### Delegated Permissions (Browser + Redirect URL)
+
+```powershell
+gomailtest msgraph sendmail \
+    --tenantid "..." --clientid "..." \
+    --delegated --authflow browser \
+    --redirecturl "http://localhost:8400/callback" \
+    --mailbox "user@example.com" \
+    --to "recipient@example.com"
+```
+
 ## Environment Variables
 
 ```powershell
@@ -294,6 +341,10 @@ Operations are logged to `%TEMP%\_msgraphtool_{action}_{date}.csv`.
 | `sendmail` | Timestamp, Action, Status, Mailbox, To, CC, BCC, Subject, Body Type, Attachments |
 | `sendinvite` | Timestamp, Action, Status, Mailbox, Subject, Start Time, End Time, Event ID |
 | `getinbox` | Timestamp, Action, Status, Mailbox, Subject, From, To, Received DateTime |
+| `getschedule` | Timestamp, Action, Status, Mailbox, Recipient, Check DateTime, Availability |
+| `exportinbox` | Timestamp, Action, Status, Mailbox, Detail, Export Dir |
+| `searchandexport` | Timestamp, Action, Status, Mailbox, Detail, Message ID |
+| `exportmessages` | Timestamp, Action, Status, Mailbox, Detail, Message ID, Filename |
 
 ## Retry Configuration
 
@@ -306,6 +357,8 @@ gomailtest msgraph sendmail --maxretries 0
 ```
 
 Retry uses exponential backoff: 2s → 4s → 8s → 16s → 30s (capped). Retries on HTTP 429, 503, 504, network timeouts. Never retries authentication failures or 4xx errors.
+
+For `searchandexport` and `exportmessages`, a successful-but-empty result is also retried with the same backoff, because Graph is eventually consistent and a just-sent message may not be indexed yet. Only after the last attempt does the tool report that no messages were found.
 
 ## Required Azure AD Permissions
 

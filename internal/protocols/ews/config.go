@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // Config holds all ewstool configuration.
@@ -253,7 +253,7 @@ func validateConfiguration(config *Config) error {
 		}
 		if strings.EqualFold(config.AuthMethod, "Bearer") {
 			if config.AccessToken == "" {
-				return fmt.Errorf("Bearer authentication requires --accesstoken")
+				return fmt.Errorf("bearer authentication requires --accesstoken")
 			}
 		} else if config.Password == "" {
 			return fmt.Errorf("%s requires --password (or --accesstoken for Bearer)", config.Action)

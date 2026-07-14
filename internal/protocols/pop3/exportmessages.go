@@ -11,6 +11,7 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
 )
 
 // exportMessages fetches headers for each message via TOP, matches them
@@ -69,7 +70,7 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		authErr = client.Auth(ctx, config.Username, config.Password, "")
 	}
 	if authErr != nil {
-		logger.LogError(slogLogger, "Authentication failed", "error", authErr, "username", maskUsername(config.Username))
+		logger.LogError(slogLogger, "Authentication failed", "error", authErr, "username", security.MaskUsername(config.Username))
 		writeExportRow(csvLogger, slogLogger, config, false, "", "", "", fmt.Sprintf("Auth failed: %v", authErr))
 		return fmt.Errorf("authentication failed: %w", authErr)
 	}

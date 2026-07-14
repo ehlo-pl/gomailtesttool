@@ -13,17 +13,18 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
 	"github.com/golang-jwt/jwt/v5"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
 	"software.sslmate.com/src/go-pkcs12"
 )
 
 // TokenClaims represents relevant claims from Microsoft Entra ID JWT tokens
 type TokenClaims struct {
-	AppDisplayName string   `json:"app_displayname"` // Application display name from Entra ID
-	Roles          []string `json:"roles"`           // Assigned application roles (e.g., Mail.ReadWrite)
-	jwt.RegisteredClaims                             // Standard JWT claims (exp, iss, etc.)
+	AppDisplayName       string   `json:"app_displayname"` // Application display name from Entra ID
+	Roles                []string `json:"roles"`           // Assigned application roles (e.g., Mail.ReadWrite)
+	Scopes               string   `json:"scp"`             // Delegated scopes (space-delimited)
+	jwt.RegisteredClaims          // Standard JWT claims (exp, iss, etc.)
 }
 
 // BearerTokenCredential implements azcore.TokenCredential for pre-obtained bearer tokens.
@@ -63,16 +64,21 @@ func (c *BearerTokenCredential) GetToken(ctx context.Context, options policy.Tok
 func NewGraphServiceClient(ctx context.Context, config *Config, logger *slog.Logger) (*msgraphsdk.GraphServiceClient, error) {
 	// Setup Authentication
 	logDebug(logger, "Setting up Microsoft Graph client", "tenantID", security.MaskGUID(config.TenantID), "clientID", security.MaskGUID(config.ClientID))
+	scopes := effectiveScopes(config)
 
-	cred, err := getCredential(config.TenantID, config.ClientID, config.Secret, config.PfxPath, config.PfxPass, config.Thumbprint, config, logger)
+	cred, err := getCredential(config, logger)
 	if err != nil {
 		return nil, fmt.Errorf("authentication setup failed: %w", err)
 	}
 
-	// Get and display token information if verbose
+	// Get and display token information if verbose.
+	// EnableCAE must match the Graph SDK's token requests: azidentity keeps
+	// separate CAE and non-CAE token caches, and a mismatch would force a
+	// second interactive sign-in in delegated mode.
 	if config.VerboseMode {
 		token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-			Scopes: []string{"https://graph.microsoft.com/.default"},
+			Scopes:    scopes,
+			EnableCAE: true,
 		})
 		if err != nil {
 			logVerbose(config.VerboseMode, "Warning: Could not retrieve token for verbose display: %v", err)
@@ -81,21 +87,23 @@ func NewGraphServiceClient(ctx context.Context, config *Config, logger *slog.Log
 		}
 	}
 
-	// Scopes for Application Permissions usually are https://graph.microsoft.com/.default
-	client, err := msgraphsdk.NewGraphServiceClientWithCredentials(cred, []string{"https://graph.microsoft.com/.default"})
+	client, err := msgraphsdk.NewGraphServiceClientWithCredentials(cred, scopes)
 	if err != nil {
 		return nil, fmt.Errorf("graph client initialization failed: %w", err)
 	}
 
 	if config.VerboseMode {
 		logVerbose(config.VerboseMode, "Graph SDK client initialized successfully")
-		logVerbose(config.VerboseMode, "Target scope: https://graph.microsoft.com/.default")
+		logVerbose(config.VerboseMode, "Target scopes: %s", strings.Join(scopes, ", "))
 	}
 
 	return client, nil
 }
 
-func getCredential(tenantID, clientID, secret, pfxPath, pfxPass, thumbprint string, config *Config, logger *slog.Logger) (azcore.TokenCredential, error) {
+func getCredential(config *Config, logger *slog.Logger) (azcore.TokenCredential, error) {
+	if config.Delegated {
+		return getDelegatedCredential(config, logger)
+	}
 	// 1. Bearer Token (pre-obtained)
 	if config.BearerToken != "" {
 		logDebug(logger, "Authentication method: Bearer Token")
@@ -104,37 +112,86 @@ func getCredential(tenantID, clientID, secret, pfxPath, pfxPass, thumbprint stri
 	}
 
 	// 2. Client Secret
-	if secret != "" {
+	if config.Secret != "" {
 		logDebug(logger, "Authentication method: Client Secret")
 		logDebug(logger, "Creating ClientSecretCredential")
-		return azidentity.NewClientSecretCredential(tenantID, clientID, secret, nil)
+		return azidentity.NewClientSecretCredential(config.TenantID, config.ClientID, config.Secret, nil)
 	}
 
 	// 3. PFX File
-	if pfxPath != "" {
-		logDebug(logger, "Authentication method: PFX Certificate File", "path", pfxPath)
-		pfxData, err := os.ReadFile(pfxPath)
+	if config.PfxPath != "" {
+		logDebug(logger, "Authentication method: PFX Certificate File", "path", config.PfxPath)
+		pfxData, err := os.ReadFile(config.PfxPath)
 		if err != nil {
-			logError(logger, "Failed to read PFX file", "path", pfxPath, "error", err)
+			logError(logger, "Failed to read PFX file", "path", config.PfxPath, "error", err)
 			return nil, fmt.Errorf("failed to read PFX file: %w", err)
 		}
 		logDebug(logger, "PFX file read successfully", "bytes", len(pfxData))
-		return createCertCredential(tenantID, clientID, pfxData, pfxPass, logger)
+		return createCertCredential(config.TenantID, config.ClientID, pfxData, config.PfxPass, logger)
 	}
 
 	// 4. Windows Cert Store (Thumbprint)
-	if thumbprint != "" {
-		logDebug(logger, "Authentication method: Windows Certificate Store", "thumbprint", thumbprint)
+	if config.Thumbprint != "" {
+		logDebug(logger, "Authentication method: Windows Certificate Store", "thumbprint", config.Thumbprint)
 		logDebug(logger, "Exporting certificate from CurrentUser\\My store")
-		pfxData, tempPass, err := exportCertFromStore(thumbprint)
+		pfxData, tempPass, err := exportCertFromStore(config.Thumbprint)
 		if err != nil {
 			return nil, fmt.Errorf("failed to export cert from store: %w", err)
 		}
 		logDebug(logger, "Certificate exported successfully", "bytes", len(pfxData))
-		return createCertCredential(tenantID, clientID, pfxData, tempPass, logger)
+		return createCertCredential(config.TenantID, config.ClientID, pfxData, tempPass, logger)
 	}
 
 	return nil, fmt.Errorf("no valid authentication method provided (use -secret, -pfx, -thumbprint, or -bearertoken)")
+}
+
+func getDelegatedCredential(config *Config, logger *slog.Logger) (azcore.TokenCredential, error) {
+	// 1. Access token (pre-obtained)
+	if config.BearerToken != "" {
+		logDebug(logger, "Delegated authentication method: Access token")
+		return NewBearerTokenCredential(config.BearerToken), nil
+	}
+
+	switch config.AuthFlow {
+	case "", AuthFlowDeviceCode:
+		logDebug(logger, "Delegated authentication method: Device Code")
+		return azidentity.NewDeviceCodeCredential(&azidentity.DeviceCodeCredentialOptions{
+			TenantID: config.TenantID,
+			ClientID: config.ClientID,
+			UserPrompt: func(ctx context.Context, message azidentity.DeviceCodeMessage) error {
+				_, err := fmt.Fprintln(os.Stderr, message.Message)
+				return err
+			},
+		})
+	case AuthFlowBrowser:
+		logDebug(logger, "Delegated authentication method: Interactive Browser")
+		return azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{
+			TenantID:    config.TenantID,
+			ClientID:    config.ClientID,
+			RedirectURL: config.RedirectURL,
+		})
+	default:
+		return nil, fmt.Errorf("unsupported delegated auth flow: %s", config.AuthFlow)
+	}
+}
+
+// defaultDelegatedScopes covers the mail and calendar operations the tool
+// performs; offline_access enables refresh tokens for the interactive flows.
+var defaultDelegatedScopes = []string{
+	"https://graph.microsoft.com/Mail.ReadWrite",
+	"https://graph.microsoft.com/Mail.Send",
+	"https://graph.microsoft.com/Calendars.ReadWrite",
+	"offline_access",
+}
+
+func effectiveScopes(config *Config) []string {
+	if config.Delegated {
+		if len(config.Scopes) > 0 {
+			return config.Scopes
+		}
+		return defaultDelegatedScopes
+	}
+	return []string{"https://graph.microsoft.com/.default"}
 }
 
 func createCertCredential(tenantID, clientID string, pfxData []byte, password string, logger *slog.Logger) (*azidentity.ClientCertificateCredential, error) {
@@ -193,31 +250,33 @@ func printTokenInfo(token azcore.AccessToken) {
 	}
 	fmt.Printf("Token length: %d characters\n", len(tokenStr))
 
-	// Parse and display JWT claims (application name and roles)
+	// Parse and display JWT claims (application name, roles, delegated scopes)
 	fmt.Println()
 	fmt.Println("JWT Claims:")
-	appName, roles, err := parseTokenClaims(tokenStr)
+	appName, roles, scopes, err := parseTokenClaims(tokenStr)
 	if err != nil {
 		fmt.Printf("  (Could not parse JWT claims: %v)\n", err)
 	} else {
 		fmt.Printf("  Application Name: %s\n", appName)
 		fmt.Printf("  Assigned Roles: %s\n", roles)
+		fmt.Printf("  Delegated Scopes: %s\n", scopes)
 	}
 
 	fmt.Println()
 }
 
-// parseTokenClaims extracts application name and assigned roles from a JWT access token.
-func parseTokenClaims(tokenString string) (string, string, error) {
+// parseTokenClaims extracts application name, assigned roles (application
+// permissions), and delegated scopes (scp claim) from a JWT access token.
+func parseTokenClaims(tokenString string) (string, string, string, error) {
 	// Parse without verification (token already validated by Azure SDK)
 	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, &TokenClaims{})
 	if err != nil {
-		return "", "", fmt.Errorf("failed to parse JWT: %w", err)
+		return "", "", "", fmt.Errorf("failed to parse JWT: %w", err)
 	}
 
 	claims, ok := token.Claims.(*TokenClaims)
 	if !ok {
-		return "", "", fmt.Errorf("failed to extract claims from token")
+		return "", "", "", fmt.Errorf("failed to extract claims from token")
 	}
 
 	// Extract app display name (may be empty)
@@ -232,5 +291,11 @@ func parseTokenClaims(tokenString string) (string, string, error) {
 		rolesStr = strings.Join(claims.Roles, ", ")
 	}
 
-	return appName, rolesStr, nil
+	// Delegated tokens carry scopes in scp instead of roles
+	scopesStr := "(none)"
+	if claims.Scopes != "" {
+		scopesStr = strings.Join(strings.Fields(claims.Scopes), ", ")
+	}
+
+	return appName, rolesStr, scopesStr, nil
 }

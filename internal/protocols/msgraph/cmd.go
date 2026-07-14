@@ -2,14 +2,16 @@ package msgraph
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 )
 
-// NewCmd returns the "msgraph" cobra.Command with all 8 action subcommands.
+// NewCmd returns the "msgraph" cobra.Command with all action subcommands.
 // Each subcommand shares persistent flags (auth, mailbox, output) and adds
 // its own action-specific flags.
 func NewCmd() *cobra.Command {
@@ -24,7 +26,9 @@ Supports sending emails, listing calendar events, checking availability,
 exporting inbox messages, and searching by Message-ID.
 
 Authentication methods: --secret (client secret), --pfx (certificate file),
---thumbprint (Windows certificate store), --bearertoken (pre-obtained token).`,
+--thumbprint (Windows certificate store), --bearertoken (pre-obtained token).
+Delegated permissions: use --delegated with --authflow devicecode|browser
+(browser flow requires --redirecturl).`,
 	}
 
 	RegisterPersistentFlags(cmd)
@@ -39,6 +43,7 @@ Authentication methods: --secret (client secret), --pfx (certificate file),
 		newExportInboxCmd(v),
 		newSearchAndExportCmd(v),
 		newExportMessagesCmd(v),
+		newExportBearerTokenCmd(v),
 	)
 
 	return cmd
@@ -71,12 +76,12 @@ func newGetEventsCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -118,12 +123,12 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			// Load body template if provided
@@ -189,12 +194,12 @@ func newSendInviteCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -249,12 +254,12 @@ func newGetInboxCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -296,12 +301,12 @@ func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -343,12 +348,12 @@ func newExportInboxCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -391,12 +396,12 @@ func newSearchAndExportCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -443,12 +448,12 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 				slogger.Warn("Could not initialize file logging", "error", logErr)
 			}
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.ProxyURL != "" {
-				os.Setenv("HTTP_PROXY", config.ProxyURL)
-				os.Setenv("HTTPS_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -463,5 +468,60 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("subject", "", "Subject substring to search for, used with OData contains() (env: MSGRAPHSUBJECT)")
 	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: MSGRAPHCOUNT)")
 	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: MSGRAPHEXPORTDIR)")
+	return cmd
+}
+
+func newExportBearerTokenCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "exportbearertoken",
+		Short: "Acquire and print a Microsoft Graph bearer token",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionExportBearerToken
+
+			if err := validateExportBearerTokenConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger := slog.Default()
+
+			if config.ProxyURL != "" {
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
+			}
+
+			cred, err := getCredential(config, slogger)
+			if err != nil {
+				return err
+			}
+
+			token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+				Scopes:    effectiveScopes(config),
+				EnableCAE: true,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to acquire bearer token: %w", err)
+			}
+
+			if config.OutputFormat == "json" {
+				printJSON(map[string]string{"bearertoken": token.Token})
+			} else {
+				fmt.Println(token.Token)
+			}
+
+			return nil
+		},
+	}
+
 	return cmd
 }

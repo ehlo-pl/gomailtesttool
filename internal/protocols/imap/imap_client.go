@@ -302,7 +302,7 @@ func (c *IMAPClient) FetchRFC822(ctx context.Context, uid imap.UID) ([]byte, err
 	fetchCmd := c.client.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
 		BodySection: []*imap.FetchItemBodySection{{}},
 	})
-	defer fetchCmd.Close()
+	defer func() { _ = fetchCmd.Close() }()
 
 	msg := fetchCmd.Next()
 	if msg == nil {
