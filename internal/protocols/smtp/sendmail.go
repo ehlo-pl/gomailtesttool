@@ -1,20 +1,15 @@
 package smtp
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"fmt"
-	"io"
 	"log/slog"
-	"mime/multipart"
-	"net/textproto"
 	"strings"
-	"time"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
 	tlsutil "github.com/ehlo-pl/gomailtesttool/internal/common/tls"
 )
@@ -306,37 +301,21 @@ func writeSMTPCSVRow(csvLogger logger.Logger, row []string) error {
 	return csvLogger.WriteRow(row)
 }
 
-// buildEmailMessage constructs an RFC 5322 email message.
-// Defense-in-Depth: Email headers (From, To, Subject) are sanitized to remove
-// CRLF sequences that could be used for header injection attacks. The message
-// body is written as provided after the header/body separator. Body safety
-// controls (e.g. DATA dot-stuffing) are handled at the SMTP transport layer.
+// buildEmailMessage constructs a simple RFC 5322 plain-text email message.
+// It delegates assembly to the shared mime builder. The plain-text path loads
+// no attachments and parses no custom headers, so Build cannot fail. SMTP omits
+// Bcc from the headers — recipients travel in the envelope (RCPT TO).
 func buildEmailMessage(from string, to, cc []string, subject, body, priority string) []byte {
-	messageID := generateMessageID("")
-	date := time.Now().Format(time.RFC1123Z)
-
-	// Sanitize header fields to prevent header injection
-	sanitizedFrom := sanitizeEmailHeader(from)
-	sanitizedSubject := sanitizeEmailHeader(subject)
-	sanitizedTo := sanitizeEmailHeaders(to)
-	message := fmt.Sprintf("Message-ID: <%s>\r\n", messageID)
-	message += fmt.Sprintf("Date: %s\r\n", date)
-	message += fmt.Sprintf("From: %s\r\n", sanitizedFrom)
-	message += fmt.Sprintf("To: %s\r\n", strings.Join(sanitizedTo, ", "))
-	if len(cc) > 0 {
-		message += fmt.Sprintf("Cc: %s\r\n", strings.Join(sanitizeEmailHeaders(cc), ", "))
-	}
-	message += fmt.Sprintf("Subject: %s\r\n", sanitizedSubject)
-	for _, line := range priorityHeaderLines(priority) {
-		message += line + "\r\n"
-	}
-	message += "MIME-Version: 1.0\r\n"
-	message += "Content-Type: text/plain; charset=UTF-8\r\n"
-	message += "\r\n"
-	message += body
-	message += "\r\n"
-
-	return []byte(message)
+	data, _ := mimebuilder.Build(mimebuilder.Message{
+		From:      from,
+		To:        to,
+		Cc:        cc,
+		Subject:   subject,
+		TextBody:  body,
+		Priority:  priority,
+		MessageID: generateMessageID(""),
+	})
+	return data
 }
 
 // buildMIMEMessage constructs an RFC 5322 email message, adding MIME multipart
@@ -367,232 +346,32 @@ func buildMIMEMessage(config *Config, slogLogger *slog.Logger) ([]byte, error) {
 		return nil, fmt.Errorf("inline attachments: %w", err)
 	}
 
-	// Build the body content (text/HTML, with inline attachments and file attachments
-	// nested as needed) and determine the top-level Content-Type.
-	contentType, body, err := buildMIMEBody(config.Body, config.BodyHTML, inlineAttachments, attachments)
-	if err != nil {
-		return nil, err
-	}
-
-	messageID := generateMessageID("")
-	date := time.Now().Format(time.RFC1123Z)
-
-	sanitizedFrom := sanitizeEmailHeader(config.From)
-	sanitizedSubject := sanitizeEmailHeader(config.Subject)
-	sanitizedTo := sanitizeEmailHeaders(config.To)
-
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "Message-ID: <%s>\r\n", messageID)
-	fmt.Fprintf(&buf, "Date: %s\r\n", date)
-	fmt.Fprintf(&buf, "From: %s\r\n", sanitizedFrom)
-	fmt.Fprintf(&buf, "To: %s\r\n", strings.Join(sanitizedTo, ", "))
-	if len(config.Cc) > 0 {
-		fmt.Fprintf(&buf, "Cc: %s\r\n", strings.Join(sanitizeEmailHeaders(config.Cc), ", "))
-	}
-	fmt.Fprintf(&buf, "Subject: %s\r\n", sanitizedSubject)
-	for _, line := range priorityHeaderLines(config.Priority) {
-		buf.WriteString(line + "\r\n")
-	}
-	for _, h := range customHeaders {
-		fmt.Fprintf(&buf, "%s: %s\r\n", h.Name, h.Value)
-	}
-	buf.WriteString("MIME-Version: 1.0\r\n")
-	fmt.Fprintf(&buf, "Content-Type: %s\r\n", contentType)
-	buf.WriteString("\r\n")
-	buf.Write(body)
-
-	return buf.Bytes(), nil
-}
-
-// buildMIMEBody assembles the MIME body for a message, nesting parts as needed:
-//
-//	multipart/mixed          (only if file attachments are present)
-//	  multipart/related      (only if inline attachments are present)
-//	    multipart/alternative (only if both plain text and HTML bodies are present)
-//	      text/plain
-//	      text/html
-//	    inline attachment parts (cid:...)
-//	  attachment parts
-//
-// It returns the Content-Type header value and body bytes for the outermost part.
-func buildMIMEBody(textBody, htmlBody string, inline, attachments []email.Attachment) (string, []byte, error) {
-	contentType, body, err := textOrAlternativePart(textBody, htmlBody)
-	if err != nil {
-		return "", nil, err
-	}
-
-	contentType, body, err = wrapRelatedPart(contentType, body, inline)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return wrapMixedPart(contentType, body, attachments)
-}
-
-// textOrAlternativePart returns a single text/plain or text/html part, or
-// (if both bodies are provided) a multipart/alternative wrapping both.
-func textOrAlternativePart(textBody, htmlBody string) (string, []byte, error) {
-	if textBody != "" && htmlBody != "" {
-		var buf bytes.Buffer
-		mw := multipart.NewWriter(&buf)
-
-		textHeader := textproto.MIMEHeader{"Content-Type": {"text/plain; charset=UTF-8"}}
-		pw, err := mw.CreatePart(textHeader)
-		if err != nil {
-			return "", nil, err
-		}
-		if _, err := pw.Write([]byte(textBody)); err != nil {
-			return "", nil, err
-		}
-
-		htmlHeader := textproto.MIMEHeader{"Content-Type": {"text/html; charset=UTF-8"}}
-		pw, err = mw.CreatePart(htmlHeader)
-		if err != nil {
-			return "", nil, err
-		}
-		if _, err := pw.Write([]byte(htmlBody)); err != nil {
-			return "", nil, err
-		}
-
-		if err := mw.Close(); err != nil {
-			return "", nil, err
-		}
-		return fmt.Sprintf("multipart/alternative; boundary=%s", mw.Boundary()), buf.Bytes(), nil
-	}
-
-	if htmlBody != "" {
-		return "text/html; charset=UTF-8", []byte(htmlBody), nil
-	}
-
-	return "text/plain; charset=UTF-8", []byte(textBody), nil
-}
-
-// wrapRelatedPart wraps the given part in a multipart/related part alongside
-// inline attachments. If there are no inline attachments, the part is returned
-// unchanged.
-func wrapRelatedPart(contentType string, body []byte, inline []email.Attachment) (string, []byte, error) {
-	if len(inline) == 0 {
-		return contentType, body, nil
-	}
-
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-
-	header := textproto.MIMEHeader{"Content-Type": {contentType}}
-	pw, err := mw.CreatePart(header)
-	if err != nil {
-		return "", nil, err
-	}
-	if _, err := pw.Write(body); err != nil {
-		return "", nil, err
-	}
-
-	for _, att := range inline {
-		if err := writeAttachmentPart(mw, att); err != nil {
-			return "", nil, err
-		}
-	}
-
-	if err := mw.Close(); err != nil {
-		return "", nil, err
-	}
-
-	return fmt.Sprintf("multipart/related; boundary=%s", mw.Boundary()), buf.Bytes(), nil
-}
-
-// wrapMixedPart wraps the given part in a multipart/mixed part alongside file
-// attachments. If there are no attachments, the part is returned unchanged.
-func wrapMixedPart(contentType string, body []byte, attachments []email.Attachment) (string, []byte, error) {
-	if len(attachments) == 0 {
-		return contentType, body, nil
-	}
-
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-
-	header := textproto.MIMEHeader{"Content-Type": {contentType}}
-	pw, err := mw.CreatePart(header)
-	if err != nil {
-		return "", nil, err
-	}
-	if _, err := pw.Write(body); err != nil {
-		return "", nil, err
-	}
-
-	for _, att := range attachments {
-		if err := writeAttachmentPart(mw, att); err != nil {
-			return "", nil, err
-		}
-	}
-
-	if err := mw.Close(); err != nil {
-		return "", nil, err
-	}
-
-	return fmt.Sprintf("multipart/mixed; boundary=%s", mw.Boundary()), buf.Bytes(), nil
-}
-
-// writeAttachmentPart writes a single base64-encoded attachment part (inline or
-// regular) to the given multipart writer.
-func writeAttachmentPart(mw *multipart.Writer, att email.Attachment) error {
-	header := textproto.MIMEHeader{
-		"Content-Type":              {att.ContentType},
-		"Content-Transfer-Encoding": {"base64"},
-	}
-	if att.Inline {
-		header.Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", att.Name))
-		header.Set("Content-ID", fmt.Sprintf("<%s>", att.ContentID))
-	} else {
-		header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", att.Name))
-	}
-
-	pw, err := mw.CreatePart(header)
-	if err != nil {
-		return err
-	}
-
-	return writeBase64(pw, att.Data)
-}
-
-// writeBase64 writes base64-encoded data in RFC 2045 compliant lines of 76
-// characters, terminated with CRLF.
-func writeBase64(w io.Writer, data []byte) error {
-	encoded := base64.StdEncoding.EncodeToString(data)
-	for i := 0; i < len(encoded); i += 76 {
-		end := i + 76
-		if end > len(encoded) {
-			end = len(encoded)
-		}
-		if _, err := w.Write([]byte(encoded[i:end])); err != nil {
-			return err
-		}
-		if _, err := w.Write([]byte("\r\n")); err != nil {
-			return err
-		}
-	}
-	return nil
+	// SMTP omits Bcc from the message headers — the envelope carries recipients.
+	return mimebuilder.Build(mimebuilder.Message{
+		From:        config.From,
+		To:          config.To,
+		Cc:          config.Cc,
+		Subject:     config.Subject,
+		TextBody:    config.Body,
+		HTMLBody:    config.BodyHTML,
+		Priority:    config.Priority,
+		Headers:     customHeaders,
+		Attachments: attachments,
+		Inline:      inlineAttachments,
+		MessageID:   generateMessageID(""),
+	})
 }
 
 // sanitizeEmailHeader removes CRLF sequences from email header values to prevent
 // header injection attacks. This is a defense-in-depth measure.
 func sanitizeEmailHeader(header string) string {
-	header = strings.ReplaceAll(header, "\r", "")
-	header = strings.ReplaceAll(header, "\n", "")
-	return header
+	return mimebuilder.SanitizeHeader(header)
 }
 
 // priorityHeaderLines returns the "Name: Value" header lines (without CRLF)
-// for the given priority. "normal" (and any other value) adds no headers,
-// since it matches default mail client behavior.
+// for the given priority.
 func priorityHeaderLines(priority string) []string {
-	switch priority {
-	case "high":
-		return []string{"X-Priority: 1 (Highest)", "Importance: High", "Priority: urgent"}
-	case "low":
-		return []string{"X-Priority: 5 (Lowest)", "Importance: Low", "Priority: non-urgent"}
-	default:
-		return nil
-	}
+	return mimebuilder.PriorityHeaderLines(priority)
 }
 
 // collectEnvelopeRecipients returns the full list of SMTP envelope (RCPT TO)
@@ -605,20 +384,8 @@ func collectEnvelopeRecipients(config *Config) []string {
 	return recipients
 }
 
-// sanitizeEmailHeaders applies sanitizeEmailHeader to each address in a list.
-func sanitizeEmailHeaders(addrs []string) []string {
-	sanitized := make([]string, len(addrs))
-	for i, addr := range addrs {
-		sanitized[i] = sanitizeEmailHeader(addr)
-	}
-	return sanitized
-}
-
-// generateMessageID creates a unique message ID.
+// generateMessageID creates a unique message ID in the SMTP tool's historic
+// "<timestamp>.smtptool@<host>" form.
 func generateMessageID(host string) string {
-	timestamp := time.Now().UnixNano()
-	if host == "" {
-		host = "smtptool"
-	}
-	return fmt.Sprintf("%d.smtptool@%s", timestamp, host)
+	return mimebuilder.GenerateMessageID(host, "smtptool")
 }

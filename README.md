@@ -18,6 +18,7 @@ gomailtest <protocol> <action> [flags]
 | `jmap` | `testconnect`, `testauth`, `getmailboxes` | JMAP (RFC 8620) servers |
 | `ews` | `testconnect`, `testauth`, `getfolder`, `autodiscover` | On-premises Exchange via EWS (Exchange 2007–2019) |
 | `msgraph` | `getevents`, `sendmail`, `sendinvite`, `getinbox`, `getschedule`, `exportinbox`, `searchandexport` | Exchange Online via Microsoft Graph API |
+| `gmail` | `sendmail`, `getinbox`, `exportmessages`, `getevents`, `sendinvite`, `testauth`, `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
 
 Run `gomailtest <protocol> --help` for flags and environment variables.
 
@@ -133,6 +134,18 @@ gomailtest msgraph getinbox --count 10
 
 See [docs/protocols/msgraph.md](docs/protocols/msgraph.md) for full documentation.
 
+### Gmail (Google Workspace)
+
+```powershell
+# Service account with domain-wide delegation, impersonating a Workspace user
+gomailtest gmail testauth   --credentials sa.json --mailbox user@corp.com
+gomailtest gmail sendmail   --credentials sa.json --mailbox user@corp.com --to "recipient@corp.com"
+gomailtest gmail getinbox   --credentials sa.json --mailbox user@corp.com --count 10
+gomailtest gmail getevents  --credentials sa.json --mailbox user@corp.com --count 5
+```
+
+See [docs/protocols/gmail.md](docs/protocols/gmail.md) for full documentation.
+
 ## SMTPS vs STARTTLS
 
 | Method | Port | Flag | Description |
@@ -158,6 +171,7 @@ Each protocol uses a dedicated prefix:
 | JMAP | `JMAP` | `JMAPHOST`, `JMAPPORT`, `JMAPACCESSTOKEN` |
 | EWS | `EWS` | `EWSHOST`, `EWSUSERNAME`, `EWSPASSWORD` |
 | msgraph | `MSGRAPH` | `MSGRAPHTENANTID`, `MSGRAPHSECRET` |
+| gmail | `GMAIL` | `GMAILCREDENTIALS`, `GMAILMAILBOX`, `GMAILBEARERTOKEN` |
 
 ## Migrating from Legacy Binary Names
 
@@ -180,6 +194,7 @@ Replace legacy `*tool` invocations with `gomailtest <protocol> <action> --flag`:
 - [docs/protocols/jmap.md](docs/protocols/jmap.md) — JMAP tool
 - [docs/protocols/ews.md](docs/protocols/ews.md) — EWS tool (on-premises Exchange)
 - [docs/protocols/msgraph.md](docs/protocols/msgraph.md) — Microsoft Graph tool
+- [docs/protocols/gmail.md](docs/protocols/gmail.md) — Gmail / Google Workspace tool
 - [docs/protocols/serve.md](docs/protocols/serve.md) — HTTP serve mode (REST API with X-API-Key)
 
 ### General Docs
