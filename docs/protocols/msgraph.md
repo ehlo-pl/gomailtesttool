@@ -168,6 +168,45 @@ gomailtest msgraph exportbearertoken --tenantid "..." --clientid "..." --secret 
 gomailtest msgraph exportbearertoken --tenantid "..." --clientid "..." --secret "..." --output json
 ```
  
+### testconnect — Probe endpoint reachability
+
+Unauthenticated HTTP/TLS probe against `https://graph.microsoft.com`. No
+credentials, tenant/client IDs, or mailbox are required — any HTTP response
+(401 is expected) confirms the endpoint is reachable. Because Graph is a global
+service, this cannot verify authentication or permissions; its value is catching
+proxy/firewall blocks and TLS interception. An unexpected certificate **Issuer**
+in the output indicates a TLS-intercepting proxy.
+
+```powershell
+gomailtest msgraph testconnect
+gomailtest msgraph testconnect --verbose
+gomailtest msgraph testconnect --proxy "http://proxy.example.com:8080"
+gomailtest msgraph testconnect --output json
+```
+
+### testauth — Verify credentials
+
+Acquires an access token from Microsoft Entra ID using the configured credential.
+Successful token acquisition is the authentication verdict; the token's claims
+(application name, assigned roles) are displayed so you can see the granted
+application permissions. No mailbox is required.
+
+If `--mailbox` is supplied, one lightweight authenticated Graph call
+(`GET /users/{mailbox}`) is made as end-to-end verification: a `403` there is
+reported as **success** (the token was accepted; the app simply lacks
+`User.Read.All`), while a `401` is a genuine authentication failure.
+
+> **Note on `--bearertoken`:** a pre-obtained token is used as-is and is **not**
+> validated by acquisition (Entra ID is not contacted), so `testauth` cannot
+> confirm it on its own. Pass `--mailbox` to verify a bearer token end to end;
+> otherwise the output reports it as accepted-locally-but-not-verified.
+
+```powershell
+gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..."
+gomailtest msgraph testauth --bearertoken "..."
+gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --mailbox "user@example.com"
+gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --output json
+```
 
 ## Flags
 
@@ -345,6 +384,8 @@ Operations are logged to `%TEMP%\_msgraphtool_{action}_{date}.csv`.
 | `exportinbox` | Timestamp, Action, Status, Mailbox, Detail, Export Dir |
 | `searchandexport` | Timestamp, Action, Status, Mailbox, Detail, Message ID |
 | `exportmessages` | Timestamp, Action, Status, Mailbox, Detail, Message ID, Filename |
+| `testconnect` | Action, Status, Endpoint, HTTP Status, HTTP Status Code, TLS Version, Cipher Suite, Cert Subject, Cert Issuer, Cert SANs, Cert Valid From, Cert Valid To, Response Time (ms), Error |
+| `testauth` | Action, Status, App Name, Assigned Roles, Token Expiry, Mailbox Check, Error |
 
 ## Retry Configuration
 
@@ -368,6 +409,9 @@ For `searchandexport` and `exportmessages`, a successful-but-empty result is als
 | getevents, sendinvite | `Calendars.ReadWrite` |
 | getinbox, exportinbox, searchandexport, exportmessages | `Mail.Read` |
 | getschedule | `Calendars.Read` |
+| testconnect | None (unauthenticated network probe) |
+| testauth | None for the core token check; the optional `--mailbox` probe uses `User.Read.All` |
+| exportbearertoken | None (token acquisition only) |
 
 ## Tips and Best Practices
 

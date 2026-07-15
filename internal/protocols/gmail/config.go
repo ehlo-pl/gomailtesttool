@@ -90,6 +90,7 @@ const (
 	ActionSendInvite        = "sendinvite"
 	ActionTestAuth          = "testauth"
 	ActionExportBearerToken = "exportbearertoken"
+	ActionTestConnect       = "testconnect"
 )
 
 // RegisterPersistentFlags registers flags shared by all gmail subcommands on
@@ -383,6 +384,17 @@ func validateConfiguration(config *Config) error {
 		}
 	}
 
+	return nil
+}
+
+// validateTestConnectConfiguration validates config for the testconnect action.
+// testconnect is an unauthenticated network/TLS probe against the Gmail API
+// endpoint, so it needs no credentials, mailbox, or tenant — only a valid output
+// format (any proxy is validated at dial time).
+func validateTestConnectConfiguration(config *Config) error {
+	if config.OutputFormat != "text" && config.OutputFormat != "json" {
+		return fmt.Errorf("invalid output format: %s (use: text, json)", config.OutputFormat)
+	}
 	return nil
 }
 

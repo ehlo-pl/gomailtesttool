@@ -44,6 +44,8 @@ Delegated permissions: use --delegated with --authflow devicecode|browser
 		newSearchAndExportCmd(v),
 		newExportMessagesCmd(v),
 		newExportBearerTokenCmd(v),
+		newTestConnectCmd(v),
+		newTestAuthCmd(v),
 	)
 
 	return cmd
@@ -524,4 +526,98 @@ func newExportBearerTokenCmd(v *viper.Viper) *cobra.Command {
 	}
 
 	return cmd
+}
+
+func newTestConnectCmd(v *viper.Viper) *cobra.Command {
+	return &cobra.Command{
+		Use:   "testconnect",
+		Short: "Probe network/TLS reachability to the Microsoft Graph endpoint (no credentials)",
+		Long: `Perform an unauthenticated HTTP/TLS probe against https://graph.microsoft.com.
+
+No credentials, tenant/client IDs, or mailbox are required. Any HTTP response
+(401 is expected) confirms the endpoint is reachable. Because Graph is a global
+service, this test cannot verify authentication or permissions — its value is
+catching proxy/firewall blocks and TLS interception (an unexpected certificate
+Issuer indicates a TLS-intercepting proxy). Use --proxy to route through a proxy.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionTestConnect
+
+			if err := validateTestConnectConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("msgraphtool", ActionTestConnect, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			return testConnect(ctx, config, csvLogger, slogger)
+		},
+	}
+}
+
+func newTestAuthCmd(v *viper.Viper) *cobra.Command {
+	return &cobra.Command{
+		Use:   "testauth",
+		Short: "Verify the configured credential by acquiring a Graph token",
+		Long: `Acquire an access token from Microsoft Entra ID using the configured
+credential (--secret, --pfx, --thumbprint, or --bearertoken). Successful token
+acquisition is the authentication verdict; the token's claims (application name,
+assigned roles) are displayed so you can see the granted application permissions.
+
+No mailbox is required. If --mailbox is supplied, one lightweight authenticated
+Graph call is made as end-to-end verification: a 403 there is reported as success
+(the token was accepted; the app simply lacks User.Read.All), while a 401 is a
+genuine authentication failure.
+
+Note: with --bearertoken the token is not validated by acquisition (it is used
+as-is, without contacting Entra ID), so pass --mailbox to verify it end to end.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionTestAuth
+
+			if err := validateTestAuthConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("msgraphtool", ActionTestAuth, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			if config.ProxyURL != "" {
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
+			}
+
+			return testAuth(ctx, config, csvLogger, slogger)
+		},
+	}
 }

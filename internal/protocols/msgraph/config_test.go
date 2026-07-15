@@ -222,3 +222,126 @@ func TestValidateExportBearerTokenConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateTestConnectConfiguration(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    *Config
+		wantError string
+	}{
+		{
+			name:   "passes with no credentials, mailbox, or IDs",
+			config: &Config{OutputFormat: "text"},
+		},
+		{
+			name:   "passes with json output",
+			config: &Config{OutputFormat: "json"},
+		},
+		{
+			name:      "rejects invalid output format",
+			config:    &Config{OutputFormat: "yaml"},
+			wantError: "invalid output format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTestConnectConfiguration(tt.config)
+			if tt.wantError == "" {
+				if err != nil {
+					t.Fatalf("validateTestConnectConfiguration() unexpected error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("validateTestConnectConfiguration() expected error containing %q, got nil", tt.wantError)
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("validateTestConnectConfiguration() error = %v, want substring %q", err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestValidateTestAuthConfiguration(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    *Config
+		wantError string
+	}{
+		{
+			name:   "accepts bearer token without tenant/client IDs and no mailbox",
+			config: &Config{BearerToken: "token", OutputFormat: "text"},
+		},
+		{
+			name: "accepts client secret with tenant and client IDs",
+			config: &Config{
+				TenantID:     "00000000-0000-0000-0000-000000000001",
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				Secret:       "secret",
+				OutputFormat: "text",
+			},
+		},
+		{
+			name: "accepts an optional valid mailbox",
+			config: &Config{
+				BearerToken:  "token",
+				Mailbox:      "user@example.com",
+				OutputFormat: "text",
+			},
+		},
+		{
+			name: "rejects missing authentication",
+			config: &Config{
+				TenantID:     "00000000-0000-0000-0000-000000000001",
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				OutputFormat: "text",
+			},
+			wantError: "missing authentication",
+		},
+		{
+			name: "requires tenant id when not using bearer token",
+			config: &Config{
+				ClientID:     "00000000-0000-0000-0000-000000000002",
+				Secret:       "secret",
+				OutputFormat: "text",
+			},
+			wantError: "Tenant ID",
+		},
+		{
+			name: "rejects an invalid mailbox when provided",
+			config: &Config{
+				BearerToken:  "token",
+				Mailbox:      "not-an-email",
+				OutputFormat: "text",
+			},
+			wantError: "invalid mailbox",
+		},
+		{
+			name: "validates output format",
+			config: &Config{
+				BearerToken:  "token",
+				OutputFormat: "yaml",
+			},
+			wantError: "invalid output format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTestAuthConfiguration(tt.config)
+			if tt.wantError == "" {
+				if err != nil {
+					t.Fatalf("validateTestAuthConfiguration() unexpected error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("validateTestAuthConfiguration() expected error containing %q, got nil", tt.wantError)
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("validateTestAuthConfiguration() error = %v, want substring %q", err, tt.wantError)
+			}
+		})
+	}
+}

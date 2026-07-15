@@ -43,6 +43,7 @@ OAuth2 access token), or --oauth (interactive loopback flow).`,
 		newSendInviteCmd(v),
 		newTestAuthCmd(v),
 		newExportBearerTokenCmd(v),
+		newTestConnectCmd(v),
 	)
 
 	return cmd
@@ -261,6 +262,48 @@ func newTestAuthCmd(v *viper.Viper) *cobra.Command {
 				return err
 			}
 			return testAuth(ctx, svc, config, csvLogger)
+		},
+	}
+}
+
+func newTestConnectCmd(v *viper.Viper) *cobra.Command {
+	return &cobra.Command{
+		Use:   "testconnect",
+		Short: "Probe network/TLS reachability to the Gmail API endpoint (no credentials)",
+		Long: `Perform an unauthenticated HTTP/TLS probe against https://gmail.googleapis.com.
+
+No credentials, mailbox, or auth flags are required. Any HTTP response
+(401 is expected) confirms the endpoint is reachable. Because Gmail is a global
+service, this test cannot verify authentication or permissions — its value is
+catching proxy/firewall blocks and TLS interception (an unexpected certificate
+Issuer indicates a TLS-intercepting proxy). Use --proxy to route through a proxy.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionTestConnect
+
+			if err := validateTestConnectConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("gmailtool", ActionTestConnect, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			return testConnect(ctx, config, csvLogger, slogger)
 		},
 	}
 }
