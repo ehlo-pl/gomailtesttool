@@ -39,6 +39,8 @@ Delegated permissions: use --delegated with --authflow devicecode|browser
 		newSendMailCmd(v),
 		newSendInviteCmd(v),
 		newGetInboxCmd(v),
+		newListFoldersCmd(v),
+		newListMailCmd(v),
 		newGetScheduleCmd(v),
 		newExportInboxCmd(v),
 		newSearchAndExportCmd(v),
@@ -272,6 +274,104 @@ func newGetInboxCmd(v *viper.Viper) *cobra.Command {
 			return listInbox(ctx, client, config.Mailbox, config.Count, config, csvLogger)
 		},
 	}
+	cmd.Flags().Int("count", 3, "Number of messages to retrieve (env: MSGRAPHCOUNT)")
+	return cmd
+}
+
+func newListFoldersCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "listfolders",
+		Short: "List mail folders for a mailbox",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionListFolders
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("msgraphtool", ActionListFolders, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			if config.ProxyURL != "" {
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
+			}
+
+			client, err := NewGraphServiceClient(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+
+			return listMailFolders(ctx, client, config.Mailbox, config, csvLogger)
+		},
+	}
+	return cmd
+}
+
+func newListMailCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "listmail",
+		Short: "List messages from a mailbox folder (default: inbox)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionListMail
+
+			if config.Folder == "" {
+				config.Folder = "inbox"
+			}
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("msgraphtool", ActionListMail, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			if config.ProxyURL != "" {
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
+			}
+
+			client, err := NewGraphServiceClient(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+
+			return listMailInFolder(ctx, client, config.Mailbox, config.Folder, config.Count, config, csvLogger)
+		},
+	}
+	cmd.Flags().String("folder", "inbox", "Mail folder to list messages from (well-known names: inbox, sentitems, drafts, deleteditems, junkemail) (env: MSGRAPHFOLDER)")
 	cmd.Flags().Int("count", 3, "Number of messages to retrieve (env: MSGRAPHCOUNT)")
 	return cmd
 }

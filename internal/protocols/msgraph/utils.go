@@ -70,6 +70,14 @@ func Int32Ptr(i int32) *int32 {
 	return &i
 }
 
+// derefInt32 dereferences a *int32, returning 0 when the pointer is nil.
+func derefInt32(p *int32) int32 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
 // pointerTo is a generic helper function to create pointers to values
 func pointerTo[T any](v T) *T {
 	return &v

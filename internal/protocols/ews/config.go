@@ -31,6 +31,21 @@ type Config struct {
 	Domain      string // AD domain for NTLM (can be extracted from DOMAIN\user)
 	Mailbox     string // Target mailbox for impersonation (optional)
 
+	// Email composition (sendmail)
+	To      []string
+	Cc      []string
+	Bcc     []string
+	Subject string
+	Body    string
+	BodyHTML string
+
+	// Search / export (exportmessages)
+	MessageID string
+	ExportDir string
+
+	// Pagination (listmail, exportmessages)
+	Count int
+
 	// TLS configuration
 	SkipVerify bool
 	TLSVersion string // 1.2, 1.3
@@ -48,10 +63,14 @@ type Config struct {
 
 // Action constants
 const (
-	ActionTestConnect  = "testconnect"
-	ActionTestAuth     = "testauth"
-	ActionGetFolder    = "getfolder"
-	ActionAutodiscover = "autodiscover"
+	ActionTestConnect    = "testconnect"
+	ActionTestAuth       = "testauth"
+	ActionGetFolder      = "getfolder"
+	ActionAutodiscover   = "autodiscover"
+	ActionListFolders    = "listfolders"
+	ActionListMail       = "listmail"
+	ActionSendMail       = "sendmail"
+	ActionExportMessages = "exportmessages"
 )
 
 // NewConfig creates a new Config with default values.
@@ -120,6 +139,15 @@ func BindEnvs(v *viper.Viper) {
 		"mailbox":          "EWSMAILBOX",
 		"skipverify":       "EWSSKIPVERIFY",
 		"tlsversion":       "EWSTLSVERSION",
+		"to":               "EWSTO",
+		"cc":               "EWSCC",
+		"bcc":              "EWSBCC",
+		"subject":          "EWSSUBJECT",
+		"body":             "EWSBODY",
+		"bodyhtml":         "EWSBODYHTML",
+		"messageid":        "EWSMESSAGEID",
+		"exportdir":        "EWSEXPORTDIR",
+		"count":            "EWSCOUNT",
 		"proxy":            "EWSPROXY",
 		"ipv4":             "EWSIPV4",
 		"ipv6":             "EWSIPV6",
@@ -174,6 +202,21 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		logFormat = defaults.LogFormat
 	}
 
+	subject := v.GetString("subject")
+	if subject == "" {
+		subject = "Automated Tool Notification"
+	}
+
+	body := v.GetString("body")
+	if body == "" {
+		body = "It's a test message, please ignore"
+	}
+
+	count := v.GetInt("count")
+	if count <= 0 {
+		count = 10
+	}
+
 	return &Config{
 		Host:             v.GetString("host"),
 		Port:             port,
@@ -186,6 +229,15 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		AuthMethod:       authMethod,
 		Domain:           v.GetString("domain"),
 		Mailbox:          v.GetString("mailbox"),
+		To:               parseStringSlice(v.GetString("to")),
+		Cc:               parseStringSlice(v.GetString("cc")),
+		Bcc:              parseStringSlice(v.GetString("bcc")),
+		Subject:          subject,
+		Body:             body,
+		BodyHTML:         v.GetString("bodyhtml"),
+		MessageID:        v.GetString("messageid"),
+		ExportDir:        v.GetString("exportdir"),
+		Count:            count,
 		SkipVerify:       v.GetBool("skipverify"),
 		TLSVersion:       tlsVersion,
 		ProxyURL:         v.GetString("proxy"),
@@ -197,9 +249,27 @@ func ConfigFromViper(v *viper.Viper) *Config {
 	}
 }
 
+// parseStringSlice splits a comma-separated string into a trimmed slice.
+func parseStringSlice(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			result = append(result, t)
+		}
+	}
+	return result
+}
+
 // validateConfiguration validates the EWS configuration and resolves auto auth method.
 func validateConfiguration(config *Config) error {
-	validActions := []string{ActionTestConnect, ActionTestAuth, ActionGetFolder, ActionAutodiscover}
+	validActions := []string{
+		ActionTestConnect, ActionTestAuth, ActionGetFolder, ActionAutodiscover,
+		ActionListFolders, ActionListMail, ActionSendMail, ActionExportMessages,
+	}
 	valid := false
 	for _, a := range validActions {
 		if config.Action == a {
@@ -247,7 +317,8 @@ func validateConfiguration(config *Config) error {
 
 	// Action-specific validation
 	switch config.Action {
-	case ActionTestAuth, ActionGetFolder:
+	case ActionTestAuth, ActionGetFolder, ActionListFolders, ActionListMail,
+		ActionSendMail, ActionExportMessages:
 		if config.Username == "" {
 			return fmt.Errorf("%s requires --username", config.Action)
 		}
@@ -265,6 +336,18 @@ func validateConfiguration(config *Config) error {
 		}
 		if err := validation.ValidateEmail(config.Username); err != nil {
 			return fmt.Errorf("autodiscover --username must be an email address: %w", err)
+		}
+	}
+
+	if config.Action == ActionSendMail {
+		if len(config.To) == 0 {
+			return fmt.Errorf("sendmail requires at least one recipient (--to)")
+		}
+	}
+
+	if config.Action == ActionExportMessages {
+		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
+			return fmt.Errorf("exportmessages requires --messageid and/or --subject")
 		}
 	}
 

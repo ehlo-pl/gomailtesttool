@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -256,6 +257,192 @@ func (c *JMAPClient) makeAPIRequest(ctx context.Context, request protocol.Reques
 	}
 
 	return &response, nil
+}
+
+// QueryInboxEmails queries the most recent messages from the inbox mailbox.
+func (c *JMAPClient) QueryInboxEmails(ctx context.Context, limit uint32) ([]protocol.Email, error) {
+	if c.session == nil {
+		if _, err := c.Discover(ctx); err != nil {
+			return nil, fmt.Errorf("failed to discover session: %w", err)
+		}
+	}
+
+	accountId, ok := c.session.GetPrimaryMailAccountId()
+	if !ok {
+		return nil, fmt.Errorf("no primary mail account found")
+	}
+
+	// Find the inbox mailbox.
+	mailboxes, err := c.GetMailboxes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get mailboxes: %w", err)
+	}
+	var inboxId protocol.Id
+	for _, mb := range mailboxes {
+		if mb.Role != nil && *mb.Role == "inbox" {
+			inboxId = mb.Id
+			break
+		}
+	}
+	if inboxId == "" {
+		return nil, fmt.Errorf("inbox mailbox not found")
+	}
+
+	queryReq := protocol.NewEmailQueryRequest(
+		accountId,
+		map[string]interface{}{"inMailbox": inboxId},
+		limit,
+	)
+	queryResp, err := c.makeAPIRequest(ctx, *queryReq)
+	if err != nil {
+		return nil, err
+	}
+	if len(queryResp.MethodResponses) == 0 {
+		return nil, fmt.Errorf("no method responses from Email/query")
+	}
+	if protocol.IsErrorResponse(queryResp.MethodResponses[0].Name) {
+		return nil, fmt.Errorf("JMAP Email/query error: %s", string(queryResp.MethodResponses[0].Arguments))
+	}
+	emailQueryResult, err := protocol.ParseEmailQueryResponse(&queryResp.MethodResponses[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Email/query response: %w", err)
+	}
+
+	if len(emailQueryResult.Ids) == 0 {
+		return nil, nil
+	}
+
+	return c.fetchEmailDetails(ctx, accountId, emailQueryResult.Ids)
+}
+
+// QueryEmailsByFilter searches emails by Message-ID header and/or subject substring.
+func (c *JMAPClient) QueryEmailsByFilter(ctx context.Context, messageID, subject string, limit uint32) ([]protocol.Email, error) {
+	if c.session == nil {
+		if _, err := c.Discover(ctx); err != nil {
+			return nil, fmt.Errorf("failed to discover session: %w", err)
+		}
+	}
+
+	accountId, ok := c.session.GetPrimaryMailAccountId()
+	if !ok {
+		return nil, fmt.Errorf("no primary mail account found")
+	}
+
+	filter := protocol.BuildEmailSearchFilter(messageID, subject)
+	queryReq := protocol.NewEmailQueryRequest(accountId, filter, limit)
+	queryResp, err := c.makeAPIRequest(ctx, *queryReq)
+	if err != nil {
+		return nil, err
+	}
+	if len(queryResp.MethodResponses) == 0 {
+		return nil, fmt.Errorf("no method responses from Email/query")
+	}
+	if protocol.IsErrorResponse(queryResp.MethodResponses[0].Name) {
+		return nil, fmt.Errorf("JMAP Email/query error: %s", string(queryResp.MethodResponses[0].Arguments))
+	}
+	emailQueryResult, err := protocol.ParseEmailQueryResponse(&queryResp.MethodResponses[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Email/query response: %w", err)
+	}
+
+	if len(emailQueryResult.Ids) == 0 {
+		return nil, nil
+	}
+
+	return c.fetchEmailDetails(ctx, accountId, emailQueryResult.Ids)
+}
+
+// fetchEmailDetails fetches metadata for a list of email IDs.
+func (c *JMAPClient) fetchEmailDetails(ctx context.Context, accountId protocol.Id, ids []protocol.Id) ([]protocol.Email, error) {
+	getReq := protocol.NewEmailGetRequest(accountId, ids,
+		[]string{"id", "blobId", "messageId", "subject", "from", "to", "receivedAt", "preview", "size"})
+	getResp, err := c.makeAPIRequest(ctx, *getReq)
+	if err != nil {
+		return nil, err
+	}
+	if len(getResp.MethodResponses) == 0 {
+		return nil, fmt.Errorf("no method responses from Email/get")
+	}
+	if protocol.IsErrorResponse(getResp.MethodResponses[0].Name) {
+		return nil, fmt.Errorf("JMAP Email/get error: %s", string(getResp.MethodResponses[0].Arguments))
+	}
+	emailGetResult, err := protocol.ParseEmailGetResponse(&getResp.MethodResponses[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Email/get response: %w", err)
+	}
+	return emailGetResult.List, nil
+}
+
+// DownloadBlob downloads a blob by blobId, returning the raw bytes.
+// Uses the session downloadUrl template, replacing {accountId}, {blobId}, {name}, {type}.
+func (c *JMAPClient) DownloadBlob(ctx context.Context, accountId protocol.Id, blobId protocol.Id, name string) ([]byte, error) {
+	if c.session == nil {
+		return nil, fmt.Errorf("no session available")
+	}
+
+	dlURL := c.session.DownloadURL
+	dlURL = strings.NewReplacer(
+		"{accountId}", url.PathEscape(string(accountId)),
+		"{blobId}", url.PathEscape(string(blobId)),
+		"{name}", url.PathEscape(name),
+		"{type}", "message/rfc822",
+	).Replace(dlURL)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", dlURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create blob download request: %w", err)
+	}
+	c.addAuth(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("blob download failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("blob download failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read blob: %w", err)
+	}
+	return data, nil
+}
+
+// SendEmail creates a draft via Email/set and submits it via EmailSubmission/set.
+// Falls back to Email/set only (without submission) when the server lacks the
+// urn:ietf:params:jmap:submission capability.
+func (c *JMAPClient) SendEmail(ctx context.Context, draft protocol.EmailCreate, mailFrom string, rcptTo []protocol.EmailAddress) error {
+	if c.session == nil {
+		if _, err := c.Discover(ctx); err != nil {
+			return fmt.Errorf("failed to discover session: %w", err)
+		}
+	}
+
+	if !c.session.HasCapability(protocol.SubmissionCapability) {
+		return fmt.Errorf("JMAP server does not support %s capability — cannot send mail", protocol.SubmissionCapability)
+	}
+
+	accountId, ok := c.session.GetPrimaryMailAccountId()
+	if !ok {
+		return fmt.Errorf("no primary mail account found")
+	}
+
+	req := protocol.NewEmailSetAndSubmitRequest(accountId, draft, mailFrom, rcptTo)
+	resp, err := c.makeAPIRequest(ctx, *req)
+	if err != nil {
+		return err
+	}
+
+	for _, mr := range resp.MethodResponses {
+		if protocol.IsErrorResponse(mr.Name) {
+			return fmt.Errorf("JMAP error in %s: %s", mr.CallId, string(mr.Arguments))
+		}
+	}
+	return nil
 }
 
 // GetAuthMethod returns the authentication method that will be used.

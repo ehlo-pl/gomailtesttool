@@ -38,6 +38,8 @@ OAuth2 access token), or --oauth (interactive loopback flow).`,
 	cmd.AddCommand(
 		newSendMailCmd(v),
 		newGetInboxCmd(v),
+		newListFoldersCmd(v),
+		newListMailCmd(v),
 		newExportMessagesCmd(v),
 		newGetEventsCmd(v),
 		newSendInviteCmd(v),
@@ -240,6 +242,59 @@ func newSendInviteCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("start", "", "Start time (RFC3339 or PowerShell sortable format) (env: GMAILSTART)")
 	cmd.Flags().String("end", "", "End time (RFC3339 or PowerShell sortable format) (env: GMAILEND)")
 	cmd.Flags().String("to", "", "Comma-separated attendee email addresses (env: GMAILTO)")
+	return cmd
+}
+
+func newListFoldersCmd(v *viper.Viper) *cobra.Command {
+	return &cobra.Command{
+		Use:   "listfolders",
+		Short: "List Gmail labels (folders) for a mailbox",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			config, ctx, cancel, slogger, csvLogger, err := setup(cmd, v, ActionListFolders)
+			if err != nil {
+				return err
+			}
+			defer cancel()
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			svc, err := newGmailService(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+			return listLabels(ctx, svc, config, csvLogger)
+		},
+	}
+}
+
+func newListMailCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "listmail",
+		Short: "List messages from a Gmail label (default: INBOX)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			config, ctx, cancel, slogger, csvLogger, err := setup(cmd, v, ActionListMail)
+			if err != nil {
+				return err
+			}
+			defer cancel()
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			if config.Label == "" {
+				config.Label = "INBOX"
+			}
+
+			svc, err := newGmailService(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+			return listMailByLabel(ctx, svc, config, csvLogger)
+		},
+	}
+	cmd.Flags().String("label", "INBOX", "Gmail label ID to list messages from (e.g. INBOX, SENT, DRAFT) (env: GMAILLABEL)")
+	cmd.Flags().Int("count", 3, "Number of messages to retrieve (env: GMAILCOUNT)")
 	return cmd
 }
 

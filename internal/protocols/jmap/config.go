@@ -31,6 +31,21 @@ type Config struct {
 	// TLS configuration
 	SkipVerify bool
 
+	// Email composition (sendmail)
+	To      []string
+	Cc      []string
+	Bcc     []string
+	Subject string
+	Body    string
+	BodyHTML string
+
+	// Search / export (exportmessages)
+	MessageID string
+	ExportDir string
+
+	// Pagination (listmail, exportmessages)
+	Count int
+
 	// Runtime configuration
 	VerboseMode bool
 	LogLevel    string
@@ -39,9 +54,13 @@ type Config struct {
 
 // Action constants
 const (
-	ActionTestConnect  = "testconnect"
-	ActionTestAuth     = "testauth"
-	ActionGetMailboxes = "getmailboxes"
+	ActionTestConnect    = "testconnect"
+	ActionTestAuth       = "testauth"
+	ActionGetMailboxes   = "getmailboxes"
+	ActionListFolders    = "listfolders"
+	ActionListMail       = "listmail"
+	ActionSendMail       = "sendmail"
+	ActionExportMessages = "exportmessages"
 )
 
 // NewConfig creates a new Config with default values.
@@ -51,6 +70,9 @@ func NewConfig() *Config {
 		AuthMethod: "auto",
 		LogLevel:   "info",
 		LogFormat:  "csv",
+		Count:      3,
+		Subject:    "Automated Tool Notification",
+		Body:       "It's a test message, please ignore",
 	}
 }
 
@@ -95,6 +117,15 @@ func BindEnvs(v *viper.Viper) {
 		"accesstoken": "JMAPACCESSTOKEN",
 		"authmethod":  "JMAPAUTHMETHOD",
 		"skipverify":  "JMAPSKIPVERIFY",
+		"to":          "JMAPTO",
+		"cc":          "JMAPCC",
+		"bcc":         "JMAPBCC",
+		"subject":     "JMAPSUBJECT",
+		"body":        "JMAPBODY",
+		"bodyhtml":    "JMAPBODYHTML",
+		"messageid":   "JMAPMESSAGEID",
+		"exportdir":   "JMAPEXPORTDIR",
+		"count":       "JMAPCOUNT",
 		"verbose":     "JMAPVERBOSE",
 		"loglevel":    "JMAPLOGLEVEL",
 		"logformat":   "JMAPLOGFORMAT",
@@ -129,6 +160,21 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		logFormat = defaults.LogFormat
 	}
 
+	subject := v.GetString("subject")
+	if subject == "" {
+		subject = defaults.Subject
+	}
+
+	body := v.GetString("body")
+	if body == "" {
+		body = defaults.Body
+	}
+
+	count := v.GetInt("count")
+	if count <= 0 {
+		count = defaults.Count
+	}
+
 	return &Config{
 		Host:           v.GetString("host"),
 		Port:           port,
@@ -140,16 +186,43 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		AccessToken:    v.GetString("accesstoken"),
 		AuthMethod:     authMethod,
 		SkipVerify:     v.GetBool("skipverify"),
+		To:             parseStringSlice(v.GetString("to")),
+		Cc:             parseStringSlice(v.GetString("cc")),
+		Bcc:            parseStringSlice(v.GetString("bcc")),
+		Subject:        subject,
+		Body:           body,
+		BodyHTML:       v.GetString("bodyhtml"),
+		MessageID:      v.GetString("messageid"),
+		ExportDir:      v.GetString("exportdir"),
+		Count:          count,
 		VerboseMode:    v.GetBool("verbose"),
 		LogLevel:       logLevel,
 		LogFormat:      logFormat,
 	}
 }
 
+// parseStringSlice splits a comma-separated string into a trimmed slice.
+func parseStringSlice(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			result = append(result, t)
+		}
+	}
+	return result
+}
+
 // validateConfiguration validates the configuration.
 func validateConfiguration(config *Config) error {
 	// Validate action
-	validActions := []string{ActionTestConnect, ActionTestAuth, ActionGetMailboxes}
+	validActions := []string{
+		ActionTestConnect, ActionTestAuth, ActionGetMailboxes,
+		ActionListFolders, ActionListMail, ActionSendMail, ActionExportMessages,
+	}
 	valid := false
 	for _, a := range validActions {
 		if config.Action == a {
@@ -194,11 +267,24 @@ func validateConfiguration(config *Config) error {
 		return fmt.Errorf("invalid auth method: %s (valid: auto, basic, bearer)", config.AuthMethod)
 	}
 
-	// Action-specific credential validation
+	// Action-specific credential and parameter validation
 	switch config.Action {
-	case ActionTestAuth, ActionGetMailboxes:
+	case ActionTestAuth, ActionGetMailboxes, ActionListFolders, ActionListMail,
+		ActionSendMail, ActionExportMessages:
 		if config.AccessToken == "" && config.Password == "" {
 			return fmt.Errorf("%s requires either --password or --accesstoken", config.Action)
+		}
+	}
+
+	if config.Action == ActionSendMail {
+		if len(config.To) == 0 {
+			return fmt.Errorf("sendmail requires at least one recipient (--to)")
+		}
+	}
+
+	if config.Action == ActionExportMessages {
+		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
+			return fmt.Errorf("exportmessages requires --messageid and/or --subject")
 		}
 	}
 

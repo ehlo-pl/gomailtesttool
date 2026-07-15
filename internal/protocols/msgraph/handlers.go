@@ -421,6 +421,145 @@ func listInbox(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailb
 	return nil
 }
 
+func listMailFolders(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, config *Config, csvLogger logger.Logger) error {
+	requestConfig := &users.ItemMailFoldersRequestBuilderGetRequestConfiguration{
+		QueryParameters: &users.ItemMailFoldersRequestBuilderGetQueryParameters{
+			Select: []string{"displayName", "totalItemCount", "unreadItemCount", "childFolderCount"},
+		},
+	}
+
+	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/mailFolders", mailbox)
+
+	var getValueFunc func() []models.MailFolderable
+	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+		result, apiErr := client.Users().ByUserId(mailbox).MailFolders().Get(ctx, requestConfig)
+		if apiErr == nil {
+			getValueFunc = result.GetValue
+		}
+		return apiErr
+	})
+	if err != nil {
+		enrichedErr := enrichGraphAPIError(err, csvLogger, "listfolders")
+		return fmt.Errorf("error listing folders for %s: %w", mailbox, enrichedErr)
+	}
+
+	folders := getValueFunc()
+
+	if config.OutputFormat == "json" {
+		type folderJSON struct {
+			Name         string `json:"displayName"`
+			TotalItems   int32  `json:"totalItemCount"`
+			UnreadItems  int32  `json:"unreadItemCount"`
+			ChildFolders int32  `json:"childFolderCount"`
+		}
+		out := make([]folderJSON, 0, len(folders))
+		for _, f := range folders {
+			out = append(out, folderJSON{
+				Name:         derefOr(f.GetDisplayName(), ""),
+				TotalItems:   derefInt32(f.GetTotalItemCount()),
+				UnreadItems:  derefInt32(f.GetUnreadItemCount()),
+				ChildFolders: derefInt32(f.GetChildFolderCount()),
+			})
+		}
+		printJSON(out)
+	} else {
+		fmt.Printf("Mail folders for %s (%d):\n\n", mailbox, len(folders))
+		for i, f := range folders {
+			fmt.Printf("%d. %s  (total: %d, unread: %d, child folders: %d)\n",
+				i+1,
+				derefOr(f.GetDisplayName(), ""),
+				derefInt32(f.GetTotalItemCount()),
+				derefInt32(f.GetUnreadItemCount()),
+				derefInt32(f.GetChildFolderCount()),
+			)
+		}
+	}
+
+	if csvLogger != nil {
+		for _, f := range folders {
+			_ = csvLogger.WriteRow([]string{
+				ActionListFolders, StatusSuccess, mailbox,
+				derefOr(f.GetDisplayName(), ""),
+				fmt.Sprintf("%d", derefInt32(f.GetTotalItemCount())),
+				fmt.Sprintf("%d", derefInt32(f.GetUnreadItemCount())),
+				fmt.Sprintf("%d", derefInt32(f.GetChildFolderCount())),
+				"",
+			})
+		}
+	}
+
+	return nil
+}
+
+func listMailInFolder(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, folder string, count int, config *Config, csvLogger logger.Logger) error {
+	requestConfig := &users.ItemMailFoldersItemMessagesRequestBuilderGetRequestConfiguration{
+		QueryParameters: &users.ItemMailFoldersItemMessagesRequestBuilderGetQueryParameters{
+			Top:     Int32Ptr(int32(count)),
+			Orderby: []string{"receivedDateTime DESC"},
+			Select:  []string{"subject", "receivedDateTime", "from", "toRecipients"},
+		},
+	}
+
+	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/mailFolders/%s/messages?$top=%d", mailbox, folder, count)
+
+	var getValueFunc func() []models.Messageable
+	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+		result, apiErr := client.Users().ByUserId(mailbox).MailFolders().ByMailFolderId(folder).Messages().Get(ctx, requestConfig)
+		if apiErr == nil {
+			getValueFunc = result.GetValue
+		}
+		return apiErr
+	})
+	if err != nil {
+		enrichedErr := enrichGraphAPIError(err, csvLogger, "listmail")
+		return fmt.Errorf("error listing mail in folder %q for %s: %w", folder, mailbox, enrichedErr)
+	}
+
+	messages := getValueFunc()
+	messageCount := len(messages)
+
+	if config.OutputFormat == "json" {
+		printJSON(formatMessagesOutput(messages))
+	} else {
+		fmt.Printf("Messages in %q for %s (%d):\n\n", folder, mailbox, messageCount)
+		if messageCount == 0 {
+			fmt.Println("No messages found.")
+		}
+		for i, msg := range messages {
+			sender := "N/A"
+			if msg.GetFrom() != nil && msg.GetFrom().GetEmailAddress() != nil && msg.GetFrom().GetEmailAddress().GetAddress() != nil {
+				sender = *msg.GetFrom().GetEmailAddress().GetAddress()
+			}
+			subject := derefOr(msg.GetSubject(), "N/A")
+			receivedDate := "N/A"
+			if msg.GetReceivedDateTime() != nil {
+				receivedDate = msg.GetReceivedDateTime().Format("2006-01-02 15:04:05")
+			}
+			fmt.Printf("%d. Subject: %s\n   From: %s\n   Received: %s\n\n", i+1, subject, sender, receivedDate)
+		}
+	}
+
+	if csvLogger != nil {
+		if messageCount == 0 {
+			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, "No messages found", "N/A", "N/A"})
+		}
+		for _, msg := range messages {
+			sender := "N/A"
+			if msg.GetFrom() != nil && msg.GetFrom().GetEmailAddress() != nil && msg.GetFrom().GetEmailAddress().GetAddress() != nil {
+				sender = *msg.GetFrom().GetEmailAddress().GetAddress()
+			}
+			subject := derefOr(msg.GetSubject(), "N/A")
+			receivedDate := "N/A"
+			if msg.GetReceivedDateTime() != nil {
+				receivedDate = msg.GetReceivedDateTime().Format("2006-01-02 15:04:05")
+			}
+			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, subject, sender, receivedDate})
+		}
+	}
+
+	return nil
+}
+
 // checkAvailability checks the recipient's availability for the next working day at 12:00 UTC.
 func checkAvailability(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, recipient string, config *Config, logger logger.Logger) error {
 	// Calculate next working day

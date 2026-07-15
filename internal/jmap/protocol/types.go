@@ -172,6 +172,32 @@ type EmailAddress struct {
 	Email string `json:"email"`
 }
 
+// EmailBodyPart references a body value by partId for textBody/htmlBody.
+type EmailBodyPart struct {
+	PartId string `json:"partId"`
+	Type   string `json:"type"`
+}
+
+// EmailBodyValue holds the content for a body part.
+type EmailBodyValue struct {
+	Value   string `json:"value"`
+	Charset string `json:"charset,omitempty"`
+}
+
+// EmailCreate is the argument map for Email/set create.
+type EmailCreate struct {
+	MailboxIds map[Id]bool              `json:"mailboxIds"`
+	Keywords   map[string]bool          `json:"keywords,omitempty"`
+	From       []EmailAddress           `json:"from,omitempty"`
+	To         []EmailAddress           `json:"to,omitempty"`
+	Cc         []EmailAddress           `json:"cc,omitempty"`
+	Bcc        []EmailAddress           `json:"bcc,omitempty"`
+	Subject    string                   `json:"subject,omitempty"`
+	BodyValues map[string]EmailBodyValue `json:"bodyValues,omitempty"`
+	TextBody   []EmailBodyPart          `json:"textBody,omitempty"`
+	HTMLBody   []EmailBodyPart          `json:"htmlBody,omitempty"`
+}
+
 // GetMailboxesResponse represents the response from Mailbox/get.
 type GetMailboxesResponse struct {
 	AccountId Id        `json:"accountId"`

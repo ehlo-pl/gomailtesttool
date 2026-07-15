@@ -165,6 +165,107 @@ func listInbox(ctx context.Context, svc *gmailapi.Service, config *Config, csv l
 	return nil
 }
 
+// listLabels lists all Gmail labels (system + user) with message counts.
+func listLabels(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
+	var res *gmailapi.ListLabelsResponse
+	err := retryGmail(ctx, config, func() error {
+		var apiErr error
+		res, apiErr = svc.Users.Labels.List("me").Context(ctx).Do()
+		return apiErr
+	})
+	if err != nil {
+		return fmt.Errorf("error listing labels: %w", enrichGmailAPIError(err, "listfolders"))
+	}
+
+	if config.OutputFormat == "json" {
+		printJSON(res.Labels)
+	} else {
+		fmt.Printf("Gmail labels for %s (%d):\n\n", config.Mailbox, len(res.Labels))
+		for i, l := range res.Labels {
+			fmt.Printf("%d. %-30s  type: %-6s  total: %d  unread: %d\n",
+				i+1, l.Name, l.Type, l.MessagesTotal, l.MessagesUnread)
+		}
+	}
+
+	for _, l := range res.Labels {
+		writeCSV(csv, []string{
+			ActionListFolders, StatusSuccess, config.Mailbox,
+			l.Id, l.Name, l.Type,
+			fmt.Sprintf("%d", l.MessagesTotal),
+			fmt.Sprintf("%d", l.MessagesUnread),
+		})
+	}
+	return nil
+}
+
+// listMailByLabel lists recent messages under a specific Gmail label.
+func listMailByLabel(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
+	label := config.Label
+	if label == "" {
+		label = "INBOX"
+	}
+
+	var listRes *gmailapi.ListMessagesResponse
+	err := retryGmail(ctx, config, func() error {
+		var apiErr error
+		listRes, apiErr = svc.Users.Messages.List("me").LabelIds(label).MaxResults(int64(config.Count)).Context(ctx).Do()
+		return apiErr
+	})
+	if err != nil {
+		return fmt.Errorf("error listing mail in label %q: %w", label, enrichGmailAPIError(err, "listmail"))
+	}
+
+	if len(listRes.Messages) == 0 {
+		if config.OutputFormat == "json" {
+			printJSON([]any{})
+		} else {
+			fmt.Printf("No messages found in label %q.\n", label)
+		}
+		writeCSV(csv, []string{ActionListMail, StatusSuccess, config.Mailbox, label, "No messages found", "N/A"})
+		return nil
+	}
+
+	type summary struct {
+		ID      string `json:"id"`
+		Subject string `json:"subject"`
+		From    string `json:"from"`
+		Date    string `json:"date"`
+	}
+	var summaries []summary
+	for _, m := range listRes.Messages {
+		var full *gmailapi.Message
+		gErr := retryGmail(ctx, config, func() error {
+			var apiErr error
+			full, apiErr = svc.Users.Messages.Get("me", m.Id).Format("metadata").
+				MetadataHeaders("Subject", "From", "Date").Context(ctx).Do()
+			return apiErr
+		})
+		if gErr != nil {
+			log.Printf("Error fetching message %s: %v", m.Id, enrichGmailAPIError(gErr, "listmail"))
+			continue
+		}
+		summaries = append(summaries, summary{
+			ID:      m.Id,
+			Subject: headerValue(full, "Subject"),
+			From:    headerValue(full, "From"),
+			Date:    headerValue(full, "Date"),
+		})
+	}
+
+	if config.OutputFormat == "json" {
+		printJSON(summaries)
+	} else {
+		fmt.Printf("Messages in label %q for %s (%d):\n\n", label, config.Mailbox, len(summaries))
+		for i, s := range summaries {
+			fmt.Printf("%d. %s\n   From: %s\n   Date: %s\n\n", i+1, s.Subject, s.From, s.Date)
+		}
+	}
+	for _, s := range summaries {
+		writeCSV(csv, []string{ActionListMail, StatusSuccess, config.Mailbox, label, s.Subject, s.ID})
+	}
+	return nil
+}
+
 // exportMessages searches by rfc822 Message-ID and/or subject, then writes each
 // matching message to a .eml file.
 func exportMessages(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
