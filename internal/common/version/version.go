@@ -8,7 +8,7 @@ package version
 // 1. Change the Version constant below
 // 2. Create a changelog entry in ChangeLog/{version}.md
 // 3. Commit with message: "Bump version to {version}"
-const Version = "3.6.0"
+const Version = "3.6.3"
 
 // Get returns the current version string.
 // This is a convenience function for accessing the Version constant.
