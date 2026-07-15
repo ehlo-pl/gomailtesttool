@@ -152,7 +152,7 @@ func tokenFromWeb(ctx context.Context, conf *oauth2.Config, logger *slog.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start local OAuth listener: %w", err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	conf.RedirectURL = fmt.Sprintf("http://%s/", listener.Addr().String())
 	state, err := randomState()
@@ -176,7 +176,7 @@ func tokenFromWeb(ctx context.Context, conf *oauth2.Config, logger *slog.Logger)
 			errCh <- fmt.Errorf("no authorization code returned")
 			return
 		}
-		fmt.Fprintln(w, "Authorization complete. You can close this window and return to the terminal.")
+		_, _ = fmt.Fprintln(w, "Authorization complete. You can close this window and return to the terminal.")
 		codeCh <- code
 	})
 
@@ -229,7 +229,7 @@ func loadCachedToken(path string) (*oauth2.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	tok := &oauth2.Token{}
 	if err := json.NewDecoder(f).Decode(tok); err != nil {
@@ -247,7 +247,7 @@ func saveToken(path string, tok *oauth2.Token) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return json.NewEncoder(f).Encode(tok)
 }
 

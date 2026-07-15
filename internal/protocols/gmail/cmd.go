@@ -81,8 +81,8 @@ func setup(cmd *cobra.Command, v *viper.Viper, action string) (*Config, context.
 	}
 
 	if config.ProxyURL != "" {
-		os.Setenv("HTTP_PROXY", config.ProxyURL)
-		os.Setenv("HTTPS_PROXY", config.ProxyURL)
+		_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+		_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 	}
 
 	return config, ctx, cancel, slogger, csvLogger, nil
@@ -99,7 +99,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 			}
 			defer cancel()
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			if config.BodyTemplate != "" {
@@ -147,7 +147,7 @@ func newGetInboxCmd(v *viper.Viper) *cobra.Command {
 			}
 			defer cancel()
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			svc, err := newGmailService(ctx, config, slogger)
@@ -172,7 +172,7 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 			}
 			defer cancel()
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			svc, err := newGmailService(ctx, config, slogger)
@@ -200,7 +200,7 @@ func newGetEventsCmd(v *viper.Viper) *cobra.Command {
 			}
 			defer cancel()
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			svc, err := newCalendarService(ctx, config, slogger)
@@ -225,7 +225,7 @@ func newSendInviteCmd(v *viper.Viper) *cobra.Command {
 			}
 			defer cancel()
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			svc, err := newCalendarService(ctx, config, slogger)
@@ -253,7 +253,7 @@ func newTestAuthCmd(v *viper.Viper) *cobra.Command {
 			}
 			defer cancel()
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			svc, err := newGmailService(ctx, config, slogger)
@@ -276,7 +276,7 @@ func newExportBearerTokenCmd(v *viper.Viper) *cobra.Command {
 			}
 			defer cancel()
 			if csvLogger != nil {
-				defer csvLogger.Close()
+				defer func() { _ = csvLogger.Close() }()
 			}
 
 			return exportBearerToken(ctx, config, slogger, csvLogger)
