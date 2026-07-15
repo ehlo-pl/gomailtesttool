@@ -30,6 +30,13 @@ func logWarn(l *slog.Logger, msg string, args ...any) {
 	}
 }
 
+// logError logs an error message if logger is not nil.
+func logError(l *slog.Logger, msg string, args ...any) {
+	if l != nil {
+		l.Error(msg, args...)
+	}
+}
+
 // logVerbose prints verbose output to stderr if verbose mode is enabled.
 func logVerbose(verbose bool, format string, args ...any) {
 	if verbose {

@@ -101,6 +101,8 @@ const (
 	ActionSearchAndExport   = "searchandexport"
 	ActionExportMessages    = "exportmessages"
 	ActionExportBearerToken = "exportbearertoken"
+	ActionTestConnect       = "testconnect"
+	ActionTestAuth          = "testauth"
 )
 
 // Delegated auth flows accepted by --authflow; an empty AuthFlow means device code.
@@ -426,6 +428,49 @@ func validateExportBearerTokenConfiguration(config *Config) error {
 
 	if err := validateAuthConfiguration(config); err != nil {
 		return err
+	}
+
+	if config.OutputFormat != "text" && config.OutputFormat != "json" {
+		return fmt.Errorf("invalid output format: %s (use: text, json)", config.OutputFormat)
+	}
+
+	return nil
+}
+
+// validateTestConnectConfiguration validates config for the testconnect action.
+// testconnect is an unauthenticated network/TLS probe against the Graph endpoint,
+// so it needs neither credentials, tenant/client IDs, nor a mailbox — only a
+// valid output format (and any proxy is validated at dial time).
+func validateTestConnectConfiguration(config *Config) error {
+	if config.OutputFormat != "text" && config.OutputFormat != "json" {
+		return fmt.Errorf("invalid output format: %s (use: text, json)", config.OutputFormat)
+	}
+	return nil
+}
+
+// validateTestAuthConfiguration validates config for the testauth action. Like
+// exportbearertoken it verifies a credential rather than operating on a mailbox,
+// so the mailbox is optional (validated only when provided for the supplementary
+// Graph check). Tenant/Client IDs are required unless a pre-obtained bearer token
+// is supplied.
+func validateTestAuthConfiguration(config *Config) error {
+	if config.BearerToken == "" {
+		if err := validateGUID(config.TenantID, "Tenant ID"); err != nil {
+			return err
+		}
+		if err := validateGUID(config.ClientID, "Client ID"); err != nil {
+			return err
+		}
+	}
+
+	if err := validateAuthConfiguration(config); err != nil {
+		return err
+	}
+
+	if config.Mailbox != "" {
+		if err := validateEmail(config.Mailbox); err != nil {
+			return fmt.Errorf("invalid mailbox: %w", err)
+		}
 	}
 
 	if config.OutputFormat != "text" && config.OutputFormat != "json" {
