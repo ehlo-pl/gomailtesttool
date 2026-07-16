@@ -41,7 +41,7 @@ func TestValidateConfiguration_Action(t *testing.T) {
 	}{
 		{"valid testconnect", ActionTestConnect, false},
 		{"valid testauth", ActionTestAuth, false},
-		{"valid getmailboxes", ActionGetMailboxes, false},
+		{"valid listfolders", ActionListFolders, false},
 		{"invalid action", "invalid", true},
 		{"empty action", "", true},
 	}
@@ -50,7 +50,7 @@ func TestValidateConfiguration_Action(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			config := newTestConfig()
 			config.Action = tt.action
-			if tt.action == ActionTestAuth || tt.action == ActionGetMailboxes {
+			if tt.action == ActionTestAuth || tt.action == ActionListFolders {
 				config.AccessToken = "test-token"
 			}
 			err := validateConfiguration(config)
@@ -145,8 +145,8 @@ func TestValidateConfiguration_Credentials(t *testing.T) {
 		{"testauth with token", ActionTestAuth, "", "token", false},
 		{"testauth with password", ActionTestAuth, "pass", "", false},
 		{"testauth no creds", ActionTestAuth, "", "", true},
-		{"getmailboxes with token", ActionGetMailboxes, "", "token", false},
-		{"getmailboxes no creds", ActionGetMailboxes, "", "", true},
+		{"listfolders with token", ActionListFolders, "", "token", false},
+		{"listfolders no creds", ActionListFolders, "", "", true},
 	}
 
 	for _, tt := range tests {

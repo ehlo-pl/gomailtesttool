@@ -233,8 +233,9 @@ func newSendInviteCmd(v *viper.Viper) *cobra.Command {
 
 func newGetInboxCmd(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "getinbox",
-		Short: "List recent inbox messages for a mailbox",
+		Use:        "getinbox",
+		Short:      "List recent inbox messages for a mailbox",
+		Deprecated: "use 'listmail --folder inbox' instead",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
@@ -271,7 +272,7 @@ func newGetInboxCmd(v *viper.Viper) *cobra.Command {
 				return err
 			}
 
-			return listInbox(ctx, client, config.Mailbox, config.Count, config, csvLogger)
+			return listMailInFolder(ctx, client, config.Mailbox, "inbox", config.Count, config, csvLogger)
 		},
 	}
 	cmd.Flags().Int("count", 3, "Number of messages to retrieve (env: MSGRAPHCOUNT)")
@@ -425,8 +426,9 @@ func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
 
 func newExportInboxCmd(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "exportinbox",
-		Short: "Export inbox messages to JSON files",
+		Use:        "exportinbox",
+		Short:      "Export inbox messages to JSON files",
+		Deprecated: "use 'exportmessages --folder inbox' instead (note: exportmessages writes .eml, exportinbox writes JSON)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
@@ -473,8 +475,9 @@ func newExportInboxCmd(v *viper.Viper) *cobra.Command {
 
 func newSearchAndExportCmd(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "searchandexport",
-		Short: "Search for a message by Internet Message-ID and export it",
+		Use:        "searchandexport",
+		Short:      "Search for a message by Internet Message-ID and export it",
+		Deprecated: "use 'exportmessages --messageid' instead (note: exportmessages writes .eml, searchandexport writes JSON)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
@@ -563,11 +566,12 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 				return err
 			}
 
-			return exportMessages(ctx, client, config.Mailbox, config.MessageID, config.Subject, config.Count, config, csvLogger)
+			return exportMessages(ctx, client, config.Mailbox, config.MessageID, config.Subject, config.Folder, config.Count, config, csvLogger)
 		},
 	}
 	cmd.Flags().String("messageid", "", "Internet Message-ID to search for (env: MSGRAPHMESSAGEID)")
 	cmd.Flags().String("subject", "", "Subject substring to search for, used with OData contains() (env: MSGRAPHSUBJECT)")
+	cmd.Flags().String("folder", "", "Mail folder to scope the search to (well-known names: inbox, sentitems, drafts, deleteditems, junkemail); with no other criteria exports the newest messages of the folder (env: MSGRAPHFOLDER)")
 	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: MSGRAPHCOUNT)")
 	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: MSGRAPHEXPORTDIR)")
 	return cmd

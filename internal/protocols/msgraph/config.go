@@ -401,8 +401,8 @@ func validateConfiguration(config *Config) error {
 
 	// Validate exportmessages-specific requirements
 	if config.Action == ActionExportMessages {
-		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
-			return fmt.Errorf("exportmessages action requires --messageid and/or --subject parameter")
+		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" && strings.TrimSpace(config.Folder) == "" {
+			return fmt.Errorf("exportmessages action requires --messageid, --subject and/or --folder parameter")
 		}
 
 		if config.MessageID != "" {

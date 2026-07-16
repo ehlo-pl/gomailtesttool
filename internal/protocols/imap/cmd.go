@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// NewCmd returns the "imap" cobra.Command with all 3 action subcommands.
+// NewCmd returns the "imap" cobra.Command with all action subcommands.
 // Each subcommand shares persistent flags (server, auth, TLS, output).
 func NewCmd() *cobra.Command {
 	v := viper.New()
@@ -31,7 +31,9 @@ Environment variables use the IMAP prefix (e.g. IMAPHOST, IMAPPORT, IMAPUSERNAME
 	cmd.AddCommand(
 		newTestConnectCmd(v),
 		newTestAuthCmd(v),
+		newTestStartTLSCmd(v),
 		newListFoldersCmd(v),
+		newListMailCmd(v),
 		newExportMessagesCmd(v),
 	)
 
@@ -178,6 +180,100 @@ raw RFC822 message as a .eml file.`,
 	cmd.Flags().String("mailbox", "INBOX", "Mailbox to search (env: IMAPMAILBOX)")
 	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: IMAPCOUNT)")
 	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: IMAPEXPORTDIR)")
+	return cmd
+}
+
+func newTestStartTLSCmd(v *viper.Viper) *cobra.Command {
+	return &cobra.Command{
+		Use:   "teststarttls",
+		Short: "Test STARTTLS upgrade and TLS/certificate diagnostics",
+		Long: `Connect to the IMAP server, verify the STARTTLS capability, perform the TLS
+handshake, and report detailed TLS and certificate diagnostics. With --imaps,
+tests the implicit-TLS handshake instead.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionTestStartTLS
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("imaptool", ActionTestStartTLS, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			logger.LogInfo(slogger, "IMAP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
+
+			if err := testStartTLS(ctx, config, csvLogger, slogger); err != nil {
+				logger.LogError(slogger, "Action failed", "error", err)
+				return err
+			}
+
+			logger.LogInfo(slogger, "Action completed successfully")
+			return nil
+		},
+	}
+}
+
+func newListMailCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "listmail",
+		Short: "List the newest messages in a mailbox",
+		Long: `Authenticate to the IMAP server, SELECT the given mailbox, and list envelope
+information (Subject, From, Date, UID) for the newest messages.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionListMail
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("imaptool", ActionListMail, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			logger.LogInfo(slogger, "IMAP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
+
+			if err := listMail(ctx, config, csvLogger, slogger); err != nil {
+				logger.LogError(slogger, "Action failed", "error", err)
+				return err
+			}
+
+			logger.LogInfo(slogger, "Action completed successfully")
+			return nil
+		},
+	}
+	cmd.Flags().String("mailbox", "INBOX", "Mailbox to list messages from (env: IMAPMAILBOX)")
+	cmd.Flags().Int("count", 10, "Number of messages to list (env: IMAPCOUNT)")
 	return cmd
 }
 

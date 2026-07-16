@@ -39,6 +39,10 @@ type Config struct {
 	Body    string
 	BodyHTML string
 
+	// Calendar (getevents, sendinvite, getschedule)
+	StartTime string
+	EndTime   string
+
 	// Search / export (exportmessages)
 	MessageID string
 	ExportDir string
@@ -71,6 +75,9 @@ const (
 	ActionListMail       = "listmail"
 	ActionSendMail       = "sendmail"
 	ActionExportMessages = "exportmessages"
+	ActionGetEvents      = "getevents"
+	ActionSendInvite     = "sendinvite"
+	ActionGetSchedule    = "getschedule"
 )
 
 // NewConfig creates a new Config with default values.
@@ -145,6 +152,8 @@ func BindEnvs(v *viper.Viper) {
 		"subject":          "EWSSUBJECT",
 		"body":             "EWSBODY",
 		"bodyhtml":         "EWSBODYHTML",
+		"start":            "EWSSTART",
+		"end":              "EWSEND",
 		"messageid":        "EWSMESSAGEID",
 		"exportdir":        "EWSEXPORTDIR",
 		"count":            "EWSCOUNT",
@@ -235,6 +244,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:          subject,
 		Body:             body,
 		BodyHTML:         v.GetString("bodyhtml"),
+		StartTime:        v.GetString("start"),
+		EndTime:          v.GetString("end"),
 		MessageID:        v.GetString("messageid"),
 		ExportDir:        v.GetString("exportdir"),
 		Count:            count,
@@ -269,6 +280,7 @@ func validateConfiguration(config *Config) error {
 	validActions := []string{
 		ActionTestConnect, ActionTestAuth, ActionGetFolder, ActionAutodiscover,
 		ActionListFolders, ActionListMail, ActionSendMail, ActionExportMessages,
+		ActionGetEvents, ActionSendInvite, ActionGetSchedule,
 	}
 	valid := false
 	for _, a := range validActions {
@@ -318,7 +330,8 @@ func validateConfiguration(config *Config) error {
 	// Action-specific validation
 	switch config.Action {
 	case ActionTestAuth, ActionGetFolder, ActionListFolders, ActionListMail,
-		ActionSendMail, ActionExportMessages:
+		ActionSendMail, ActionExportMessages,
+		ActionGetEvents, ActionSendInvite, ActionGetSchedule:
 		if config.Username == "" {
 			return fmt.Errorf("%s requires --username", config.Action)
 		}
@@ -348,6 +361,38 @@ func validateConfiguration(config *Config) error {
 	if config.Action == ActionExportMessages {
 		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
 			return fmt.Errorf("exportmessages requires --messageid and/or --subject")
+		}
+	}
+
+	if config.Action == ActionSendInvite {
+		if len(config.To) == 0 {
+			return fmt.Errorf("sendinvite requires at least one attendee (--to)")
+		}
+		if config.StartTime == "" || config.EndTime == "" {
+			return fmt.Errorf("sendinvite requires --start and --end parameters")
+		}
+	}
+
+	if config.Action == ActionGetSchedule {
+		if len(config.To) == 0 {
+			return fmt.Errorf("getschedule requires --to parameter (recipient email address)")
+		}
+		if len(config.To) > 1 {
+			return fmt.Errorf("getschedule only supports checking one recipient at a time (got %d recipients)", len(config.To))
+		}
+	}
+
+	// Validate time formats when provided (getevents defaults both).
+	if config.Action == ActionGetEvents || config.Action == ActionSendInvite || config.Action == ActionGetSchedule {
+		if config.StartTime != "" {
+			if _, err := parseFlexibleTime(config.StartTime); err != nil {
+				return fmt.Errorf("invalid --start: %w", err)
+			}
+		}
+		if config.EndTime != "" {
+			if _, err := parseFlexibleTime(config.EndTime); err != nil {
+				return fmt.Errorf("invalid --end: %w", err)
+			}
 		}
 	}
 

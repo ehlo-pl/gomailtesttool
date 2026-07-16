@@ -153,13 +153,20 @@ func (c *EWSClient) Probe(ctx context.Context) (*http.Response, error) {
 
 // SendSOAP wraps body in an EWS SOAP envelope, applies auth, and POSTs to the EWS URL.
 func (c *EWSClient) SendSOAP(ctx context.Context, soapBody string) ([]byte, error) {
+	return c.SendSOAPAction(ctx, soapBody, `""`)
+}
+
+// SendSOAPAction is SendSOAP with an explicit SOAPAction header value; some
+// operations (e.g. GetUserAvailability) require the full action URI on certain
+// Exchange versions.
+func (c *EWSClient) SendSOAPAction(ctx context.Context, soapBody, soapAction string) ([]byte, error) {
 	payload := fmt.Sprintf(soapEnvelope, soapBody)
 	req, err := http.NewRequestWithContext(ctx, "POST", c.ewsURL, bytes.NewBufferString(payload))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "text/xml; charset=utf-8")
-	req.Header.Set("SOAPAction", `""`)
+	req.Header.Set("SOAPAction", soapAction)
 	c.applyAuth(req)
 
 	if c.config.Mailbox != "" {

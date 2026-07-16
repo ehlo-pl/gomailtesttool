@@ -51,6 +51,24 @@ gomailtest pop3 testauth --host pop.example.com --port 995 --pop3s \
     --username user@example.com --password "secret" --authmethod USER
 ```
 
+### teststarttls — TLS/Certificate Diagnostics
+
+Connects, verifies the STLS capability (RFC 2595), performs the TLS handshake,
+and reports TLS version, cipher suite, certificate chain details, warnings, and
+recommendations. With `--pop3s`, tests the implicit-TLS handshake instead.
+No credentials required.
+
+```powershell
+# STLS on port 110
+gomailtest pop3 teststarttls --host pop.example.com --port 110
+
+# Implicit TLS (POP3S)
+gomailtest pop3 teststarttls --host pop.example.com --pop3s
+
+# Force a specific TLS version
+gomailtest pop3 teststarttls --host pop.example.com --tlsversion 1.3
+```
+
 ### listmail — List Messages
 
 Authenticates and lists messages using STAT, LIST, and UIDL commands.

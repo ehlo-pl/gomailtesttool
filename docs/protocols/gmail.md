@@ -67,8 +67,8 @@ Scopes default **per action** (least privilege):
 | Action | Default scope |
 |--------|---------------|
 | `sendmail` | `gmail.send` |
-| `getinbox`, `exportmessages` | `gmail.readonly` |
-| `getevents` | `calendar.readonly` |
+| `getinbox`, `listmail`, `listfolders`, `exportmessages` | `gmail.readonly` |
+| `getevents`, `getschedule` | `calendar.readonly` |
 | `sendinvite` | `calendar.events` |
 | `testauth`, `exportbearertoken` | `gmail.readonly` |
 
@@ -97,12 +97,14 @@ into the Gmail `Raw` field. Unlike SMTP, **Bcc is included in the message
 headers** because Gmail derives recipients from the headers. With no recipients
 specified, `--to` defaults to the mailbox.
 
-### getinbox — List recent messages
+### listmail — List recent messages by label
 ```powershell
-gomailtest gmail getinbox --credentials sa.json --mailbox user@corp.com --count 10
+gomailtest gmail listmail --credentials sa.json --mailbox user@corp.com \
+    --label INBOX --count 10
 ```
 Gmail's list returns IDs only; each message is then fetched with a metadata Get
 to resolve Subject/From/Date (a 1+N pattern — mind the quota for large counts).
+The deprecated `getinbox` action is equivalent to `listmail --label INBOX`.
 
 ### exportmessages — Search and export as .eml
 ```powershell
@@ -110,11 +112,15 @@ gomailtest gmail exportmessages --credentials sa.json --mailbox user@corp.com \
     --messageid "<id@host>" --exportdir C:\exports
 gomailtest gmail exportmessages --credentials sa.json --mailbox user@corp.com \
     --subject "invoice" --count 50
+gomailtest gmail exportmessages --credentials sa.json --mailbox user@corp.com \
+    --search "from:billing@vendor.com newer_than:7d"
 ```
 Searches with the Gmail `rfc822msgid:` and/or `subject:` operators, fetches each
 match in `raw` format, base64url-decodes it, and writes a `.eml` file. Requires
 `gmail.readonly` (the metadata scope cannot return raw content). `--messageid`
-and `--subject` are validated to block search-operator injection.
+and `--subject` are validated to block search-operator injection; `--search`
+passes a raw Gmail query verbatim and overrides both. `searchandexport` is an
+alias of this action.
 
 ### getevents — List upcoming calendar events
 ```powershell
@@ -129,6 +135,17 @@ gomailtest gmail sendinvite --credentials sa.json --mailbox user@corp.com \
 ```
 Times accept RFC3339 or the PowerShell sortable format. Invitations are sent to
 attendees (`sendUpdates=all`).
+
+### getschedule — Check a recipient's free/busy availability
+```powershell
+gomailtest gmail getschedule --credentials sa.json --mailbox user@corp.com \
+    --to colleague@corp.com
+gomailtest gmail getschedule --credentials sa.json --mailbox user@corp.com \
+    --to colleague@corp.com --start 2026-08-01T08:00:00Z --end 2026-08-01T18:00:00Z
+```
+Queries the Calendar `freeBusy` endpoint and prints the recipient's busy blocks
+(default window: next 24 hours). Requires `calendar.readonly` and visibility of
+the recipient's free/busy information.
 
 ### exportbearertoken — Print an access token
 ```powershell

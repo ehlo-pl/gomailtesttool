@@ -51,6 +51,24 @@ gomailtest imap testauth --host imap.example.com --port 993 --imaps \
     --username user@example.com --password "secret" --authmethod PLAIN
 ```
 
+### teststarttls — TLS/Certificate Diagnostics
+
+Connects, verifies the STARTTLS capability, performs the TLS handshake, and
+reports TLS version, cipher suite, certificate chain details, warnings, and
+recommendations. With `--imaps`, tests the implicit-TLS handshake instead.
+No credentials required.
+
+```powershell
+# STARTTLS on port 143
+gomailtest imap teststarttls --host imap.example.com --port 143
+
+# Implicit TLS (IMAPS)
+gomailtest imap teststarttls --host imap.example.com --imaps
+
+# Force a specific TLS version
+gomailtest imap teststarttls --host imap.example.com --tlsversion 1.3
+```
+
 ### listfolders — List Mailbox Folders
 
 Authenticates and lists all folders using the LIST command.
@@ -58,6 +76,17 @@ Authenticates and lists all folders using the LIST command.
 ```powershell
 gomailtest imap listfolders --host imap.example.com --port 993 --imaps \
     --username user@example.com --password "yourpassword"
+```
+
+### listmail — List Newest Messages
+
+Authenticates, SELECTs a mailbox, and lists envelope information (Subject,
+From, Date, UID) for the newest messages, newest first.
+
+```powershell
+gomailtest imap listmail --host imap.example.com --port 993 --imaps \
+    --username user@example.com --password "yourpassword" \
+    --mailbox "INBOX" --count 10
 ```
 
 ### exportmessages — Export Matching Messages as .eml

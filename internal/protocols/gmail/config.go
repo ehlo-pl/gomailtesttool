@@ -51,8 +51,9 @@ type Config struct {
 	Label string // Gmail label ID for listmail (default: INBOX)
 
 	// Search / export
-	MessageID string
-	ExportDir string
+	MessageID   string
+	SearchQuery string // Raw Gmail search query (overrides messageid/subject search)
+	ExportDir   string
 
 	// Network
 	ProxyURL   string
@@ -93,6 +94,7 @@ const (
 	ActionExportMessages    = "exportmessages"
 	ActionGetEvents         = "getevents"
 	ActionSendInvite        = "sendinvite"
+	ActionGetSchedule       = "getschedule"
 	ActionTestAuth          = "testauth"
 	ActionExportBearerToken = "exportbearertoken"
 	ActionTestConnect       = "testconnect"
@@ -151,6 +153,7 @@ func BindEnvs(v *viper.Viper) {
 		"end":                "GMAILEND",
 		"label":              "GMAILLABEL",
 		"messageid":          "GMAILMESSAGEID",
+		"search":             "GMAILSEARCH",
 		"exportdir":          "GMAILEXPORTDIR",
 		"proxy":              "GMAILPROXY",
 		"maxretries":         "GMAILMAXRETRIES",
@@ -239,6 +242,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		EndTime:               v.GetString("end"),
 		Label:                 v.GetString("label"),
 		MessageID:             v.GetString("messageid"),
+		SearchQuery:           v.GetString("search"),
 		ExportDir:             v.GetString("exportdir"),
 		ProxyURL:              v.GetString("proxy"),
 		MaxRetries:            maxRetries,
@@ -370,8 +374,8 @@ func validateConfiguration(config *Config) error {
 	// Per-action requirements.
 	switch config.Action {
 	case ActionExportMessages:
-		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
-			return fmt.Errorf("exportmessages action requires --messageid and/or --subject parameter")
+		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" && strings.TrimSpace(config.SearchQuery) == "" {
+			return fmt.Errorf("exportmessages action requires --messageid, --subject and/or --search parameter")
 		}
 		// SECURITY: validate the search inputs before they are placed into a
 		// Gmail search query (rfc822msgid:/subject:) to block operator injection.
@@ -388,6 +392,13 @@ func validateConfiguration(config *Config) error {
 	case ActionSendInvite:
 		if config.StartTime == "" || config.EndTime == "" {
 			return fmt.Errorf("sendinvite action requires --start and --end parameters")
+		}
+	case ActionGetSchedule:
+		if len(config.To) == 0 {
+			return fmt.Errorf("getschedule action requires --to parameter (recipient email address)")
+		}
+		if len(config.To) > 1 {
+			return fmt.Errorf("getschedule action only supports checking one recipient at a time (got %d recipients)", len(config.To))
 		}
 	}
 

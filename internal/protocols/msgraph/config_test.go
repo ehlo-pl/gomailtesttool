@@ -100,6 +100,42 @@ func TestValidateConfiguration_Delegated(t *testing.T) {
 	})
 }
 
+func TestValidateConfiguration_ExportMessages(t *testing.T) {
+	base := func() *Config {
+		cfg := NewConfig()
+		cfg.TenantID = "00000000-0000-0000-0000-000000000001"
+		cfg.ClientID = "00000000-0000-0000-0000-000000000002"
+		cfg.Secret = "app-secret"
+		cfg.Mailbox = "user@example.com"
+		cfg.Action = ActionExportMessages
+		cfg.Subject = ""
+		return cfg
+	}
+
+	t.Run("no criteria fails", func(t *testing.T) {
+		err := validateConfiguration(base())
+		if err == nil || !strings.Contains(err.Error(), "--folder") {
+			t.Fatalf("expected criteria validation error mentioning --folder, got: %v", err)
+		}
+	})
+
+	t.Run("folder only is valid", func(t *testing.T) {
+		cfg := base()
+		cfg.Folder = "inbox"
+		if err := validateConfiguration(cfg); err != nil {
+			t.Fatalf("validateConfiguration() unexpected error = %v", err)
+		}
+	})
+
+	t.Run("messageid only is still valid", func(t *testing.T) {
+		cfg := base()
+		cfg.MessageID = "<abc@example.com>"
+		if err := validateConfiguration(cfg); err != nil {
+			t.Fatalf("validateConfiguration() unexpected error = %v", err)
+		}
+	})
+}
+
 func TestValidateExportBearerTokenConfiguration(t *testing.T) {
 	tests := []struct {
 		name      string

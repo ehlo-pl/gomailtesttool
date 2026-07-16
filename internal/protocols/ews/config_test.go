@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"strings"
 	"testing"
 	"time"
 
@@ -183,6 +184,61 @@ func TestValidateConfiguration(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "getevents with defaults",
+			mutate: func(c *Config) {
+				c.Action = ActionGetEvents
+			},
+			wantErr: false,
+		},
+		{
+			name: "getevents with invalid start time",
+			mutate: func(c *Config) {
+				c.Action = ActionGetEvents
+				c.StartTime = "yesterday"
+			},
+			wantErr: true,
+		},
+		{
+			name: "sendinvite requires to/start/end",
+			mutate: func(c *Config) {
+				c.Action = ActionSendInvite
+			},
+			wantErr: true,
+		},
+		{
+			name: "sendinvite with to/start/end",
+			mutate: func(c *Config) {
+				c.Action = ActionSendInvite
+				c.To = []string{"attendee@example.com"}
+				c.StartTime = "2026-08-01T10:00:00Z"
+				c.EndTime = "2026-08-01T11:00:00Z"
+			},
+			wantErr: false,
+		},
+		{
+			name: "getschedule requires to",
+			mutate: func(c *Config) {
+				c.Action = ActionGetSchedule
+			},
+			wantErr: true,
+		},
+		{
+			name: "getschedule rejects multiple recipients",
+			mutate: func(c *Config) {
+				c.Action = ActionGetSchedule
+				c.To = []string{"a@example.com", "b@example.com"}
+			},
+			wantErr: true,
+		},
+		{
+			name: "getschedule with single recipient",
+			mutate: func(c *Config) {
+				c.Action = ActionGetSchedule
+				c.To = []string{"a@example.com"}
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -196,6 +252,47 @@ func TestValidateConfiguration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseFlexibleTime(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"RFC3339", "2026-08-01T10:00:00Z", false},
+		{"RFC3339 with offset", "2026-08-01T10:00:00+02:00", false},
+		{"PowerShell sortable", "2026-08-01T10:00:00", false},
+		{"empty", "", true},
+		{"garbage", "next tuesday", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseFlexibleTime(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseFlexibleTime(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestBuildAttendeesXML(t *testing.T) {
+	t.Run("empty list", func(t *testing.T) {
+		if got := buildAttendeesXML(nil); got != "" {
+			t.Errorf("buildAttendeesXML(nil) = %q, want empty", got)
+		}
+	})
+
+	t.Run("escapes XML special characters", func(t *testing.T) {
+		got := buildAttendeesXML([]string{`a&b@example.com`})
+		if !strings.Contains(got, "a&amp;b@example.com") {
+			t.Errorf("buildAttendeesXML() = %q, want escaped ampersand", got)
+		}
+		if !strings.Contains(got, "<t:Attendee><t:Mailbox>") {
+			t.Errorf("buildAttendeesXML() = %q, missing Attendee/Mailbox nesting", got)
+		}
+	})
 }
 
 func TestBuildTLSConfig(t *testing.T) {

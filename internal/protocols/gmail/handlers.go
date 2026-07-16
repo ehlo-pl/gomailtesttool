@@ -102,69 +102,6 @@ func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv l
 	return returnErr
 }
 
-// listInbox lists the most recent messages. Gmail's List returns IDs only, so
-// each message is fetched with a metadata Get to resolve Subject/From/Date.
-func listInbox(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
-	var listRes *gmailapi.ListMessagesResponse
-	err := retryGmail(ctx, config, func() error {
-		var apiErr error
-		listRes, apiErr = svc.Users.Messages.List("me").MaxResults(int64(config.Count)).Context(ctx).Do()
-		return apiErr
-	})
-	if err != nil {
-		return fmt.Errorf("error fetching inbox: %w", enrichGmailAPIError(err, "getinbox"))
-	}
-
-	if len(listRes.Messages) == 0 {
-		if config.OutputFormat == "json" {
-			printJSON([]any{})
-		} else {
-			fmt.Println("No messages found.")
-		}
-		writeCSV(csv, []string{ActionGetInbox, StatusSuccess, config.Mailbox, "No messages found (0 messages)", "N/A"})
-		return nil
-	}
-
-	type summary struct {
-		ID      string `json:"id"`
-		Subject string `json:"subject"`
-		From    string `json:"from"`
-		Date    string `json:"date"`
-	}
-	var summaries []summary
-	for _, m := range listRes.Messages {
-		var full *gmailapi.Message
-		gErr := retryGmail(ctx, config, func() error {
-			var apiErr error
-			full, apiErr = svc.Users.Messages.Get("me", m.Id).Format("metadata").
-				MetadataHeaders("Subject", "From", "Date").Context(ctx).Do()
-			return apiErr
-		})
-		if gErr != nil {
-			log.Printf("Error fetching message %s: %v", m.Id, enrichGmailAPIError(gErr, "getinbox"))
-			continue
-		}
-		summaries = append(summaries, summary{
-			ID:      m.Id,
-			Subject: headerValue(full, "Subject"),
-			From:    headerValue(full, "From"),
-			Date:    headerValue(full, "Date"),
-		})
-	}
-
-	if config.OutputFormat == "json" {
-		printJSON(summaries)
-	} else {
-		for i, s := range summaries {
-			fmt.Printf("%d. %s\n   From: %s\n   Date: %s\n", i+1, s.Subject, s.From, s.Date)
-		}
-	}
-	for _, s := range summaries {
-		writeCSV(csv, []string{ActionGetInbox, StatusSuccess, config.Mailbox, s.Subject, s.ID})
-	}
-	return nil
-}
-
 // listLabels lists all Gmail labels (system + user) with message counts.
 func listLabels(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
 	var res *gmailapi.ListLabelsResponse
@@ -266,10 +203,14 @@ func listMailByLabel(ctx context.Context, svc *gmailapi.Service, config *Config,
 	return nil
 }
 
-// exportMessages searches by rfc822 Message-ID and/or subject, then writes each
-// matching message to a .eml file.
+// exportMessages searches by rfc822 Message-ID and/or subject (or a raw Gmail
+// search query when --search is given), then writes each matching message to a
+// .eml file.
 func exportMessages(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
-	query := buildSearchQuery(config.MessageID, config.Subject)
+	query := config.SearchQuery
+	if query == "" {
+		query = buildSearchQuery(config.MessageID, config.Subject)
+	}
 
 	var listRes *gmailapi.ListMessagesResponse
 	err := retryGmail(ctx, config, func() error {
@@ -382,6 +323,82 @@ func listEvents(ctx context.Context, svc *calendarapi.Service, config *Config, c
 	}
 	for _, e := range res.Items {
 		writeCSV(csv, []string{ActionGetEvents, StatusSuccess, config.Mailbox, e.Summary, e.Id})
+	}
+	return nil
+}
+
+// getSchedule checks a recipient's availability via the Calendar freeBusy
+// query over the configured time window (default: the next 24 hours).
+func getSchedule(ctx context.Context, svc *calendarapi.Service, config *Config, csv logger.Logger) error {
+	recipient := config.To[0]
+
+	start := time.Now().UTC()
+	if config.StartTime != "" {
+		t, err := parseFlexibleTime(config.StartTime)
+		if err != nil {
+			return fmt.Errorf("invalid start time: %w", err)
+		}
+		start = t
+	}
+	end := start.Add(24 * time.Hour)
+	if config.EndTime != "" {
+		t, err := parseFlexibleTime(config.EndTime)
+		if err != nil {
+			return fmt.Errorf("invalid end time: %w", err)
+		}
+		end = t
+	}
+	if !end.After(start) {
+		return fmt.Errorf("end time must be after start time")
+	}
+
+	req := &calendarapi.FreeBusyRequest{
+		TimeMin: start.Format(time.RFC3339),
+		TimeMax: end.Format(time.RFC3339),
+		Items:   []*calendarapi.FreeBusyRequestItem{{Id: recipient}},
+	}
+
+	var res *calendarapi.FreeBusyResponse
+	err := retryGmail(ctx, config, func() error {
+		var apiErr error
+		res, apiErr = svc.Freebusy.Query(req).Context(ctx).Do()
+		return apiErr
+	})
+	if err != nil {
+		return fmt.Errorf("error querying free/busy: %w", enrichGmailAPIError(err, "getschedule"))
+	}
+
+	cal, ok := res.Calendars[recipient]
+	if !ok {
+		msg := fmt.Sprintf("no free/busy data returned for %s", recipient)
+		writeCSV(csv, []string{ActionGetSchedule, StatusError, config.Mailbox, recipient, msg})
+		return fmt.Errorf("%s", msg)
+	}
+	if len(cal.Errors) > 0 {
+		msg := fmt.Sprintf("free/busy lookup failed for %s: %s", recipient, cal.Errors[0].Reason)
+		writeCSV(csv, []string{ActionGetSchedule, StatusError, config.Mailbox, recipient, msg})
+		return fmt.Errorf("%s", msg)
+	}
+
+	if config.OutputFormat == "json" {
+		printJSON(cal.Busy)
+	} else {
+		fmt.Printf("Availability of %s from %s to %s:\n\n",
+			recipient, start.Format("2006-01-02 15:04 MST"), end.Format("2006-01-02 15:04 MST"))
+		if len(cal.Busy) == 0 {
+			fmt.Println("Free for the entire window (no busy blocks).")
+		} else {
+			for i, b := range cal.Busy {
+				fmt.Printf("%d. Busy: %s — %s\n", i+1, b.Start, b.End)
+			}
+		}
+	}
+
+	if len(cal.Busy) == 0 {
+		writeCSV(csv, []string{ActionGetSchedule, StatusSuccess, config.Mailbox, recipient, "Free (no busy blocks)"})
+	}
+	for _, b := range cal.Busy {
+		writeCSV(csv, []string{ActionGetSchedule, StatusSuccess, config.Mailbox, recipient, fmt.Sprintf("Busy %s — %s", b.Start, b.End)})
 	}
 	return nil
 }

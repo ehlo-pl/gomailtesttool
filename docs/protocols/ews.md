@@ -116,6 +116,51 @@ gomailtest ews autodiscover --host mail.example.com \
     --autodiscoverpath /autodiscover/autodiscover.svc
 ```
 
+### getevents — List Calendar Events
+
+Authenticates and lists calendar events in a time window using `FindItem` with a `CalendarView` (recurring meetings are expanded). Defaults to the next 7 days.
+
+```powershell
+# Next 7 days (default)
+gomailtest ews getevents --host mail.example.com \
+    --username "CORP\user" --password "secret"
+
+# Explicit window and count
+gomailtest ews getevents --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --start "2026-08-01T00:00:00Z" --end "2026-08-08T00:00:00Z" --count 20
+```
+
+### sendinvite — Send a Meeting Invitation
+
+Creates a calendar meeting via `CreateItem` with `SendMeetingInvitations="SendToAllAndSaveCopy"` and invites the `--to` attendees. Requires `--to`, `--start`, and `--end`.
+
+```powershell
+gomailtest ews sendinvite --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --to attendee@example.com \
+    --subject "Sync meeting" \
+    --start "2026-08-01T10:00:00Z" --end "2026-08-01T11:00:00Z"
+```
+
+### getschedule — Free/Busy Availability
+
+Retrieves a recipient's merged free/busy view via `GetUserAvailability` (hourly slots, UTC). Defaults to the next 24 hours.
+
+```powershell
+gomailtest ews getschedule --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --to targetuser@example.com
+
+# Explicit window
+gomailtest ews getschedule --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --to targetuser@example.com \
+    --start "2026-08-01T08:00:00Z" --end "2026-08-01T18:00:00Z"
+```
+
+Output legend: `0`=Free, `1`=Tentative, `2`=Busy, `3`=Out of Office, `4`=Working Elsewhere.
+
 ## Flags
 
 | Flag | Default | Description |

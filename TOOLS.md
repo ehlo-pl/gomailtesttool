@@ -58,21 +58,20 @@ This document provides a comprehensive comparison of all protocols supported by 
 
 | Action | smtp | imap | pop3 | jmap | ews | msgraph |
 |--------|------|------|------|------|-----|---------|
-| Test Connection | ✅ `testconnect` | ✅ `testconnect` | ✅ `testconnect` | ✅ `testconnect` | ✅ `testconnect` | - |
-| Test STARTTLS | ✅ `teststarttls` | - | - | - | - | - |
-| Test Authentication | ✅ `testauth` | ✅ `testauth` | ✅ `testauth` | ✅ `testauth` | ✅ `testauth` | - |
-| Send Email | ✅ `sendmail` | - | - | - | - | ✅ `sendmail` |
-| List Folders | - | ✅ `listfolders` | - | ✅ `getmailboxes` | - | - |
-| List Messages | - | - | ✅ `listmail` | - | - | - |
-| Get Inbox | - | - | - | - | - | ✅ `getinbox` |
-| Get Events | - | - | - | - | - | ✅ `getevents` |
-| Get Schedule | - | - | - | - | - | ✅ `getschedule` |
-| Send Invite | - | - | - | - | - | ✅ `sendinvite` |
-| Export Inbox | - | - | - | - | - | ✅ `exportinbox` |
-| Search & Export | - | - | - | - | - | ✅ `searchandexport` |
-| Export Messages (.eml) | - | - | - | - | - | ✅ `exportmessages` |
+| Test Connection | ✅ `testconnect` | ✅ `testconnect` | ✅ `testconnect` | ✅ `testconnect` | ✅ `testconnect` | ✅ `testconnect` |
+| Test STARTTLS | ✅ `teststarttls` | ✅ `teststarttls` | ✅ `teststarttls` | - | - | - |
+| Test Authentication | ✅ `testauth` | ✅ `testauth` | ✅ `testauth` | ✅ `testauth` | ✅ `testauth` | ✅ `testauth` |
+| Send Email | ✅ `sendmail` | - | - | ✅ `sendmail` | ✅ `sendmail` | ✅ `sendmail` |
+| List Folders | - | ✅ `listfolders` | - | ✅ `listfolders` | ✅ `listfolders` | ✅ `listfolders` |
+| List Messages | - | ✅ `listmail` | ✅ `listmail` | ✅ `listmail` | ✅ `listmail` | ✅ `listmail` |
+| Get Events | - | - | - | - | ✅ `getevents` | ✅ `getevents` |
+| Get Schedule | - | - | - | - | ✅ `getschedule` | ✅ `getschedule` |
+| Send Invite | - | - | - | - | ✅ `sendinvite` | ✅ `sendinvite` |
+| Export Messages (.eml) | - | ✅ `exportmessages` | ✅ `exportmessages` | ✅ `exportmessages` | ✅ `exportmessages` | ✅ `exportmessages` |
 | Get Folder | - | - | - | - | ✅ `getfolder` | - |
 | Autodiscover | - | - | - | - | ✅ `autodiscover` | - |
+
+Deprecated / alias actions (still work): `jmap getmailboxes` (alias of `listfolders`), `msgraph getinbox` / `gmail getinbox` (use `listmail`), `msgraph exportinbox` (use `exportmessages --folder inbox`), `msgraph searchandexport` (use `exportmessages --messageid`), `gmail searchandexport` (alias of `exportmessages`). See [ACTIONS.md](ACTIONS.md).
 
 ---
 

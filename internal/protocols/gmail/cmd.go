@@ -43,6 +43,7 @@ OAuth2 access token), or --oauth (interactive loopback flow).`,
 		newExportMessagesCmd(v),
 		newGetEventsCmd(v),
 		newSendInviteCmd(v),
+		newGetScheduleCmd(v),
 		newTestAuthCmd(v),
 		newExportBearerTokenCmd(v),
 		newTestConnectCmd(v),
@@ -141,8 +142,9 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 
 func newGetInboxCmd(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "getinbox",
-		Short: "List recent inbox messages for a mailbox",
+		Use:        "getinbox",
+		Short:      "List recent inbox messages for a mailbox",
+		Deprecated: "use 'listmail --label INBOX' instead",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config, ctx, cancel, slogger, csvLogger, err := setup(cmd, v, ActionGetInbox)
 			if err != nil {
@@ -153,11 +155,13 @@ func newGetInboxCmd(v *viper.Viper) *cobra.Command {
 				defer func() { _ = csvLogger.Close() }()
 			}
 
+			config.Label = "INBOX"
+
 			svc, err := newGmailService(ctx, config, slogger)
 			if err != nil {
 				return err
 			}
-			return listInbox(ctx, svc, config, csvLogger)
+			return listMailByLabel(ctx, svc, config, csvLogger)
 		},
 	}
 	cmd.Flags().Int("count", 3, "Number of messages to retrieve (env: GMAILCOUNT)")
@@ -166,8 +170,9 @@ func newGetInboxCmd(v *viper.Viper) *cobra.Command {
 
 func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "exportmessages",
-		Short: "Search messages by Message-ID and/or Subject and export them as .eml files",
+		Use:     "exportmessages",
+		Aliases: []string{"searchandexport"},
+		Short:   "Search messages by Message-ID, Subject, or a raw Gmail query and export them as .eml files",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config, ctx, cancel, slogger, csvLogger, err := setup(cmd, v, ActionExportMessages)
 			if err != nil {
@@ -187,6 +192,7 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 	}
 	cmd.Flags().String("messageid", "", "Internet Message-ID to search for (env: GMAILMESSAGEID)")
 	cmd.Flags().String("subject", "", "Subject substring to search for (env: GMAILSUBJECT)")
+	cmd.Flags().String("search", "", "Raw Gmail search query (e.g. 'from:x@y.com newer_than:7d'); overrides --messageid/--subject (env: GMAILSEARCH)")
 	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: GMAILCOUNT)")
 	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: GMAILEXPORTDIR)")
 	return cmd
@@ -242,6 +248,33 @@ func newSendInviteCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("start", "", "Start time (RFC3339 or PowerShell sortable format) (env: GMAILSTART)")
 	cmd.Flags().String("end", "", "End time (RFC3339 or PowerShell sortable format) (env: GMAILEND)")
 	cmd.Flags().String("to", "", "Comma-separated attendee email addresses (env: GMAILTO)")
+	return cmd
+}
+
+func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "getschedule",
+		Short: "Check a recipient's free/busy availability via the Calendar API",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			config, ctx, cancel, slogger, csvLogger, err := setup(cmd, v, ActionGetSchedule)
+			if err != nil {
+				return err
+			}
+			defer cancel()
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			svc, err := newCalendarService(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+			return getSchedule(ctx, svc, config, csvLogger)
+		},
+	}
+	cmd.Flags().String("to", "", "Recipient email address to check availability for (env: GMAILTO)")
+	cmd.Flags().String("start", "", "Window start time (RFC3339 or PowerShell sortable format, default: now) (env: GMAILSTART)")
+	cmd.Flags().String("end", "", "Window end time (RFC3339 or PowerShell sortable format, default: start+24h) (env: GMAILEND)")
 	return cmd
 }
 
