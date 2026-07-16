@@ -43,6 +43,7 @@ OAuth2 access token), or --oauth (interactive loopback flow).`,
 		newExportMessagesCmd(v),
 		newGetEventsCmd(v),
 		newSendInviteCmd(v),
+		newFindTimeSlotCmd(v),
 		newGetScheduleCmd(v),
 		newTestAuthCmd(v),
 		newExportBearerTokenCmd(v),
@@ -275,6 +276,38 @@ func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("to", "", "Recipient email address to check availability for (env: GMAILTO)")
 	cmd.Flags().String("start", "", "Window start time (RFC3339 or PowerShell sortable format, default: now) (env: GMAILSTART)")
 	cmd.Flags().String("end", "", "Window end time (RFC3339 or PowerShell sortable format, default: start+24h) (env: GMAILEND)")
+	return cmd
+}
+
+func newFindTimeSlotCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "findtimeslot",
+		Short: "Find free meeting slots in another user's calendar",
+		Long: `Search a recipient's calendar for free meeting slots of the given duration.
+Busy data is fetched via the Calendar freeBusy API and free slots are computed
+client-side, constrained to working hours (08:00-17:00 UTC, Monday-Friday).`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			config, ctx, cancel, slogger, csvLogger, err := setup(cmd, v, ActionFindTimeSlot)
+			if err != nil {
+				return err
+			}
+			defer cancel()
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			svc, err := newCalendarService(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+			return findTimeSlot(ctx, svc, config, csvLogger)
+		},
+	}
+	cmd.Flags().String("to", "", "Recipient email address whose calendar to search (env: GMAILTO)")
+	cmd.Flags().Int("duration", 30, "Meeting duration in minutes (env: GMAILDURATION)")
+	cmd.Flags().String("start", "", "Window start (RFC3339 or PowerShell sortable format); default: now (env: GMAILSTART)")
+	cmd.Flags().String("end", "", "Window end; default: start + 5 working days (env: GMAILEND)")
+	cmd.Flags().Int("count", 3, "Maximum number of slots to return (env: GMAILCOUNT)")
 	return cmd
 }
 

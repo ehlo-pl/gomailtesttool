@@ -42,6 +42,7 @@ Delegated permissions: use --delegated with --authflow devicecode|browser
 		newListFoldersCmd(v),
 		newListMailCmd(v),
 		newGetScheduleCmd(v),
+		newFindTimeSlotCmd(v),
 		newExportInboxCmd(v),
 		newSearchAndExportCmd(v),
 		newExportMessagesCmd(v),
@@ -421,6 +422,60 @@ func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
 		},
 	}
 	cmd.Flags().String("to", "", "Recipient email address to check availability for (env: MSGRAPHTO)")
+	return cmd
+}
+
+func newFindTimeSlotCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "findtimeslot",
+		Short: "Find free meeting slots in another user's calendar",
+		Long: `Search a recipient's calendar for free meeting slots of the given duration.
+Busy data is fetched via the getSchedule API and free slots are computed
+client-side, constrained to working hours (08:00-17:00 UTC, Monday-Friday).`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionFindTimeSlot
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("msgraphtool", ActionFindTimeSlot, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			if config.ProxyURL != "" {
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
+			}
+
+			client, err := NewGraphServiceClient(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+
+			return findTimeSlot(ctx, client, config.Mailbox, config.To[0], config, csvLogger)
+		},
+	}
+	cmd.Flags().String("to", "", "Recipient email address whose calendar to search (env: MSGRAPHTO)")
+	cmd.Flags().Int("duration", 30, "Meeting duration in minutes (env: MSGRAPHDURATION)")
+	cmd.Flags().String("start", "", "Window start (RFC3339 or PowerShell sortable format); default: now (env: MSGRAPHSTART)")
+	cmd.Flags().String("end", "", "Window end; default: start + 5 working days (env: MSGRAPHEND)")
+	cmd.Flags().Int("count", 3, "Maximum number of slots to return (env: MSGRAPHCOUNT)")
 	return cmd
 }
 

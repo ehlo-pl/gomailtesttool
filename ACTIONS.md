@@ -14,6 +14,7 @@ Quick reference for all CLI actions available across supported mail/calendar pro
 | `getevents`         | —    | —    | —    | —    | ✓   | ✓       | ✓     |
 | `sendinvite`        | —    | —    | —    | —    | ✓   | ✓       | ✓     |
 | `getschedule`       | —    | —    | —    | —    | ✓   | ✓       | ✓     |
+| `findtimeslot`      | —    | —    | —    | —    | ✓   | ✓       | ✓     |
 | `exportbearertoken` | —    | —    | —    | —    | —   | ✓       | ✓     |
 | `getfolder`         | —    | —    | —    | —    | ✓   | —       | —     |
 | `autodiscover`      | —    | —    | —    | —    | ✓   | —       | —     |
@@ -36,6 +37,14 @@ Legend: ✓ implemented · A alias of a canonical action · D deprecated (still 
 | `msgraph searchandexport`   | `msgraph exportmessages --messageid "..."`   | Deprecated; note searchandexport writes JSON, exportmessages writes .eml |
 
 Related flags: `msgraph exportmessages` accepts `--folder` (scope search / export newest N of a folder); `gmail exportmessages` accepts `--search` (raw Gmail query, overrides `--messageid`/`--subject`).
+
+## findtimeslot
+
+Searches a **specific other user's** calendar (`--to`, required) for free meeting slots. Busy data comes from the protocol's free/busy API (EWS GetUserAvailability, msgraph getSchedule, Gmail Calendar freeBusy) and free slots are computed client-side — identical semantics on every protocol, and it works with app-only authentication.
+
+Defaults: 30-minute slots (`--duration`), window = now → +5 working days (`--start`/`--end`), first 3 slots (`--count`), constrained to working hours 08:00–17:00 UTC, Monday–Friday.
+
+JMAP is not supported: JMAP (RFC 8620) has no availability/free-busy API, and the JMAP Calendars extension is still a draft without server support.
 
 ## Authentication methods
 

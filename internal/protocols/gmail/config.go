@@ -46,6 +46,7 @@ type Config struct {
 	// Calendar
 	StartTime string
 	EndTime   string
+	Duration  int // Meeting slot length in minutes (findtimeslot)
 
 	// Label selection (listmail)
 	Label string // Gmail label ID for listmail (default: INBOX)
@@ -95,6 +96,7 @@ const (
 	ActionGetEvents         = "getevents"
 	ActionSendInvite        = "sendinvite"
 	ActionGetSchedule       = "getschedule"
+	ActionFindTimeSlot      = "findtimeslot"
 	ActionTestAuth          = "testauth"
 	ActionExportBearerToken = "exportbearertoken"
 	ActionTestConnect       = "testconnect"
@@ -151,6 +153,7 @@ func BindEnvs(v *viper.Viper) {
 		"inline-attachments": "GMAILINLINEATTACHMENTS",
 		"start":              "GMAILSTART",
 		"end":                "GMAILEND",
+		"duration":           "GMAILDURATION",
 		"label":              "GMAILLABEL",
 		"messageid":          "GMAILMESSAGEID",
 		"search":             "GMAILSEARCH",
@@ -187,6 +190,11 @@ func ConfigFromViper(v *viper.Viper) *Config {
 	maxRetries := v.GetInt("maxretries")
 	if maxRetries < 0 {
 		maxRetries = defaults.MaxRetries
+	}
+
+	duration := v.GetInt("duration")
+	if duration <= 0 {
+		duration = 30
 	}
 
 	subject := v.GetString("subject")
@@ -240,6 +248,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Priority:              priority,
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
+		Duration:              duration,
 		Label:                 v.GetString("label"),
 		MessageID:             v.GetString("messageid"),
 		SearchQuery:           v.GetString("search"),
@@ -399,6 +408,16 @@ func validateConfiguration(config *Config) error {
 		}
 		if len(config.To) > 1 {
 			return fmt.Errorf("getschedule action only supports checking one recipient at a time (got %d recipients)", len(config.To))
+		}
+	case ActionFindTimeSlot:
+		if len(config.To) == 0 {
+			return fmt.Errorf("findtimeslot action requires --to parameter (recipient email address)")
+		}
+		if len(config.To) > 1 {
+			return fmt.Errorf("findtimeslot action only supports checking one recipient at a time (got %d recipients)", len(config.To))
+		}
+		if config.Duration < 5 || config.Duration > 480 {
+			return fmt.Errorf("invalid --duration: %d (must be 5-480 minutes)", config.Duration)
 		}
 	}
 

@@ -168,6 +168,41 @@ func TestValidateConfiguration(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "findtimeslot requires to",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionFindTimeSlot
+				c.Duration = 30
+			},
+			wantErr: true,
+		},
+		{
+			name: "findtimeslot rejects multiple recipients",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionFindTimeSlot
+				c.Duration = 30
+				c.To = stringSlice{"a@example.com", "b@example.com"}
+			},
+			wantErr: true,
+		},
+		{
+			name: "findtimeslot rejects duration out of range",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionFindTimeSlot
+				c.Duration = 481
+				c.To = stringSlice{"a@example.com"}
+			},
+			wantErr: true,
+		},
+		{
+			name: "findtimeslot with single recipient and valid duration",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionFindTimeSlot
+				c.Duration = 30
+				c.To = stringSlice{"a@example.com"}
+			},
+			wantErr: false,
+		},
+		{
 			name: "sendinvite requires start and end",
 			mutate: func(t *testing.T, c *Config) {
 				c.Action = ActionSendInvite
