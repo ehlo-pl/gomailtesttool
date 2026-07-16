@@ -56,12 +56,13 @@ gomailtest jmap testauth --host jmap.fastmail.com \
     --username user@example.com --accesstoken "token" --authmethod auto
 ```
 
-### getmailboxes — List Mailboxes
+### listfolders — List Mailboxes (Folders)
 
 Authenticates and retrieves mailboxes using the `Mailbox/get` JMAP method.
+`getmailboxes` still works as an alias of this action.
 
 ```powershell
-gomailtest jmap getmailboxes --host jmap.fastmail.com \
+gomailtest jmap listfolders --host jmap.fastmail.com \
     --username user@example.com --accesstoken "your-api-token"
 ```
 

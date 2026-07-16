@@ -36,8 +36,160 @@ Environment variables use the EWS prefix (e.g. EWSHOST, EWSUSERNAME, EWSPASSWORD
 		newListMailCmd(v),
 		newSendMailCmd(v),
 		newExportMessagesCmd(v),
+		newGetEventsCmd(v),
+		newSendInviteCmd(v),
+		newGetScheduleCmd(v),
 	)
 
+	return cmd
+}
+
+func newGetEventsCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "getevents",
+		Short: "List calendar events in a time window (default: next 7 days)",
+		Long: `Authenticate to the EWS server and list calendar events using FindItem with a
+CalendarView (recurring meetings are expanded). Defaults to the next 7 days.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionGetEvents
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionGetEvents, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
+
+			if err := getEvents(ctx, config, csvLogger, slogger); err != nil {
+				logger.LogError(slogger, "Action failed", "error", err)
+				return err
+			}
+
+			logger.LogInfo(slogger, "Action completed successfully")
+			return nil
+		},
+	}
+	cmd.Flags().String("start", "", "Window start time (RFC3339 or PowerShell sortable format, default: now) (env: EWSSTART)")
+	cmd.Flags().String("end", "", "Window end time (RFC3339 or PowerShell sortable format, default: start+7d) (env: EWSEND)")
+	cmd.Flags().Int("count", 10, "Maximum number of events to return (env: EWSCOUNT)")
+	return cmd
+}
+
+func newSendInviteCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "sendinvite",
+		Short: "Create a calendar meeting and send invitations to attendees",
+		Long: `Authenticate to the EWS server and create a calendar meeting via CreateItem with
+SendMeetingInvitations="SendToAllAndSaveCopy", inviting the --to attendees.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionSendInvite
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionSendInvite, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
+
+			if err := sendInvite(ctx, config, csvLogger, slogger); err != nil {
+				logger.LogError(slogger, "Action failed", "error", err)
+				return err
+			}
+
+			logger.LogInfo(slogger, "Action completed successfully")
+			return nil
+		},
+	}
+	cmd.Flags().String("to", "", "Comma-separated attendee email addresses (env: EWSTO)")
+	cmd.Flags().String("subject", "Automated Tool Notification", "Meeting subject (env: EWSSUBJECT)")
+	cmd.Flags().String("body", "It's a test meeting, please ignore", "Meeting body text (env: EWSBODY)")
+	cmd.Flags().String("start", "", "Meeting start time (RFC3339 or PowerShell sortable format) (env: EWSSTART)")
+	cmd.Flags().String("end", "", "Meeting end time (RFC3339 or PowerShell sortable format) (env: EWSEND)")
+	return cmd
+}
+
+func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "getschedule",
+		Short: "Check a recipient's free/busy availability",
+		Long: `Authenticate to the EWS server and retrieve the recipient's merged free/busy view
+via GetUserAvailability. Defaults to the next 24 hours in hourly slots.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionGetSchedule
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionGetSchedule, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
+
+			if err := getSchedule(ctx, config, csvLogger, slogger); err != nil {
+				logger.LogError(slogger, "Action failed", "error", err)
+				return err
+			}
+
+			logger.LogInfo(slogger, "Action completed successfully")
+			return nil
+		},
+	}
+	cmd.Flags().String("to", "", "Recipient email address to check availability for (env: EWSTO)")
+	cmd.Flags().String("start", "", "Window start time (RFC3339 or PowerShell sortable format, default: now) (env: EWSSTART)")
+	cmd.Flags().String("end", "", "Window end time (RFC3339 or PowerShell sortable format, default: start+24h) (env: EWSEND)")
 	return cmd
 }
 

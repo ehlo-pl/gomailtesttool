@@ -56,7 +56,6 @@ type Config struct {
 const (
 	ActionTestConnect    = "testconnect"
 	ActionTestAuth       = "testauth"
-	ActionGetMailboxes   = "getmailboxes"
 	ActionListFolders    = "listfolders"
 	ActionListMail       = "listmail"
 	ActionSendMail       = "sendmail"
@@ -220,7 +219,7 @@ func parseStringSlice(s string) []string {
 func validateConfiguration(config *Config) error {
 	// Validate action
 	validActions := []string{
-		ActionTestConnect, ActionTestAuth, ActionGetMailboxes,
+		ActionTestConnect, ActionTestAuth,
 		ActionListFolders, ActionListMail, ActionSendMail, ActionExportMessages,
 	}
 	valid := false
@@ -269,7 +268,7 @@ func validateConfiguration(config *Config) error {
 
 	// Action-specific credential and parameter validation
 	switch config.Action {
-	case ActionTestAuth, ActionGetMailboxes, ActionListFolders, ActionListMail,
+	case ActionTestAuth, ActionListFolders, ActionListMail,
 		ActionSendMail, ActionExportMessages:
 		if config.AccessToken == "" && config.Password == "" {
 			return fmt.Errorf("%s requires either --password or --accesstoken", config.Action)

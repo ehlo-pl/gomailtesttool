@@ -26,6 +26,7 @@ type IMAPClient struct {
 	caps     *imapprotocol.Capabilities
 	limiter  *ratelimit.Limiter
 	tlsState *tls.ConnectionState
+	selected *imap.SelectData // data of the currently selected mailbox, nil before SelectMailbox
 }
 
 // MailboxInfo holds information about a mailbox.
@@ -254,10 +255,73 @@ func (c *IMAPClient) SelectMailbox(ctx context.Context, mailbox string) error {
 		}
 	}
 
-	if _, err := c.client.Select(mailbox, nil).Wait(); err != nil {
+	data, err := c.client.Select(mailbox, nil).Wait()
+	if err != nil {
 		return fmt.Errorf("SELECT %s failed: %w", mailbox, err)
 	}
+	c.selected = data
 	return nil
+}
+
+// MessageSummary holds envelope information for a listed message.
+type MessageSummary struct {
+	UID     uint32
+	Subject string
+	From    string
+	Date    string
+}
+
+// ListMessages fetches envelope data for the newest count messages of the
+// currently selected mailbox (newest first). SelectMailbox must be called first.
+func (c *IMAPClient) ListMessages(ctx context.Context, count int) ([]MessageSummary, error) {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return nil, fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+
+	if c.selected == nil {
+		return nil, fmt.Errorf("no mailbox selected")
+	}
+	numMessages := c.selected.NumMessages
+	if numMessages == 0 {
+		return nil, nil
+	}
+
+	// Fetch the last count sequence numbers (the newest messages).
+	from := uint32(1)
+	if count > 0 && uint32(count) < numMessages {
+		from = numMessages - uint32(count) + 1
+	}
+	var seqSet imap.SeqSet
+	seqSet.AddRange(from, numMessages)
+
+	fetchCmd := c.client.Fetch(seqSet, &imap.FetchOptions{Envelope: true, UID: true})
+	messages, err := fetchCmd.Collect()
+	if err != nil {
+		return nil, fmt.Errorf("FETCH failed: %w", err)
+	}
+
+	result := make([]MessageSummary, 0, len(messages))
+	for _, msg := range messages {
+		summary := MessageSummary{UID: uint32(msg.UID)}
+		if env := msg.Envelope; env != nil {
+			summary.Subject = env.Subject
+			if len(env.From) > 0 {
+				summary.From = env.From[0].Addr()
+			}
+			if !env.Date.IsZero() {
+				summary.Date = env.Date.Format("2006-01-02 15:04:05")
+			}
+		}
+		result = append(result, summary)
+	}
+
+	// Sequence numbers ascend oldest-to-newest; present newest first.
+	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+		result[i], result[j] = result[j], result[i]
+	}
+	return result, nil
 }
 
 // SearchMessages searches the selected mailbox for messages matching the

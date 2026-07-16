@@ -102,11 +102,13 @@ gomailtest msgraph sendinvite \
     --end "2026-02-02T00:00:00Z"
 ```
 
-### getinbox — Retrieve Inbox Messages
+### getinbox — Retrieve Inbox Messages (deprecated)
+
+Deprecated: use `listmail --folder inbox`. Still works and delegates to the
+same folder listing.
 
 ```powershell
-gomailtest msgraph getinbox
-gomailtest msgraph getinbox --count 20
+gomailtest msgraph listmail --folder inbox --count 20
 ```
 
 ### getschedule — Check Recipient Availability
@@ -115,7 +117,10 @@ gomailtest msgraph getinbox --count 20
 gomailtest msgraph getschedule --to "colleague@example.com"
 ```
 
-### exportinbox — Export Inbox to JSON
+### exportinbox — Export Inbox to JSON (deprecated)
+
+Deprecated: use `exportmessages --folder inbox` (note: exportinbox writes JSON,
+exportmessages writes `.eml`).
 
 ```powershell
 gomailtest msgraph exportinbox --count 50
@@ -123,7 +128,10 @@ gomailtest msgraph exportinbox --count 50
 
 Output goes to `%TEMP%\export\{date}\message_{n}_{timestamp}.json`.
 
-### searchandexport — Search by Message ID
+### searchandexport — Search by Message ID (deprecated)
+
+Deprecated: use `exportmessages --messageid` (note: searchandexport writes
+JSON, exportmessages writes `.eml`).
 
 ```powershell
 gomailtest msgraph searchandexport --messageid "<message-id@example.com>"
@@ -145,6 +153,10 @@ gomailtest msgraph exportmessages --subject "Invoice"
 gomailtest msgraph exportmessages --messageid "<message-id@example.com>"
 gomailtest msgraph exportmessages --subject "Invoice" --count 10
 gomailtest msgraph exportmessages --subject "Invoice" --exportdir "C:\exports"
+
+# Scope the search to a folder, or export the newest N messages of a folder
+gomailtest msgraph exportmessages --folder inbox --count 10
+gomailtest msgraph exportmessages --folder sentitems --subject "Invoice"
 ```
 
 Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or

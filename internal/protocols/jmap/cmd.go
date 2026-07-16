@@ -31,7 +31,6 @@ Environment variables use the JMAP prefix (e.g. JMAPHOST, JMAPPORT, JMAPUSERNAME
 	cmd.AddCommand(
 		newTestConnectCmd(v),
 		newTestAuthCmd(v),
-		newGetMailboxesCmd(v),
 		newListFoldersCmd(v),
 		newListMailCmd(v),
 		newSendMailCmd(v),
@@ -131,55 +130,11 @@ Supports Bearer token (--accesstoken) and Basic auth (--username + --password).`
 	}
 }
 
-func newGetMailboxesCmd(v *viper.Viper) *cobra.Command {
-	return &cobra.Command{
-		Use:   "getmailboxes",
-		Short: "List JMAP mailboxes",
-		Long: `Authenticate to the JMAP server and retrieve the list of mailboxes
-using the Mailbox/get JMAP method. Shows mailbox name, role, and message counts.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			_ = v.BindPFlags(cmd.Flags())
-			_ = v.BindPFlags(cmd.InheritedFlags())
-
-			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
-				return err
-			}
-
-			config := ConfigFromViper(v)
-			config.Action = ActionGetMailboxes
-
-			if err := validateConfiguration(config); err != nil {
-				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
-			}
-
-			ctx, cancel := bootstrap.SetupSignalContext()
-			defer cancel()
-
-			slogger, csvLogger, logErr := bootstrap.InitLoggers("jmaptool", ActionGetMailboxes, config.VerboseMode, config.LogLevel, config.LogFormat)
-			if logErr != nil {
-				slogger.Warn("Could not initialize file logging", "error", logErr)
-			}
-			if csvLogger != nil {
-				defer func() { _ = csvLogger.Close() }()
-			}
-
-			logger.LogInfo(slogger, "JMAP Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
-
-			if err := getMailboxes(ctx, config, csvLogger, slogger); err != nil {
-				logger.LogError(slogger, "Action failed", "error", err)
-				return err
-			}
-
-			logger.LogInfo(slogger, "Action completed successfully")
-			return nil
-		},
-	}
-}
-
 func newListFoldersCmd(v *viper.Viper) *cobra.Command {
 	return &cobra.Command{
-		Use:   "listfolders",
-		Short: "List JMAP mailboxes (folders) with message counts",
+		Use:     "listfolders",
+		Aliases: []string{"getmailboxes"},
+		Short:   "List JMAP mailboxes (folders) with message counts",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())

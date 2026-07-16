@@ -44,7 +44,7 @@ func effectiveScopes(config *Config) []string {
 		return []string{scopeGmailSend}
 	case ActionGetInbox, ActionExportMessages:
 		return []string{scopeGmailReadonly}
-	case ActionGetEvents:
+	case ActionGetEvents, ActionGetSchedule:
 		return []string{scopeCalendarReadonly}
 	case ActionSendInvite:
 		return []string{scopeCalendarEvents}

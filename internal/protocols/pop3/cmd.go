@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// NewCmd returns the "pop3" cobra.Command with all 3 action subcommands.
+// NewCmd returns the "pop3" cobra.Command with all action subcommands.
 // Each subcommand shares persistent flags (server, auth, TLS, output) and adds
 // its own action-specific flags.
 func NewCmd() *cobra.Command {
@@ -32,6 +32,7 @@ Environment variables use the POP3 prefix (e.g. POP3HOST, POP3PORT, POP3USERNAME
 	cmd.AddCommand(
 		newTestConnectCmd(v),
 		newTestAuthCmd(v),
+		newTestStartTLSCmd(v),
 		newListMailCmd(v),
 		newExportMessagesCmd(v),
 	)
@@ -74,6 +75,52 @@ and (for POP3S) TLS state.`,
 			logger.LogInfo(slogger, "POP3 Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
 
 			if err := testConnect(ctx, config, csvLogger, slogger); err != nil {
+				logger.LogError(slogger, "Action failed", "error", err)
+				return err
+			}
+
+			logger.LogInfo(slogger, "Action completed successfully")
+			return nil
+		},
+	}
+}
+
+func newTestStartTLSCmd(v *viper.Viper) *cobra.Command {
+	return &cobra.Command{
+		Use:   "teststarttls",
+		Short: "Test STLS upgrade and TLS/certificate diagnostics",
+		Long: `Connect to the POP3 server, verify the STLS capability, perform the TLS
+handshake, and report detailed TLS and certificate diagnostics. With --pop3s,
+tests the implicit-TLS handshake instead.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionTestStartTLS
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("pop3tool", ActionTestStartTLS, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			logger.LogInfo(slogger, "POP3 Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
+
+			if err := testStartTLS(ctx, config, csvLogger, slogger); err != nil {
 				logger.LogError(slogger, "Action failed", "error", err)
 				return err
 			}

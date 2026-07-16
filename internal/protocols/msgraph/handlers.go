@@ -297,130 +297,6 @@ func createInvite(ctx context.Context, client *msgraphsdk.GraphServiceClient, ma
 	}
 }
 
-func listInbox(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, count int, config *Config, logger logger.Logger) error {
-	// Configure request to get top N messages ordered by received date
-	requestConfig := &users.ItemMessagesRequestBuilderGetRequestConfiguration{
-		QueryParameters: &users.ItemMessagesRequestBuilderGetQueryParameters{
-			Top:     Int32Ptr(int32(count)),
-			Orderby: []string{"receivedDateTime DESC"},
-			Select:  []string{"subject", "receivedDateTime", "from", "toRecipients"},
-		},
-	}
-
-	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/messages?$top=%d&$orderby=receivedDateTime DESC", mailbox, count)
-
-	// Execute API call with retry logic
-	var getValueFunc func() []models.Messageable
-	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
-		apiResult, apiErr := client.Users().ByUserId(mailbox).Messages().Get(ctx, requestConfig)
-		if apiErr == nil {
-			getValueFunc = apiResult.GetValue
-		}
-		return apiErr
-	})
-
-	if err != nil {
-		// Enrich error with rate limit and service error details
-		enrichedErr := enrichGraphAPIError(err, logger, "listInbox")
-		return fmt.Errorf("error fetching inbox for %s: %w", mailbox, enrichedErr)
-	}
-
-	messages := getValueFunc()
-	messageCount := len(messages)
-
-	logVerbose(config.VerboseMode, "API response received: %d messages", messageCount)
-
-	if config.OutputFormat == "json" {
-		printJSON(formatMessagesOutput(messages))
-	} else {
-		fmt.Printf("Newest %d messages in inbox for %s:\n\n", count, mailbox)
-
-		if messageCount == 0 {
-			fmt.Println("No messages found.")
-		} else {
-			for i, message := range messages {
-				// Extract sender
-				sender := "N/A"
-				if message.GetFrom() != nil && message.GetFrom().GetEmailAddress() != nil {
-					if message.GetFrom().GetEmailAddress().GetAddress() != nil {
-						sender = *message.GetFrom().GetEmailAddress().GetAddress()
-					}
-				}
-
-				// Extract recipients
-				recipients := []string{}
-				for _, recipient := range message.GetToRecipients() {
-					if recipient.GetEmailAddress() != nil && recipient.GetEmailAddress().GetAddress() != nil {
-						recipients = append(recipients, *recipient.GetEmailAddress().GetAddress())
-					}
-				}
-				recipientStr := "N/A"
-				if len(recipients) > 0 {
-					recipientStr = strings.Join(recipients, "; ")
-				}
-
-				// Extract subject
-				subject := "N/A"
-				if message.GetSubject() != nil {
-					subject = *message.GetSubject()
-				}
-
-				// Extract received date
-				receivedDate := "N/A"
-				if message.GetReceivedDateTime() != nil {
-					receivedDate = message.GetReceivedDateTime().Format("2006-01-02 15:04:05")
-				}
-
-				fmt.Printf("%d. Subject: %s\n", i+1, subject)
-				fmt.Printf("   From: %s\n", sender)
-				fmt.Printf("   To: %s\n", recipientStr)
-				fmt.Printf("   Received: %s\n\n", receivedDate)
-			}
-			// Log summary entry after all messages
-			fmt.Printf("Total messages retrieved: %d\n", messageCount)
-		}
-	}
-
-	// Always write to CSV logger
-	if logger != nil {
-		if messageCount == 0 {
-			_ = logger.WriteRow([]string{ActionGetInbox, StatusSuccess, mailbox, "No messages found (0 messages)", "N/A", "N/A", "N/A"})
-		} else {
-			for _, message := range messages {
-				sender := "N/A"
-				if message.GetFrom() != nil && message.GetFrom().GetEmailAddress() != nil {
-					if message.GetFrom().GetEmailAddress().GetAddress() != nil {
-						sender = *message.GetFrom().GetEmailAddress().GetAddress()
-					}
-				}
-				recipients := []string{}
-				for _, recipient := range message.GetToRecipients() {
-					if recipient.GetEmailAddress() != nil && recipient.GetEmailAddress().GetAddress() != nil {
-						recipients = append(recipients, *recipient.GetEmailAddress().GetAddress())
-					}
-				}
-				recipientStr := "N/A"
-				if len(recipients) > 0 {
-					recipientStr = strings.Join(recipients, "; ")
-				}
-				subject := "N/A"
-				if message.GetSubject() != nil {
-					subject = *message.GetSubject()
-				}
-				receivedDate := "N/A"
-				if message.GetReceivedDateTime() != nil {
-					receivedDate = message.GetReceivedDateTime().Format("2006-01-02 15:04:05")
-				}
-
-				_ = logger.WriteRow([]string{ActionGetInbox, StatusSuccess, mailbox, subject, sender, recipientStr, receivedDate})
-			}
-			_ = logger.WriteRow([]string{ActionGetInbox, StatusSuccess, mailbox, fmt.Sprintf("Retrieved %d message(s)", messageCount), "SUMMARY", "SUMMARY", "SUMMARY"})
-		}
-	}
-
-	return nil
-}
-
 func listMailFolders(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, config *Config, csvLogger logger.Logger) error {
 	requestConfig := &users.ItemMailFoldersRequestBuilderGetRequestConfiguration{
 		QueryParameters: &users.ItemMailFoldersRequestBuilderGetQueryParameters{
@@ -840,7 +716,9 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 
 // exportMessages searches for messages matching the given Internet Message-ID
 // and/or subject pattern and exports each match as a raw .eml (RFC822) file.
-func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, messageID string, subject string, count int, config *Config, logger logger.Logger) error {
+// When folder is non-empty the search is scoped to that mail folder; with no
+// other criteria the newest count messages of the folder are exported.
+func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, messageID string, subject string, folder string, count int, config *Config, logger logger.Logger) error {
 	// Build OData filter from the supplied criteria.
 	// SECURITY: Escape single quotes for OData filter (defense-in-depth);
 	// validateMessageID()/validateSearchSubject() already reject control
@@ -856,19 +734,45 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 	}
 	filter := strings.Join(clauses, " and ")
 
-	requestConfig := &users.ItemMessagesRequestBuilderGetRequestConfiguration{
-		QueryParameters: &users.ItemMessagesRequestBuilderGetQueryParameters{
-			Filter: &filter,
-			Top:    Int32Ptr(int32(count)),
-			Select: []string{"id", "internetMessageId", "subject", "receivedDateTime", "from", "toRecipients", "ccRecipients", "bccRecipients", "hasAttachments"},
-		},
+	// Graph rejects $orderby combined with a $filter on unrelated properties,
+	// so only order (newest first) when exporting a whole folder unfiltered.
+	var filterPtr *string
+	var orderBy []string
+	if filter != "" {
+		filterPtr = &filter
+	} else {
+		orderBy = []string{"receivedDateTime DESC"}
 	}
+	selectFields := []string{"id", "internetMessageId", "subject", "receivedDateTime", "from", "toRecipients", "ccRecipients", "bccRecipients", "hasAttachments"}
 
-	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/messages?$filter=%s&$top=%d", mailbox, filter, count)
+	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/%s?$filter=%s&$top=%d", mailbox, folderPathSegment(folder), filter, count)
 
 	// Execute API call with retry logic; empty results are also retried
 	// because Graph is eventually consistent for just-delivered messages.
 	messages, err := fetchMessagesWithRetry(ctx, config.MaxRetries, config.RetryDelay, "exportMessages", func() ([]models.Messageable, error) {
+		if folder != "" {
+			requestConfig := &users.ItemMailFoldersItemMessagesRequestBuilderGetRequestConfiguration{
+				QueryParameters: &users.ItemMailFoldersItemMessagesRequestBuilderGetQueryParameters{
+					Filter:  filterPtr,
+					Top:     Int32Ptr(int32(count)),
+					Orderby: orderBy,
+					Select:  selectFields,
+				},
+			}
+			apiResult, apiErr := client.Users().ByUserId(mailbox).MailFolders().ByMailFolderId(folder).Messages().Get(ctx, requestConfig)
+			if apiErr != nil {
+				return nil, apiErr
+			}
+			return apiResult.GetValue(), nil
+		}
+		requestConfig := &users.ItemMessagesRequestBuilderGetRequestConfiguration{
+			QueryParameters: &users.ItemMessagesRequestBuilderGetQueryParameters{
+				Filter:  filterPtr,
+				Top:     Int32Ptr(int32(count)),
+				Orderby: orderBy,
+				Select:  selectFields,
+			},
+		}
 		apiResult, apiErr := client.Users().ByUserId(mailbox).Messages().Get(ctx, requestConfig)
 		if apiErr != nil {
 			return nil, apiErr
@@ -938,6 +842,15 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 	}
 
 	return nil
+}
+
+// folderPathSegment renders the Graph URL path segment used for message
+// queries, for verbose logging only.
+func folderPathSegment(folder string) string {
+	if folder == "" {
+		return "messages"
+	}
+	return fmt.Sprintf("mailFolders/%s/messages", folder)
 }
 
 // exportMessageToEML fetches a message's raw RFC822/MIME content via the

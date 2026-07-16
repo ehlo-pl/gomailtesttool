@@ -5,7 +5,33 @@ import (
 	"crypto/x509"
 	"fmt"
 	"strings"
+	"time"
 )
+
+// parseFlexibleTime parses RFC3339 or the PowerShell sortable timestamp format
+// (assumed UTC when no timezone is given).
+func parseFlexibleTime(timeStr string) (time.Time, error) {
+	if timeStr == "" {
+		return time.Time{}, fmt.Errorf("time string is empty")
+	}
+
+	t, err := time.Parse(time.RFC3339, timeStr)
+	if err == nil {
+		return t, nil
+	}
+
+	t, err = time.Parse("2006-01-02T15:04:05", timeStr)
+	if err == nil {
+		return t.UTC(), nil
+	}
+
+	return time.Time{}, fmt.Errorf("invalid time format (expected RFC3339 like '2026-01-15T14:00:00Z' or PowerShell sortable like '2026-01-15T14:00:00')")
+}
+
+// ewsDateTime formats a time as the xs:dateTime UTC form EWS expects.
+func ewsDateTime(t time.Time) string {
+	return t.UTC().Format("2006-01-02T15:04:05Z")
+}
 
 // tlsCipherName returns the cipher suite name, or hex if unknown.
 func tlsCipherName(id uint16) string {

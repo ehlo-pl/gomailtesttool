@@ -135,6 +135,39 @@ func TestValidateConfiguration(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "exportmessages with raw search query only",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionExportMessages
+				c.Subject = ""
+				c.MessageID = ""
+				c.SearchQuery = "from:x@example.com newer_than:7d"
+			},
+			wantErr: false,
+		},
+		{
+			name: "getschedule requires to",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionGetSchedule
+			},
+			wantErr: true,
+		},
+		{
+			name: "getschedule rejects multiple recipients",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionGetSchedule
+				c.To = stringSlice{"a@example.com", "b@example.com"}
+			},
+			wantErr: true,
+		},
+		{
+			name: "getschedule with single recipient",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionGetSchedule
+				c.To = stringSlice{"a@example.com"}
+			},
+			wantErr: false,
+		},
+		{
 			name: "sendinvite requires start and end",
 			mutate: func(t *testing.T, c *Config) {
 				c.Action = ActionSendInvite

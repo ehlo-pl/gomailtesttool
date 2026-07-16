@@ -13,12 +13,14 @@ gomailtest <protocol> <action> [flags]
 | Protocol | Actions | Use case |
 |----------|---------|----------|
 | `smtp` | `testconnect`, `teststarttls`, `testauth`, `sendmail` | On-premises SMTP / Exchange relay |
-| `imap` | `testconnect`, `testauth`, `listfolders` | IMAP mailbox access |
-| `pop3` | `testconnect`, `testauth`, `listmail` | POP3 mailbox access |
-| `jmap` | `testconnect`, `testauth`, `getmailboxes` | JMAP (RFC 8620) servers |
-| `ews` | `testconnect`, `testauth`, `getfolder`, `autodiscover` | On-premises Exchange via EWS (Exchange 2007–2019) |
-| `msgraph` | `testconnect`, `testauth`, `getevents`, `sendmail`, `sendinvite`, `getinbox`, `getschedule`, `exportinbox`, `searchandexport`, `exportmessages`, `exportbearertoken` | Exchange Online via Microsoft Graph API |
-| `gmail` | `sendmail`, `getinbox`, `exportmessages`, `getevents`, `sendinvite`, `testauth`, `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
+| `imap` | `testconnect`, `testauth`, `teststarttls`, `listfolders`, `listmail`, `exportmessages` | IMAP mailbox access |
+| `pop3` | `testconnect`, `testauth`, `teststarttls`, `listmail`, `exportmessages` | POP3 mailbox access |
+| `jmap` | `testconnect`, `testauth`, `listfolders`, `listmail`, `sendmail`, `exportmessages` | JMAP (RFC 8620) servers |
+| `ews` | `testconnect`, `testauth`, `getfolder`, `autodiscover`, `listfolders`, `listmail`, `sendmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule` | On-premises Exchange via EWS (Exchange 2007–2019) |
+| `msgraph` | `testconnect`, `testauth`, `getevents`, `sendmail`, `sendinvite`, `listfolders`, `listmail`, `getschedule`, `exportmessages`, `exportbearertoken` | Exchange Online via Microsoft Graph API |
+| `gmail` | `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `testconnect`, `testauth`, `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
+
+See [ACTIONS.md](ACTIONS.md) for the full action × protocol matrix, including deprecated aliases (`getinbox`, `exportinbox`, `searchandexport`, `getmailboxes`).
 
 Run `gomailtest <protocol> --help` for flags and environment variables.
 

@@ -65,6 +65,7 @@ type Config struct {
 const (
 	ActionTestConnect    = "testconnect"
 	ActionTestAuth       = "testauth"
+	ActionTestStartTLS   = "teststarttls"
 	ActionListMail       = "listmail"
 	ActionExportMessages = "exportmessages"
 )
@@ -266,7 +267,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 // validateConfiguration validates the configuration.
 func validateConfiguration(config *Config) error {
 	// Validate action
-	validActions := []string{ActionTestConnect, ActionTestAuth, ActionListMail, ActionExportMessages}
+	validActions := []string{ActionTestConnect, ActionTestAuth, ActionTestStartTLS, ActionListMail, ActionExportMessages}
 	valid := false
 	for _, a := range validActions {
 		if config.Action == a {
