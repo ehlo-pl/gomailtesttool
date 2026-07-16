@@ -12,6 +12,12 @@ Outstanding work items for gomailtesttool. Carried over from [CODE_REVIEW.md](CO
   - `msgraph sendmail` and `smtp sendmail`; protected headers (From, To, Subject, Date, Message-ID, MIME-Version, Content-Type, etc.) cannot be overridden
 - [x] Multipart Messages: Support for plain text and HTML bodies
   - `msgraph sendmail` (`--body` / `--bodyHTML`) and `smtp sendmail` (`--body` / `--bodyhtml`, `multipart/alternative` when both are set)
+- [ ] `--template` / `--template-vars`: send from a full `.eml` file or an HTML body template with Go `text/template` variable substitution
+  - `--template <file>`: accepts either a raw RFC 822 `.eml` file (all headers + body) or an HTML file used as `BodyHTML`; mutually exclusive with `--body`, `--bodyhtml`, and the existing per-protocol `--body-template`
+  - For **EML mode**: `text/template` variable substitution is applied to the raw EML text first, then the complete message is injected via the active protocol — SMTP can raw-inject; EWS/JMAP/Msgraph/Gmail parse the rendered EML and map recognised fields to their native send API
+  - For **HTML body mode**: file is processed through `text/template` and used as `BodyHTML`, extending the current Gmail/Msgraph-only `--body-template` to all sendmail protocols (SMTP, EWS, JMAP)
+  - `--template-vars key=value` (repeatable, env `*TEMPLATEVARS`): supplies named variables accessible as `{{.Key}}` in the template; applies to both EML and HTML modes
+  - Shared template loading + expansion in `internal/common/email` (or a new `internal/common/template` package); each protocol's `RunE` resolves the template before building the message
 
 ## Configuration
 

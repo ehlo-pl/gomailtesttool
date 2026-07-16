@@ -136,6 +136,53 @@ func TestValidateConfiguration_ExportMessages(t *testing.T) {
 	})
 }
 
+func TestValidateConfiguration_FindTimeSlot(t *testing.T) {
+	base := func() *Config {
+		cfg := NewConfig()
+		cfg.TenantID = "00000000-0000-0000-0000-000000000001"
+		cfg.ClientID = "00000000-0000-0000-0000-000000000002"
+		cfg.Secret = "app-secret"
+		cfg.Mailbox = "user@example.com"
+		cfg.Action = ActionFindTimeSlot
+		cfg.Duration = 30
+		return cfg
+	}
+
+	t.Run("missing to fails", func(t *testing.T) {
+		err := validateConfiguration(base())
+		if err == nil || !strings.Contains(err.Error(), "--to") {
+			t.Fatalf("expected --to validation error, got: %v", err)
+		}
+	})
+
+	t.Run("multiple recipients fail", func(t *testing.T) {
+		cfg := base()
+		cfg.To = stringSlice{"a@example.com", "b@example.com"}
+		err := validateConfiguration(cfg)
+		if err == nil || !strings.Contains(err.Error(), "one recipient") {
+			t.Fatalf("expected single-recipient validation error, got: %v", err)
+		}
+	})
+
+	t.Run("duration out of range fails", func(t *testing.T) {
+		cfg := base()
+		cfg.To = stringSlice{"a@example.com"}
+		cfg.Duration = 481
+		err := validateConfiguration(cfg)
+		if err == nil || !strings.Contains(err.Error(), "--duration") {
+			t.Fatalf("expected duration validation error, got: %v", err)
+		}
+	})
+
+	t.Run("single recipient with valid duration passes", func(t *testing.T) {
+		cfg := base()
+		cfg.To = stringSlice{"a@example.com"}
+		if err := validateConfiguration(cfg); err != nil {
+			t.Fatalf("validateConfiguration() unexpected error = %v", err)
+		}
+	})
+}
+
 func TestValidateExportBearerTokenConfiguration(t *testing.T) {
 	tests := []struct {
 		name      string

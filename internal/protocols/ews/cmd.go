@@ -39,6 +39,7 @@ Environment variables use the EWS prefix (e.g. EWSHOST, EWSUSERNAME, EWSPASSWORD
 		newGetEventsCmd(v),
 		newSendInviteCmd(v),
 		newGetScheduleCmd(v),
+		newFindTimeSlotCmd(v),
 	)
 
 	return cmd
@@ -190,6 +191,59 @@ via GetUserAvailability. Defaults to the next 24 hours in hourly slots.`,
 	cmd.Flags().String("to", "", "Recipient email address to check availability for (env: EWSTO)")
 	cmd.Flags().String("start", "", "Window start time (RFC3339 or PowerShell sortable format, default: now) (env: EWSSTART)")
 	cmd.Flags().String("end", "", "Window end time (RFC3339 or PowerShell sortable format, default: start+24h) (env: EWSEND)")
+	return cmd
+}
+
+func newFindTimeSlotCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "findtimeslot",
+		Short: "Find free meeting slots in another user's calendar",
+		Long: `Authenticate to the EWS server and search a recipient's calendar for free
+meeting slots of the given duration. Busy data comes from GetUserAvailability
+(detailed FreeBusy view) and free slots are computed client-side, constrained
+to working hours (08:00-17:00 UTC, Monday-Friday).`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionFindTimeSlot
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionFindTimeSlot, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
+
+			if err := findTimeSlot(ctx, config, csvLogger, slogger); err != nil {
+				logger.LogError(slogger, "Action failed", "error", err)
+				return err
+			}
+
+			logger.LogInfo(slogger, "Action completed successfully")
+			return nil
+		},
+	}
+	cmd.Flags().String("to", "", "Recipient email address whose calendar to search (env: EWSTO)")
+	cmd.Flags().Int("duration", 30, "Meeting duration in minutes (env: EWSDURATION)")
+	cmd.Flags().String("start", "", "Window start (RFC3339 or PowerShell sortable format); default: now (env: EWSSTART)")
+	cmd.Flags().String("end", "", "Window end; default: start + 5 working days (env: EWSEND)")
+	cmd.Flags().Int("count", 3, "Maximum number of slots to return (env: EWSCOUNT)")
 	return cmd
 }
 

@@ -42,7 +42,15 @@ type freeBusyResponseMessage struct {
 }
 
 type freeBusyView struct {
-	MergedFreeBusy string `xml:"MergedFreeBusy"`
+	MergedFreeBusy string               `xml:"MergedFreeBusy"`
+	CalendarEvents []ewsCalendarFBEvent `xml:"CalendarEventArray>CalendarEvent"`
+}
+
+// ewsCalendarFBEvent is a single busy block in the detailed FreeBusy view.
+type ewsCalendarFBEvent struct {
+	StartTime string `xml:"StartTime"`
+	EndTime   string `xml:"EndTime"`
+	BusyType  string `xml:"BusyType"`
 }
 
 // getSchedule checks a recipient's merged free/busy view over the configured

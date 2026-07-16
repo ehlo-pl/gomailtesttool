@@ -50,6 +50,9 @@ type Config struct {
 	// Pagination (listmail, exportmessages)
 	Count int
 
+	// Meeting slot search (findtimeslot)
+	Duration int // slot length in minutes
+
 	// TLS configuration
 	SkipVerify bool
 	TLSVersion string // 1.2, 1.3
@@ -75,6 +78,7 @@ const (
 	ActionListMail       = "listmail"
 	ActionSendMail       = "sendmail"
 	ActionExportMessages = "exportmessages"
+	ActionFindTimeSlot   = "findtimeslot"
 	ActionGetEvents      = "getevents"
 	ActionSendInvite     = "sendinvite"
 	ActionGetSchedule    = "getschedule"
@@ -157,6 +161,7 @@ func BindEnvs(v *viper.Viper) {
 		"messageid":        "EWSMESSAGEID",
 		"exportdir":        "EWSEXPORTDIR",
 		"count":            "EWSCOUNT",
+		"duration":         "EWSDURATION",
 		"proxy":            "EWSPROXY",
 		"ipv4":             "EWSIPV4",
 		"ipv6":             "EWSIPV6",
@@ -226,6 +231,11 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		count = 10
 	}
 
+	duration := v.GetInt("duration")
+	if duration <= 0 {
+		duration = 30
+	}
+
 	return &Config{
 		Host:             v.GetString("host"),
 		Port:             port,
@@ -249,6 +259,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		MessageID:        v.GetString("messageid"),
 		ExportDir:        v.GetString("exportdir"),
 		Count:            count,
+		Duration:         duration,
 		SkipVerify:       v.GetBool("skipverify"),
 		TLSVersion:       tlsVersion,
 		ProxyURL:         v.GetString("proxy"),
@@ -280,7 +291,7 @@ func validateConfiguration(config *Config) error {
 	validActions := []string{
 		ActionTestConnect, ActionTestAuth, ActionGetFolder, ActionAutodiscover,
 		ActionListFolders, ActionListMail, ActionSendMail, ActionExportMessages,
-		ActionGetEvents, ActionSendInvite, ActionGetSchedule,
+		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot,
 	}
 	valid := false
 	for _, a := range validActions {
@@ -331,7 +342,7 @@ func validateConfiguration(config *Config) error {
 	switch config.Action {
 	case ActionTestAuth, ActionGetFolder, ActionListFolders, ActionListMail,
 		ActionSendMail, ActionExportMessages,
-		ActionGetEvents, ActionSendInvite, ActionGetSchedule:
+		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot:
 		if config.Username == "" {
 			return fmt.Errorf("%s requires --username", config.Action)
 		}
@@ -373,17 +384,24 @@ func validateConfiguration(config *Config) error {
 		}
 	}
 
-	if config.Action == ActionGetSchedule {
+	if config.Action == ActionGetSchedule || config.Action == ActionFindTimeSlot {
 		if len(config.To) == 0 {
-			return fmt.Errorf("getschedule requires --to parameter (recipient email address)")
+			return fmt.Errorf("%s requires --to parameter (recipient email address)", config.Action)
 		}
 		if len(config.To) > 1 {
-			return fmt.Errorf("getschedule only supports checking one recipient at a time (got %d recipients)", len(config.To))
+			return fmt.Errorf("%s only supports checking one recipient at a time (got %d recipients)", config.Action, len(config.To))
+		}
+	}
+
+	if config.Action == ActionFindTimeSlot {
+		if config.Duration < 5 || config.Duration > 480 {
+			return fmt.Errorf("invalid --duration: %d (must be 5-480 minutes)", config.Duration)
 		}
 	}
 
 	// Validate time formats when provided (getevents defaults both).
-	if config.Action == ActionGetEvents || config.Action == ActionSendInvite || config.Action == ActionGetSchedule {
+	if config.Action == ActionGetEvents || config.Action == ActionSendInvite ||
+		config.Action == ActionGetSchedule || config.Action == ActionFindTimeSlot {
 		if config.StartTime != "" {
 			if _, err := parseFlexibleTime(config.StartTime); err != nil {
 				return fmt.Errorf("invalid --start: %w", err)

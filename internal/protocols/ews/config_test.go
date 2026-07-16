@@ -239,6 +239,41 @@ func TestValidateConfiguration(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "findtimeslot requires to",
+			mutate: func(c *Config) {
+				c.Action = ActionFindTimeSlot
+				c.Duration = 30
+			},
+			wantErr: true,
+		},
+		{
+			name: "findtimeslot rejects multiple recipients",
+			mutate: func(c *Config) {
+				c.Action = ActionFindTimeSlot
+				c.Duration = 30
+				c.To = []string{"a@example.com", "b@example.com"}
+			},
+			wantErr: true,
+		},
+		{
+			name: "findtimeslot rejects duration out of range",
+			mutate: func(c *Config) {
+				c.Action = ActionFindTimeSlot
+				c.Duration = 4
+				c.To = []string{"a@example.com"}
+			},
+			wantErr: true,
+		},
+		{
+			name: "findtimeslot with single recipient and valid duration",
+			mutate: func(c *Config) {
+				c.Action = ActionFindTimeSlot
+				c.Duration = 30
+				c.To = []string{"a@example.com"}
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

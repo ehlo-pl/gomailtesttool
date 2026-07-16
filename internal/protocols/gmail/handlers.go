@@ -18,6 +18,7 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/timeslot"
 )
 
 // CSV status values.
@@ -399,6 +400,112 @@ func getSchedule(ctx context.Context, svc *calendarapi.Service, config *Config, 
 	}
 	for _, b := range cal.Busy {
 		writeCSV(csv, []string{ActionGetSchedule, StatusSuccess, config.Mailbox, recipient, fmt.Sprintf("Busy %s — %s", b.Start, b.End)})
+	}
+	return nil
+}
+
+// findTimeSlot searches for free meeting slots of the configured duration in
+// the recipient's calendar. It fetches busy blocks via the Calendar freeBusy
+// API and computes free slots client-side (working hours 08:00-17:00 UTC,
+// Monday-Friday).
+func findTimeSlot(ctx context.Context, svc *calendarapi.Service, config *Config, csv logger.Logger) error {
+	recipient := config.To[0]
+
+	windowStart := time.Now().UTC()
+	if config.StartTime != "" {
+		t, err := parseFlexibleTime(config.StartTime)
+		if err != nil {
+			return fmt.Errorf("invalid start time: %w", err)
+		}
+		windowStart = t.UTC()
+	}
+	windowEnd := timeslot.AddWorkingDays(windowStart, 5)
+	if config.EndTime != "" {
+		t, err := parseFlexibleTime(config.EndTime)
+		if err != nil {
+			return fmt.Errorf("invalid end time: %w", err)
+		}
+		windowEnd = t.UTC()
+	}
+	if !windowEnd.After(windowStart) {
+		return fmt.Errorf("end time must be after start time")
+	}
+
+	req := &calendarapi.FreeBusyRequest{
+		TimeMin: windowStart.Format(time.RFC3339),
+		TimeMax: windowEnd.Format(time.RFC3339),
+		Items:   []*calendarapi.FreeBusyRequestItem{{Id: recipient}},
+	}
+
+	var res *calendarapi.FreeBusyResponse
+	err := retryGmail(ctx, config, func() error {
+		var apiErr error
+		res, apiErr = svc.Freebusy.Query(req).Context(ctx).Do()
+		return apiErr
+	})
+	if err != nil {
+		return fmt.Errorf("error querying free/busy: %w", enrichGmailAPIError(err, "findtimeslot"))
+	}
+
+	cal, ok := res.Calendars[recipient]
+	if !ok {
+		msg := fmt.Sprintf("no free/busy data returned for %s", recipient)
+		writeCSV(csv, []string{ActionFindTimeSlot, StatusError, config.Mailbox, recipient, msg, ""})
+		return fmt.Errorf("%s", msg)
+	}
+	if len(cal.Errors) > 0 {
+		msg := fmt.Sprintf("free/busy lookup failed for %s: %s", recipient, cal.Errors[0].Reason)
+		writeCSV(csv, []string{ActionFindTimeSlot, StatusError, config.Mailbox, recipient, msg, ""})
+		return fmt.Errorf("%s", msg)
+	}
+
+	var busy []timeslot.Interval
+	for _, b := range cal.Busy {
+		start, err1 := time.Parse(time.RFC3339, b.Start)
+		end, err2 := time.Parse(time.RFC3339, b.End)
+		if err1 != nil || err2 != nil {
+			logVerbose(config.VerboseMode, "Skipping busy block with unparsable time: %s — %s", b.Start, b.End)
+			continue
+		}
+		busy = append(busy, timeslot.Interval{Start: start.UTC(), End: end.UTC()})
+	}
+
+	slots := timeslot.FindFreeSlots(busy, windowStart, windowEnd, timeslot.Options{
+		Duration:     time.Duration(config.Duration) * time.Minute,
+		Count:        config.Count,
+		WorkDayStart: 8,
+		WorkDayEnd:   17,
+		WorkdaysOnly: true,
+	})
+
+	if config.OutputFormat == "json" {
+		type slotJSON struct {
+			Start string `json:"start"`
+			End   string `json:"end"`
+		}
+		out := make([]slotJSON, 0, len(slots))
+		for _, s := range slots {
+			out = append(out, slotJSON{Start: s.Start.Format(time.RFC3339), End: s.End.Format(time.RFC3339)})
+		}
+		printJSON(out)
+	} else {
+		fmt.Printf("Free %d-minute slots for a meeting with %s:\n", config.Duration, recipient)
+		fmt.Printf("Window: %s — %s (working hours 08:00-17:00 UTC, Mon-Fri; %d busy blocks)\n\n",
+			windowStart.Format("2006-01-02 15:04 MST"), windowEnd.Format("2006-01-02 15:04 MST"), len(busy))
+		if len(slots) == 0 {
+			fmt.Println("No free slots found in the window.")
+		}
+		for i, s := range slots {
+			fmt.Printf("%d. %s — %s\n", i+1, s.Start.Format("Mon 2006-01-02 15:04"), s.End.Format("15:04 MST"))
+		}
+	}
+
+	if len(slots) == 0 {
+		writeCSV(csv, []string{ActionFindTimeSlot, StatusSuccess, config.Mailbox, recipient, "No free slots found", ""})
+	}
+	for _, s := range slots {
+		writeCSV(csv, []string{ActionFindTimeSlot, StatusSuccess, config.Mailbox, recipient,
+			s.Start.Format(time.RFC3339), s.End.Format(time.RFC3339)})
 	}
 	return nil
 }

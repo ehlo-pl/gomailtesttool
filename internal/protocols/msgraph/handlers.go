@@ -16,6 +16,7 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/timeslot"
 )
 
 // Status constants
@@ -549,6 +550,161 @@ func checkAvailability(ctx context.Context, client *msgraphsdk.GraphServiceClien
 	}
 
 	return nil
+}
+
+// findTimeSlot searches for free meeting slots of the configured duration in
+// the recipient's calendar. It fetches the recipient's busy items via the
+// getSchedule API over the whole window and computes free slots client-side
+// (working hours 08:00-17:00 UTC, Monday-Friday).
+func findTimeSlot(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, recipient string, config *Config, logger logger.Logger) error {
+	windowStart := time.Now().UTC()
+	if config.StartTime != "" {
+		t, err := parseFlexibleTime(config.StartTime)
+		if err != nil {
+			return fmt.Errorf("invalid start time: %w", err)
+		}
+		windowStart = t.UTC()
+	}
+	windowEnd := timeslot.AddWorkingDays(windowStart, 5)
+	if config.EndTime != "" {
+		t, err := parseFlexibleTime(config.EndTime)
+		if err != nil {
+			return fmt.Errorf("invalid end time: %w", err)
+		}
+		windowEnd = t.UTC()
+	}
+	if !windowEnd.After(windowStart) {
+		return fmt.Errorf("end time must be after start time")
+	}
+
+	logVerbose(config.VerboseMode, "Searching %d-minute slots for %s between %s and %s",
+		config.Duration, recipient, windowStart.Format(time.RFC3339), windowEnd.Format(time.RFC3339))
+
+	startTimeZone := models.NewDateTimeTimeZone()
+	startTimeZone.SetDateTime(pointerTo(windowStart.Format(time.RFC3339)))
+	startTimeZone.SetTimeZone(pointerTo("UTC"))
+
+	endTimeZone := models.NewDateTimeTimeZone()
+	endTimeZone.SetDateTime(pointerTo(windowEnd.Format(time.RFC3339)))
+	endTimeZone.SetTimeZone(pointerTo("UTC"))
+
+	requestBody := users.NewItemCalendarGetSchedulePostRequestBody()
+	requestBody.SetSchedules([]string{recipient})
+	requestBody.SetStartTime(startTimeZone)
+	requestBody.SetEndTime(endTimeZone)
+	interval := int32(30)
+	requestBody.SetAvailabilityViewInterval(&interval)
+
+	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/calendar/getSchedule", mailbox)
+
+	var scheduleInfo []models.ScheduleInformationable
+	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+		response, apiErr := client.Users().ByUserId(mailbox).Calendar().GetSchedule().Post(ctx, requestBody, nil)
+		if apiErr == nil && response != nil {
+			scheduleInfo = response.GetValue()
+		}
+		return apiErr
+	})
+	if err != nil {
+		enrichedErr := enrichGraphAPIError(err, logger, "findTimeSlot")
+		if logger != nil {
+			_ = logger.WriteRow([]string{ActionFindTimeSlot, fmt.Sprintf("Error: %v", enrichedErr), mailbox, recipient, "", ""})
+		}
+		return fmt.Errorf("error fetching schedule for %s: %w", recipient, enrichedErr)
+	}
+
+	if len(scheduleInfo) == 0 {
+		errMsg := "no schedule information returned"
+		if logger != nil {
+			_ = logger.WriteRow([]string{ActionFindTimeSlot, fmt.Sprintf("Error: %s", errMsg), mailbox, recipient, "", ""})
+		}
+		return fmt.Errorf("%s", errMsg)
+	}
+
+	// Collect busy intervals (everything not explicitly free).
+	var busy []timeslot.Interval
+	for _, item := range scheduleInfo[0].GetScheduleItems() {
+		if status := item.GetStatus(); status != nil && *status == models.FREE_FREEBUSYSTATUS {
+			continue
+		}
+		start, err1 := parseGraphDateTime(item.GetStart())
+		end, err2 := parseGraphDateTime(item.GetEnd())
+		if err1 != nil || err2 != nil {
+			logVerbose(config.VerboseMode, "Skipping schedule item with unparsable time: %v %v", err1, err2)
+			continue
+		}
+		busy = append(busy, timeslot.Interval{Start: start, End: end})
+	}
+
+	slots := timeslot.FindFreeSlots(busy, windowStart, windowEnd, timeslot.Options{
+		Duration:     time.Duration(config.Duration) * time.Minute,
+		Count:        config.Count,
+		WorkDayStart: 8,
+		WorkDayEnd:   17,
+		WorkdaysOnly: true,
+	})
+
+	printTimeSlots(config.OutputFormat, mailbox, recipient, config.Duration, windowStart, windowEnd, busy, slots)
+
+	if logger != nil {
+		if len(slots) == 0 {
+			_ = logger.WriteRow([]string{ActionFindTimeSlot, StatusSuccess, mailbox, recipient, "No free slots found", ""})
+		}
+		for _, slot := range slots {
+			_ = logger.WriteRow([]string{ActionFindTimeSlot, StatusSuccess, mailbox, recipient,
+				slot.Start.Format(time.RFC3339), slot.End.Format(time.RFC3339)})
+		}
+	}
+
+	return nil
+}
+
+// parseGraphDateTime parses a Graph DateTimeTimeZone value requested in UTC
+// (e.g. "2026-07-20T08:00:00.0000000").
+func parseGraphDateTime(dt models.DateTimeTimeZoneable) (time.Time, error) {
+	if dt == nil || dt.GetDateTime() == nil {
+		return time.Time{}, fmt.Errorf("missing dateTime")
+	}
+	s := *dt.GetDateTime()
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		s = s[:i]
+	}
+	t, err := time.Parse("2006-01-02T15:04:05", s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid dateTime %q: %w", s, err)
+	}
+	return t.UTC(), nil
+}
+
+// printTimeSlots renders the findtimeslot result in text or JSON form.
+func printTimeSlots(outputFormat, mailbox, recipient string, durationMinutes int, windowStart, windowEnd time.Time, busy []timeslot.Interval, slots []timeslot.Interval) {
+	if outputFormat == "json" {
+		type slotJSON struct {
+			Start string `json:"start"`
+			End   string `json:"end"`
+		}
+		out := make([]slotJSON, 0, len(slots))
+		for _, s := range slots {
+			out = append(out, slotJSON{Start: s.Start.Format(time.RFC3339), End: s.End.Format(time.RFC3339)})
+		}
+		printJSON(out)
+		return
+	}
+
+	fmt.Printf("Free %d-minute slots for a meeting with %s:\n", durationMinutes, recipient)
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("Organizer:     %s\n", mailbox)
+	fmt.Printf("Window:        %s — %s\n", windowStart.Format("2006-01-02 15:04 MST"), windowEnd.Format("2006-01-02 15:04 MST"))
+	fmt.Printf("Busy blocks:   %d\n", len(busy))
+	fmt.Printf("Working hours: 08:00-17:00 UTC, Monday-Friday\n")
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	if len(slots) == 0 {
+		fmt.Println("No free slots found in the window.")
+		return
+	}
+	for i, s := range slots {
+		fmt.Printf("%d. %s — %s\n", i+1, s.Start.Format("Mon 2006-01-02 15:04"), s.End.Format("15:04 MST"))
+	}
 }
 
 // exportInbox exports messages from the inbox to JSON files

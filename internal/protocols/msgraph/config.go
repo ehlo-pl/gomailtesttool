@@ -72,6 +72,7 @@ type Config struct {
 	OutputFormat string // Output format: text, json (default: text)
 	LogFormat    string // Log file format: csv, json (default: csv)
 	Count        int    // Number of items to retrieve (for getevents and getinbox actions)
+	Duration     int    // Meeting slot length in minutes (findtimeslot)
 }
 
 // NewConfig creates a new Config with sensible default values.
@@ -102,6 +103,7 @@ const (
 	ActionListFolders       = "listfolders"
 	ActionListMail          = "listmail"
 	ActionGetSchedule       = "getschedule"
+	ActionFindTimeSlot      = "findtimeslot"
 	ActionExportInbox       = "exportinbox"
 	ActionSearchAndExport   = "searchandexport"
 	ActionExportMessages    = "exportmessages"
@@ -177,6 +179,7 @@ func BindEnvs(v *viper.Viper) {
 		"inline-attachments": "MSGRAPHINLINEATTACHMENTS",
 		"start":              "MSGRAPHSTART",
 		"end":                "MSGRAPHEND",
+		"duration":           "MSGRAPHDURATION",
 		"folder":             "MSGRAPHFOLDER",
 		"messageid":          "MSGRAPHMESSAGEID",
 		"exportdir":          "MSGRAPHEXPORTDIR",
@@ -207,6 +210,11 @@ func ConfigFromViper(v *viper.Viper) *Config {
 	count := v.GetInt("count")
 	if count <= 0 {
 		count = defaults.Count
+	}
+
+	duration := v.GetInt("duration")
+	if duration <= 0 {
+		duration = 30
 	}
 
 	maxRetries := v.GetInt("maxretries")
@@ -282,6 +290,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		OutputFormat:          outputFormat,
 		LogFormat:             logFormat,
 		Count:                 count,
+		Duration:              duration,
 	}
 }
 
@@ -384,6 +393,19 @@ func validateConfiguration(config *Config) error {
 		}
 		if len(config.To) > 1 {
 			return fmt.Errorf("getschedule action only supports checking one recipient at a time (got %d recipients)", len(config.To))
+		}
+	}
+
+	// Validate findtimeslot-specific requirements
+	if config.Action == ActionFindTimeSlot {
+		if len(config.To) == 0 {
+			return fmt.Errorf("findtimeslot action requires --to parameter (recipient email address)")
+		}
+		if len(config.To) > 1 {
+			return fmt.Errorf("findtimeslot action only supports checking one recipient at a time (got %d recipients)", len(config.To))
+		}
+		if config.Duration < 5 || config.Duration > 480 {
+			return fmt.Errorf("invalid --duration: %d (must be 5-480 minutes)", config.Duration)
 		}
 	}
 
