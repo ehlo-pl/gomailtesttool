@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// NewCmd returns the "ews" cobra.Command with all 4 action subcommands.
+// NewCmd returns the "ews" cobra.Command with all action subcommands.
 func NewCmd() *cobra.Command {
 	v := viper.New()
 
@@ -32,6 +32,10 @@ Environment variables use the EWS prefix (e.g. EWSHOST, EWSUSERNAME, EWSPASSWORD
 		newTestAuthCmd(v),
 		newGetFolderCmd(v),
 		newAutodiscoverCmd(v),
+		newListFoldersCmd(v),
+		newListMailCmd(v),
+		newSendMailCmd(v),
+		newExportMessagesCmd(v),
 	)
 
 	return cmd
@@ -172,6 +176,137 @@ total item count, unread count, and folder ID.`,
 			return nil
 		},
 	}
+}
+
+func newListFoldersCmd(v *viper.Viper) *cobra.Command {
+	return &cobra.Command{
+		Use:   "listfolders",
+		Short: "List EWS mail folders",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+			config := ConfigFromViper(v)
+			config.Action = ActionListFolders
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionListFolders, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+			return listFolders(ctx, config, csvLogger, slogger)
+		},
+	}
+}
+
+func newListMailCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "listmail",
+		Short: "List recent inbox messages via EWS",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+			config := ConfigFromViper(v)
+			config.Action = ActionListMail
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionListMail, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+			return listMail(ctx, config, csvLogger, slogger)
+		},
+	}
+	cmd.Flags().Int("count", 10, "Number of messages to retrieve (env: EWSCOUNT)")
+	return cmd
+}
+
+func newSendMailCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "sendmail",
+		Short: "Send an email via EWS",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+			config := ConfigFromViper(v)
+			config.Action = ActionSendMail
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionSendMail, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+			return sendMail(ctx, config, csvLogger, slogger)
+		},
+	}
+	cmd.Flags().String("to", "", "Comma-separated TO recipients (env: EWSTO)")
+	cmd.Flags().String("cc", "", "Comma-separated CC recipients (env: EWSCC)")
+	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: EWSSUBJECT)")
+	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: EWSBODY)")
+	cmd.Flags().String("bodyhtml", "", "HTML body content (overrides --body if set) (env: EWSBODYHTML)")
+	return cmd
+}
+
+func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "exportmessages",
+		Short: "Search messages by Message-ID and/or Subject and export as .eml files",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+			config := ConfigFromViper(v)
+			config.Action = ActionExportMessages
+			// Only use subject if explicitly provided.
+			config.Subject = v.GetString("subject")
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionExportMessages, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+			return exportMessages(ctx, config, csvLogger, slogger)
+		},
+	}
+	cmd.Flags().String("messageid", "", "Internet Message-ID to search for (env: EWSMESSAGEID)")
+	cmd.Flags().String("subject", "", "Subject substring to search for (env: EWSSUBJECT)")
+	cmd.Flags().Int("count", 25, "Maximum number of messages to export (env: EWSCOUNT)")
+	cmd.Flags().String("exportdir", "", "Directory for export folder (defaults to OS temp dir) (env: EWSEXPORTDIR)")
+	return cmd
 }
 
 func newAutodiscoverCmd(v *viper.Viper) *cobra.Command {

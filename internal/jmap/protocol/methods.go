@@ -104,11 +104,12 @@ const (
 
 // Common method names.
 const (
-	MethodMailboxGet   = "Mailbox/get"
-	MethodMailboxQuery = "Mailbox/query"
-	MethodEmailGet     = "Email/get"
-	MethodEmailQuery   = "Email/query"
-	MethodEmailSet     = "Email/set"
+	MethodMailboxGet          = "Mailbox/get"
+	MethodMailboxQuery        = "Mailbox/query"
+	MethodEmailGet            = "Email/get"
+	MethodEmailQuery          = "Email/query"
+	MethodEmailSet            = "Email/set"
+	MethodEmailSubmissionSet  = "EmailSubmission/set"
 )
 
 // GetRequest creates arguments for a /get method.
@@ -262,4 +263,63 @@ func ParseEmailQueryResponse(resp *MethodResponse) (*QueryEmailsResponse, error)
 // IsErrorResponse checks if a method response is an error.
 func IsErrorResponse(name string) bool {
 	return name == "error"
+}
+
+// NewEmailSetAndSubmitRequest builds a single-batch request that creates an
+// email draft (Email/set) and immediately submits it (EmailSubmission/set).
+// The submission uses a ResultReference so the server links the two calls.
+func NewEmailSetAndSubmitRequest(accountId Id, draft EmailCreate, mailFromEmail string, rcptTo []EmailAddress) *Request {
+	rcptList := make([]map[string]string, 0, len(rcptTo))
+	for _, r := range rcptTo {
+		rcptList = append(rcptList, map[string]string{"email": r.Email})
+	}
+
+	return &Request{
+		Using: []string{CoreCapability, MailCapability, SubmissionCapability},
+		MethodCalls: []MethodCall{
+			{
+				Name: MethodEmailSet,
+				Arguments: map[string]interface{}{
+					"accountId": accountId,
+					"create": map[string]interface{}{
+						"draft": draft,
+					},
+				},
+				CallId: "c1",
+			},
+			{
+				Name: MethodEmailSubmissionSet,
+				Arguments: map[string]interface{}{
+					"accountId": accountId,
+					"create": map[string]interface{}{
+						"submission1": map[string]interface{}{
+							"emailId": "#draft",
+							"envelope": map[string]interface{}{
+								"mailFrom": map[string]string{"email": mailFromEmail},
+								"rcptTo":   rcptList,
+							},
+						},
+					},
+				},
+				CallId: "c2",
+			},
+		},
+	}
+}
+
+// ParseEmailSetResponse parses Email/set to extract the created email's server ID.
+func ParseEmailSetResponse(resp *MethodResponse) (map[string]Id, error) {
+	var result struct {
+		Created map[string]struct {
+			Id Id `json:"id"`
+		} `json:"created"`
+	}
+	if err := json.Unmarshal(resp.Arguments, &result); err != nil {
+		return nil, err
+	}
+	ids := make(map[string]Id, len(result.Created))
+	for k, v := range result.Created {
+		ids[k] = v.Id
+	}
+	return ids, nil
 }

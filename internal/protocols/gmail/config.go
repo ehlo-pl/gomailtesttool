@@ -47,6 +47,9 @@ type Config struct {
 	StartTime string
 	EndTime   string
 
+	// Label selection (listmail)
+	Label string // Gmail label ID for listmail (default: INBOX)
+
 	// Search / export
 	MessageID string
 	ExportDir string
@@ -85,6 +88,8 @@ func NewConfig() *Config {
 const (
 	ActionSendMail          = "sendmail"
 	ActionGetInbox          = "getinbox"
+	ActionListFolders       = "listfolders"
+	ActionListMail          = "listmail"
 	ActionExportMessages    = "exportmessages"
 	ActionGetEvents         = "getevents"
 	ActionSendInvite        = "sendinvite"
@@ -144,6 +149,7 @@ func BindEnvs(v *viper.Viper) {
 		"inline-attachments": "GMAILINLINEATTACHMENTS",
 		"start":              "GMAILSTART",
 		"end":                "GMAILEND",
+		"label":              "GMAILLABEL",
 		"messageid":          "GMAILMESSAGEID",
 		"exportdir":          "GMAILEXPORTDIR",
 		"proxy":              "GMAILPROXY",
@@ -231,6 +237,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Priority:              priority,
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
+		Label:                 v.GetString("label"),
 		MessageID:             v.GetString("messageid"),
 		ExportDir:             v.GetString("exportdir"),
 		ProxyURL:              v.GetString("proxy"),

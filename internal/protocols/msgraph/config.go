@@ -52,6 +52,9 @@ type Config struct {
 	StartTime     string // Start time in RFC3339 format (e.g., 2026-01-15T14:00:00Z)
 	EndTime       string // End time in RFC3339 format
 
+	// Folder selection (listmail)
+	Folder string // Well-known or custom folder name for listmail (default: inbox)
+
 	// Search configuration
 	MessageID string // Internet Message ID for searchandexport/exportmessages actions
 
@@ -96,6 +99,8 @@ const (
 	ActionSendMail          = "sendmail"
 	ActionSendInvite        = "sendinvite"
 	ActionGetInbox          = "getinbox"
+	ActionListFolders       = "listfolders"
+	ActionListMail          = "listmail"
 	ActionGetSchedule       = "getschedule"
 	ActionExportInbox       = "exportinbox"
 	ActionSearchAndExport   = "searchandexport"
@@ -172,6 +177,7 @@ func BindEnvs(v *viper.Viper) {
 		"inline-attachments": "MSGRAPHINLINEATTACHMENTS",
 		"start":              "MSGRAPHSTART",
 		"end":                "MSGRAPHEND",
+		"folder":             "MSGRAPHFOLDER",
 		"messageid":          "MSGRAPHMESSAGEID",
 		"exportdir":          "MSGRAPHEXPORTDIR",
 		"proxy":              "MSGRAPHPROXY",
@@ -265,6 +271,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		InviteSubject:         v.GetString("invite-subject"),
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
+		Folder:                v.GetString("folder"),
 		MessageID:             v.GetString("messageid"),
 		ExportDir:             v.GetString("exportdir"),
 		ProxyURL:              v.GetString("proxy"),

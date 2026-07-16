@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// NewCmd returns the "jmap" cobra.Command with all 3 action subcommands.
+// NewCmd returns the "jmap" cobra.Command with all action subcommands.
 // Each subcommand shares persistent flags (server, auth, TLS, output).
 func NewCmd() *cobra.Command {
 	v := viper.New()
@@ -32,6 +32,10 @@ Environment variables use the JMAP prefix (e.g. JMAPHOST, JMAPPORT, JMAPUSERNAME
 		newTestConnectCmd(v),
 		newTestAuthCmd(v),
 		newGetMailboxesCmd(v),
+		newListFoldersCmd(v),
+		newListMailCmd(v),
+		newSendMailCmd(v),
+		newExportMessagesCmd(v),
 	)
 
 	return cmd
@@ -170,4 +174,160 @@ using the Mailbox/get JMAP method. Shows mailbox name, role, and message counts.
 			return nil
 		},
 	}
+}
+
+func newListFoldersCmd(v *viper.Viper) *cobra.Command {
+	return &cobra.Command{
+		Use:   "listfolders",
+		Short: "List JMAP mailboxes (folders) with message counts",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionListFolders
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("jmaptool", ActionListFolders, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			return listFolders(ctx, config, csvLogger, slogger)
+		},
+	}
+}
+
+func newListMailCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "listmail",
+		Short: "List recent inbox messages",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionListMail
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("jmaptool", ActionListMail, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			return listMail(ctx, config, csvLogger, slogger)
+		},
+	}
+	cmd.Flags().Int("count", 3, "Number of messages to retrieve (env: JMAPCOUNT)")
+	return cmd
+}
+
+func newSendMailCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "sendmail",
+		Short: "Send an email via JMAP",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionSendMail
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("jmaptool", ActionSendMail, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			return sendMail(ctx, config, csvLogger, slogger)
+		},
+	}
+	cmd.Flags().String("to", "", "Comma-separated TO recipients (env: JMAPTO)")
+	cmd.Flags().String("cc", "", "Comma-separated CC recipients (env: JMAPCC)")
+	cmd.Flags().String("bcc", "", "Comma-separated BCC recipients (env: JMAPBCC)")
+	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: JMAPSUBJECT)")
+	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: JMAPBODY)")
+	cmd.Flags().String("bodyhtml", "", "HTML body content (env: JMAPBODYHTML)")
+	return cmd
+}
+
+func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "exportmessages",
+		Short: "Search messages by Message-ID and/or Subject and export as .eml files",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionExportMessages
+			// Only use subject if explicitly provided (avoid default value narrowing search).
+			config.Subject = v.GetString("subject")
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("jmaptool", ActionExportMessages, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			return exportMessages(ctx, config, csvLogger, slogger)
+		},
+	}
+	cmd.Flags().String("messageid", "", "Internet Message-ID to search for (env: JMAPMESSAGEID)")
+	cmd.Flags().String("subject", "", "Subject substring to search for (env: JMAPSUBJECT)")
+	cmd.Flags().Int("count", 25, "Maximum number of messages to export (env: JMAPCOUNT)")
+	cmd.Flags().String("exportdir", "", "Directory for export folder (defaults to OS temp dir) (env: JMAPEXPORTDIR)")
+	return cmd
 }
