@@ -147,6 +147,24 @@ Queries the Calendar `freeBusy` endpoint and prints the recipient's busy blocks
 (default window: next 24 hours). Requires `calendar.readonly` and visibility of
 the recipient's free/busy information.
 
+### findtimeslot — Search Free Meeting Slots
+
+Searches a recipient's calendar for available meeting slots. Busy data comes from the Calendar `freeBusy` API and slots are computed client-side, constrained to working hours (08:00–17:00 UTC, Monday–Friday). Defaults: 30-minute slots, next 5 working days, first 3 slots.
+
+```powershell
+gomailtest gmail findtimeslot --credentials sa.json --mailbox user@corp.com \
+    --to colleague@corp.com
+
+# Custom duration and count
+gomailtest gmail findtimeslot --credentials sa.json --mailbox user@corp.com \
+    --to colleague@corp.com --duration 60 --count 5
+
+# Explicit window
+gomailtest gmail findtimeslot --credentials sa.json --mailbox user@corp.com \
+    --to colleague@corp.com \
+    --start "2026-08-01T08:00:00Z" --end "2026-08-10T17:00:00Z"
+```
+
 ### exportbearertoken — Print an access token
 ```powershell
 gomailtest gmail exportbearertoken --credentials sa.json --mailbox user@corp.com --output json
