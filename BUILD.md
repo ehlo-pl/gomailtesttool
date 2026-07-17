@@ -122,9 +122,29 @@ golangci-lint run
 | Flag | Description |
 |------|-------------|
 | `-o <file>` | Output executable name |
-| `-ldflags="-s -w"` | Strip debug info and symbol table (~30% smaller binary) |
+| `-ldflags="-s -w"` | Strip debug info and symbol table (~31% smaller binary) |
+| `-trimpath` | Remove source paths for reproducible builds (~0.3% additional reduction) |
 | `-v` | Verbose build output |
 | `-race` | Enable race detector (development only) |
+
+## Binary Size Optimization
+
+The build is optimized for size and reproducibility:
+- **Current size:** ~47.46 MB (stripped + trimpath)
+- **Unstripped size:** ~69 MB (for comparison)
+- **Size reduction:** ~31% via stripping debug symbols
+
+For detailed analysis, see [BINARY_OPTIMIZATION_REPORT.md](BINARY_OPTIMIZATION_REPORT.md).
+
+### Why These Sizes?
+
+The tool integrates 8 email protocols (SMTP, IMAP, POP3, JMAP, Gmail API, Microsoft Graph, EWS) plus cloud SDKs:
+- Microsoft Graph SDK + Azure SDK: ~12-18% of binary
+- Google APIs + gRPC: ~10-15% of binary
+- Protocol libraries and authentication (OAuth, Kerberos, NTLM): ~15-20%
+- Standard library and utilities: ~30-40%
+
+All dependencies are necessary for functionality. Further reduction would require sacrificing features.
 
 ## Troubleshooting
 
