@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
+	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
 )
 
@@ -42,6 +43,11 @@ type Config struct {
 	BodyHTML     string
 	BodyTemplate string
 	Priority     string
+	Template     string   // Path to a message template: .eml (full RFC 822 message) or HTML body file
+	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
+
+	// Runtime state filled by resolveTemplate for an .eml --template (not a flag)
+	RawEML []byte // Rendered EML message sent verbatim as gmail Message.Raw
 
 	// Calendar
 	StartTime string
@@ -149,6 +155,8 @@ func BindEnvs(v *viper.Viper) {
 		"bodyhtml":           "GMAILBODYHTML",
 		"priority":           "GMAILPRIORITY",
 		"body-template":      "GMAILBODYTEMPLATE",
+		"template":           "GMAILTEMPLATE",
+		"template-vars":      "GMAILTEMPLATEVARS",
 		"attachments":        "GMAILATTACHMENTS",
 		"inline-attachments": "GMAILINLINEATTACHMENTS",
 		"start":              "GMAILSTART",
@@ -246,6 +254,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		BodyHTML:              v.GetString("bodyhtml"),
 		BodyTemplate:          v.GetString("body-template"),
 		Priority:              priority,
+		Template:              v.GetString("template"),
+		TemplateVars:          v.GetStringSlice("template-vars"),
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
 		Duration:              duration,
@@ -348,6 +358,40 @@ func validateConfiguration(config *Config) error {
 	if config.BodyTemplate != "" {
 		if err := validateFilePath(config.BodyTemplate, "Body template file"); err != nil {
 			return err
+		}
+	}
+	if len(config.TemplateVars) > 0 && config.Template == "" {
+		return fmt.Errorf("--template-vars requires --template")
+	}
+	if config.Template != "" {
+		if err := validateFilePath(config.Template, "Template file"); err != nil {
+			return err
+		}
+		if config.BodyHTML != "" {
+			return fmt.Errorf("cannot use both --template and --bodyhtml simultaneously")
+		}
+		if config.BodyTemplate != "" {
+			return fmt.Errorf("cannot use both --template and --body-template simultaneously")
+		}
+		if config.Body != NewConfig().Body {
+			return fmt.Errorf("cannot use both --template and --body simultaneously")
+		}
+		if _, err := tmpl.ParseVars(config.TemplateVars); err != nil {
+			return fmt.Errorf("invalid --template-vars: %w", err)
+		}
+		// An .eml template is sent verbatim as the raw Gmail message: the
+		// Gmail API derives recipients and subject from its headers, so the
+		// corresponding flags would be silently ignored — reject them.
+		if tmpl.IsEML(config.Template) {
+			if len(config.To)+len(config.Cc)+len(config.Bcc) > 0 {
+				return fmt.Errorf("an .eml --template is sent as the complete message: recipients come from its To/Cc/Bcc headers, not --to/--cc/--bcc")
+			}
+			if config.Subject != NewConfig().Subject {
+				return fmt.Errorf("an .eml --template is sent as the complete message: the subject comes from its Subject header, not --subject")
+			}
+			if len(config.AttachmentFiles) > 0 || len(config.InlineAttachmentFiles) > 0 || len(config.Headers) > 0 || config.Priority != "normal" {
+				return fmt.Errorf("an .eml --template is sent as the complete message: embed attachments, custom headers, and priority in the file instead of using --attachments/--inline-attachments/--header/--priority")
+			}
 		}
 	}
 	switch config.Priority {

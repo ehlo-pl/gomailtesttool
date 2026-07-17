@@ -196,6 +196,10 @@ upgrades to TLS automatically, and logs the result (including TLS details) to CS
 				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
 			}
 
+			if err := resolveTemplate(config); err != nil {
+				return fmt.Errorf("template failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
 			ctx, cancel := bootstrap.SetupSignalContext()
 			defer cancel()
 
@@ -230,6 +234,8 @@ upgrades to TLS automatically, and logs the result (including TLS details) to CS
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: SMTPINLINEATTACHMENTS)")
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: SMTPHEADER — comma-separated; avoid commas in header values)")
 	cmd.Flags().String("priority", "normal", "Email priority: high, normal, low; high/low add X-Priority, Importance, and Priority headers (env: SMTPPRIORITY)")
+	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file is sent as the complete RFC 822 message; any other extension is used as the HTML body (env: SMTPTEMPLATE)")
+	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: SMTPTEMPLATEVARS)")
 
 	return cmd
 }

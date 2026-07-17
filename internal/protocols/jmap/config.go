@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
+	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
 )
 
@@ -32,12 +33,15 @@ type Config struct {
 	SkipVerify bool
 
 	// Email composition (sendmail)
-	To      []string
-	Cc      []string
-	Bcc     []string
-	Subject string
-	Body    string
-	BodyHTML string
+	To           []string
+	Cc           []string
+	Bcc          []string
+	Subject      string
+	Body         string
+	BodyHTML     string
+	From         string   // Sender override; filled from an .eml --template's From header (no flag)
+	Template     string   // Path to a message template: .eml (fields mapped to Email/set) or HTML body file
+	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
 
 	// Search / export (exportmessages)
 	MessageID string
@@ -119,9 +123,11 @@ func BindEnvs(v *viper.Viper) {
 		"to":          "JMAPTO",
 		"cc":          "JMAPCC",
 		"bcc":         "JMAPBCC",
-		"subject":     "JMAPSUBJECT",
-		"body":        "JMAPBODY",
-		"bodyhtml":    "JMAPBODYHTML",
+		"subject":       "JMAPSUBJECT",
+		"body":          "JMAPBODY",
+		"bodyhtml":      "JMAPBODYHTML",
+		"template":      "JMAPTEMPLATE",
+		"template-vars": "JMAPTEMPLATEVARS",
 		"messageid":   "JMAPMESSAGEID",
 		"exportdir":   "JMAPEXPORTDIR",
 		"count":       "JMAPCOUNT",
@@ -191,6 +197,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:        subject,
 		Body:           body,
 		BodyHTML:       v.GetString("bodyhtml"),
+		Template:       v.GetString("template"),
+		TemplateVars:   v.GetStringSlice("template-vars"),
 		MessageID:      v.GetString("messageid"),
 		ExportDir:      v.GetString("exportdir"),
 		Count:          count,
@@ -276,7 +284,29 @@ func validateConfiguration(config *Config) error {
 	}
 
 	if config.Action == ActionSendMail {
-		if len(config.To) == 0 {
+		// Validate --template/--template-vars. An .eml template is parsed
+		// and its recognised fields mapped onto Email/set, so recipients
+		// may come from its To/Cc/Bcc headers instead of --to.
+		emlTemplate := false
+		if len(config.TemplateVars) > 0 && config.Template == "" {
+			return fmt.Errorf("--template-vars requires --template")
+		}
+		if config.Template != "" {
+			if err := validation.ValidateFilePath(config.Template, "Template file"); err != nil {
+				return err
+			}
+			if config.BodyHTML != "" {
+				return fmt.Errorf("cannot use both --template and --bodyhtml simultaneously")
+			}
+			if config.Body != NewConfig().Body {
+				return fmt.Errorf("cannot use both --template and --body simultaneously")
+			}
+			if _, err := tmpl.ParseVars(config.TemplateVars); err != nil {
+				return fmt.Errorf("invalid --template-vars: %w", err)
+			}
+			emlTemplate = tmpl.IsEML(config.Template)
+		}
+		if len(config.To) == 0 && !emlTemplate {
 			return fmt.Errorf("sendmail requires at least one recipient (--to)")
 		}
 	}

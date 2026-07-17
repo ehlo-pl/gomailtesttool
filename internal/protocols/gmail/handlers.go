@@ -18,6 +18,7 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
+	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/timeslot"
 )
 
@@ -28,44 +29,48 @@ const (
 )
 
 // SendEmail builds an RFC 5322 message, base64url-encodes it, and sends it via
-// the Gmail API as the impersonated user ("me").
+// the Gmail API as the impersonated user ("me"). An .eml --template bypasses
+// the message builder: the rendered EML is sent verbatim.
 func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
-	customHeaders, err := email.ParseHeaders(config.Headers)
-	if err != nil {
-		return fmt.Errorf("invalid headers: %w", err)
-	}
+	raw := config.RawEML
+	if raw == nil {
+		customHeaders, err := email.ParseHeaders(config.Headers)
+		if err != nil {
+			return fmt.Errorf("invalid headers: %w", err)
+		}
 
-	onSkip := func(path string, loadErr error) {
-		log.Printf("Could not read attachment file %s: %v", path, loadErr)
-	}
-	attachments, err := email.LoadAttachments(config.AttachmentFiles, onSkip)
-	if err != nil {
-		return fmt.Errorf("attachments: %w", err)
-	}
-	inline, err := email.LoadInlineAttachments(config.InlineAttachmentFiles, onSkip)
-	if err != nil {
-		return fmt.Errorf("inline attachments: %w", err)
-	}
+		onSkip := func(path string, loadErr error) {
+			log.Printf("Could not read attachment file %s: %v", path, loadErr)
+		}
+		attachments, err := email.LoadAttachments(config.AttachmentFiles, onSkip)
+		if err != nil {
+			return fmt.Errorf("attachments: %w", err)
+		}
+		inline, err := email.LoadInlineAttachments(config.InlineAttachmentFiles, onSkip)
+		if err != nil {
+			return fmt.Errorf("inline attachments: %w", err)
+		}
 
-	// Unlike SMTP, Gmail derives recipients from the message headers, so Bcc
-	// must be included in the raw message.
-	raw, err := mimebuilder.Build(mimebuilder.Message{
-		From:             config.Mailbox,
-		To:               config.To,
-		Cc:               config.Cc,
-		Bcc:              config.Bcc,
-		Subject:          config.Subject,
-		TextBody:         config.Body,
-		HTMLBody:         config.BodyHTML,
-		Priority:         config.Priority,
-		Headers:          customHeaders,
-		Attachments:      attachments,
-		Inline:           inline,
-		IncludeBccHeader: true,
-		HostID:           hostFromEmail(config.Mailbox),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to build message: %w", err)
+		// Unlike SMTP, Gmail derives recipients from the message headers, so Bcc
+		// must be included in the raw message.
+		raw, err = mimebuilder.Build(mimebuilder.Message{
+			From:             config.Mailbox,
+			To:               config.To,
+			Cc:               config.Cc,
+			Bcc:              config.Bcc,
+			Subject:          config.Subject,
+			TextBody:         config.Body,
+			HTMLBody:         config.BodyHTML,
+			Priority:         config.Priority,
+			Headers:          customHeaders,
+			Attachments:      attachments,
+			Inline:           inline,
+			IncludeBccHeader: true,
+			HostID:           hostFromEmail(config.Mailbox),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to build message: %w", err)
+		}
 	}
 
 	// Gmail requires the message base64url-encoded into Raw; the SDK does not
@@ -73,7 +78,7 @@ func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv l
 	gmsg := &gmailapi.Message{Raw: base64.URLEncoding.EncodeToString(raw)}
 
 	var sent *gmailapi.Message
-	err = retryGmail(ctx, config, func() error {
+	err := retryGmail(ctx, config, func() error {
 		var apiErr error
 		sent, apiErr = svc.Users.Messages.Send("me", gmsg).Context(ctx).Do()
 		return apiErr
@@ -101,6 +106,46 @@ func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv l
 
 	writeCSV(csv, []string{ActionSendMail, status, config.Mailbox, strings.Join(config.To, "; "), config.Subject})
 	return returnErr
+}
+
+// resolveTemplate renders --template (if set) and applies it to the config.
+// HTML mode (non-.eml extension) fills BodyHTML with the rendered content;
+// EML mode stores the complete rendered message for verbatim submission as
+// gmail Message.Raw and fills the recipient/subject fields from the EML
+// headers for console/CSV logging (the Gmail API reads them from the raw
+// message itself).
+func resolveTemplate(config *Config) error {
+	if config.Template == "" {
+		return nil
+	}
+
+	vars, err := tmpl.ParseVars(config.TemplateVars)
+	if err != nil {
+		return fmt.Errorf("invalid --template-vars: %w", err)
+	}
+	rendered, err := tmpl.Render(config.Template, vars)
+	if err != nil {
+		return err
+	}
+
+	if !tmpl.IsEML(config.Template) {
+		config.BodyHTML = rendered
+		return nil
+	}
+
+	parsed, err := tmpl.ParseEML(rendered)
+	if err != nil {
+		return fmt.Errorf("template %s: %w", config.Template, err)
+	}
+	if len(parsed.To)+len(parsed.Cc)+len(parsed.Bcc) == 0 {
+		return fmt.Errorf("template %s has no To/Cc/Bcc recipients", config.Template)
+	}
+	config.To = parsed.To
+	config.Cc = parsed.Cc
+	config.Bcc = parsed.Bcc
+	config.Subject = parsed.Subject
+	config.RawEML = []byte(rendered)
+	return nil
 }
 
 // listLabels lists all Gmail labels (system + user) with message counts.

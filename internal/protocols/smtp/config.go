@@ -7,6 +7,7 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -43,6 +44,12 @@ type Config struct {
 	InlineAttachments []string // File paths to embed inline via cid: (referenced from BodyHTML)
 	Headers           []string // Custom headers in "Name: Value" form
 	Priority          string   // Email priority: high, normal, low (normal adds no extra headers)
+	Template          string   // Path to a message template: .eml (full RFC 822 message) or HTML body file
+	TemplateVars      []string // Template variables in "key=value" form, referenced as {{.key}}
+
+	// Runtime state filled by resolveTemplate for an .eml --template (not flags)
+	RawMessage   []byte // Rendered EML message injected verbatim into DATA
+	RawMessageID string // Message-ID parsed from the rendered EML (for logging)
 
 	// TLS configuration
 	StartTLS   bool   // Force STARTTLS
@@ -163,6 +170,8 @@ func BindEnvs(v *viper.Viper) {
 		"bodyhtml":          "SMTPBODYHTML",
 		"attachments":       "SMTPATTACHMENTS",
 		"inlineattachments": "SMTPINLINEATTACHMENTS",
+		"template":          "SMTPTEMPLATE",
+		"template-vars":     "SMTPTEMPLATEVARS",
 		"starttls":          "SMTPSTARTTLS",
 		"smtps":             "SMTPSMTPS",
 		"no-starttls":       "SMTPNOSTARTTLS",
@@ -281,6 +290,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		InlineAttachments: inlineAttachments,
 		Headers:           v.GetStringSlice("header"),
 		Priority:          priority,
+		Template:          v.GetString("template"),
+		TemplateVars:      v.GetStringSlice("template-vars"),
 		StartTLS:          v.GetBool("starttls"),
 		SMTPS:             v.GetBool("smtps"),
 		NoStartTLS:        v.GetBool("no-starttls"),
@@ -441,13 +452,41 @@ func validateConfiguration(config *Config) error {
 		}
 
 	case ActionSendMail:
-		if config.From == "" {
+		// Validate --template/--template-vars. An .eml template carries the
+		// complete message, so From/To/Subject may come from its headers
+		// instead of flags (resolved after rendering in resolveTemplate).
+		emlTemplate := false
+		if len(config.TemplateVars) > 0 && config.Template == "" {
+			return fmt.Errorf("-template-vars requires -template")
+		}
+		if config.Template != "" {
+			if err := validation.ValidateFilePath(config.Template, "Template file"); err != nil {
+				return err
+			}
+			if config.BodyHTML != "" {
+				return fmt.Errorf("cannot use both -template and -bodyhtml simultaneously")
+			}
+			if config.Body != NewConfig().Body {
+				return fmt.Errorf("cannot use both -template and -body simultaneously")
+			}
+			if _, err := template.ParseVars(config.TemplateVars); err != nil {
+				return fmt.Errorf("invalid -template-vars: %w", err)
+			}
+			emlTemplate = template.IsEML(config.Template)
+			if emlTemplate && (len(config.Attachments) > 0 || len(config.InlineAttachments) > 0 || len(config.Headers) > 0 || config.Priority != "normal") {
+				return fmt.Errorf("an .eml -template is sent as the complete message: embed attachments, custom headers, and priority in the file instead of using -attachments/-inline-attachments/-header/-priority")
+			}
+		}
+
+		if config.From == "" && !emlTemplate {
 			return fmt.Errorf("sendmail requires -from")
 		}
-		if err := validation.ValidateEmail(config.From); err != nil {
-			return fmt.Errorf("invalid sender email: %w", err)
+		if config.From != "" {
+			if err := validation.ValidateEmail(config.From); err != nil {
+				return fmt.Errorf("invalid sender email: %w", err)
+			}
 		}
-		if len(config.To) == 0 {
+		if len(config.To) == 0 && !emlTemplate {
 			return fmt.Errorf("sendmail requires -to")
 		}
 		for _, addr := range config.To {
@@ -461,6 +500,9 @@ func validateConfiguration(config *Config) error {
 		if config.UseMX {
 			if config.Host != "" {
 				return fmt.Errorf("cannot use both -use-mx and -host simultaneously for sendmail")
+			}
+			if len(config.To) == 0 {
+				return fmt.Errorf("-use-mx derives the MX lookup domain from -to; provide -to explicitly")
 			}
 			domain, err := validation.ExtractEmailDomain(strings.TrimSpace(config.To[0]))
 			if err != nil {
@@ -481,7 +523,7 @@ func validateConfiguration(config *Config) error {
 				return fmt.Errorf("invalid bcc email: %w", err)
 			}
 		}
-		if config.Subject == "" {
+		if config.Subject == "" && !emlTemplate {
 			return fmt.Errorf("sendmail requires -subject")
 		}
 		switch config.Priority {

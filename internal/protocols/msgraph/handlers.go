@@ -16,6 +16,7 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/timeslot"
 )
 
@@ -102,6 +103,63 @@ func listEvents(ctx context.Context, client *msgraphsdk.GraphServiceClient, mail
 		}
 	}
 
+	return nil
+}
+
+// resolveTemplate renders --template (if set) and applies it to the config.
+// HTML mode (non-.eml extension) fills BodyHTML with the rendered content;
+// EML mode parses the rendered message and maps its recognised fields onto
+// the config consumed by the Graph send API: recipients fall back to the EML
+// headers where flags were not provided, subject and bodies come from the
+// EML. The From header is ignored (Graph always sends as --mailbox) and any
+// unmapped headers are reported in verbose mode.
+func resolveTemplate(config *Config) error {
+	if config.Template == "" {
+		return nil
+	}
+
+	vars, err := tmpl.ParseVars(config.TemplateVars)
+	if err != nil {
+		return fmt.Errorf("invalid --template-vars: %w", err)
+	}
+	rendered, err := tmpl.Render(config.Template, vars)
+	if err != nil {
+		return err
+	}
+
+	if !tmpl.IsEML(config.Template) {
+		config.BodyHTML = rendered
+		return nil
+	}
+
+	parsed, err := tmpl.ParseEML(rendered)
+	if err != nil {
+		return fmt.Errorf("template %s: %w", config.Template, err)
+	}
+	if parsed.TextBody == "" && parsed.HTMLBody == "" {
+		return fmt.Errorf("template %s has no text or HTML body", config.Template)
+	}
+	if len(config.To) == 0 {
+		config.To = stringSlice(parsed.To)
+	}
+	if len(config.Cc) == 0 {
+		config.Cc = stringSlice(parsed.Cc)
+	}
+	if len(config.Bcc) == 0 {
+		config.Bcc = stringSlice(parsed.Bcc)
+	}
+	if parsed.Subject != "" {
+		config.Subject = parsed.Subject
+	}
+	config.Body = parsed.TextBody
+	config.BodyHTML = parsed.HTMLBody
+
+	if parsed.From != "" && !strings.EqualFold(parsed.From, config.Mailbox) {
+		logVerbose(config.VerboseMode, "Template From header %s is ignored; Graph sends as %s", parsed.From, config.Mailbox)
+	}
+	if len(parsed.UnmappedHeaders) > 0 {
+		logVerbose(config.VerboseMode, "Template headers not mapped to the Graph API: %s", strings.Join(parsed.UnmappedHeaders, ", "))
+	}
 	return nil
 }
 

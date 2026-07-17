@@ -97,6 +97,27 @@ into the Gmail `Raw` field. Unlike SMTP, **Bcc is included in the message
 headers** because Gmail derives recipients from the headers. With no recipients
 specified, `--to` defaults to the mailbox.
 
+Sending from a template file:
+
+```powershell
+gomailtest gmail sendmail --credentials sa.json --mailbox user@corp.com \
+    --template .\message.eml --template-vars Name=World
+
+gomailtest gmail sendmail --credentials sa.json --mailbox user@corp.com \
+    --to a@corp.com --template .\body.html --template-vars Name=World
+```
+
+- `--template` with a `.eml` file renders it through Go `text/template` and
+  sends the result **verbatim** as the raw Gmail message — every header and
+  MIME part is preserved. Because the file *is* the message, Gmail takes
+  recipients and subject from its headers: `--to`/`--cc`/`--bcc`,
+  `--subject`, `--body`/`--bodyhtml`/`--body-template`, the attachment
+  flags, `--header`, and a non-default `--priority` are all rejected in this
+  mode. Any other extension is rendered and used as the HTML body (like
+  `--body-template`, plus variable substitution).
+- `--template-vars key=value` (repeatable) supplies variables referenced as
+  `{{.key}}` in the template.
+
 ### listmail — List recent messages by label
 ```powershell
 gomailtest gmail listmail --credentials sa.json --mailbox user@corp.com \
@@ -189,5 +210,6 @@ Acquires a token from the configured credential and prints it (text, or
 
 All flags have a `GMAIL*` equivalent, e.g. `GMAILCREDENTIALS`, `GMAILMAILBOX`,
 `GMAILBEARERTOKEN`, `GMAILOAUTH`, `GMAILOAUTHCREDENTIALS`, `GMAILTOKENCACHE`,
-`GMAILSCOPE`, `GMAILTO`, `GMAILSUBJECT`, `GMAILBODY`, `GMAILMESSAGEID`,
-`GMAILEXPORTDIR`, `GMAILCOUNT`, `GMAILPROXY`.
+`GMAILSCOPE`, `GMAILTO`, `GMAILSUBJECT`, `GMAILBODY`, `GMAILTEMPLATE`,
+`GMAILTEMPLATEVARS`, `GMAILMESSAGEID`, `GMAILEXPORTDIR`, `GMAILCOUNT`,
+`GMAILPROXY`.

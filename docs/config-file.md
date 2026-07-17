@@ -50,6 +50,16 @@ header:
   - "X-Custom-Header: example-value"
 ```
 
+Repeatable flags (`--header`, `--template-vars`) are written as YAML lists,
+as shown above. A `--template` file can also be configured here, e.g.:
+
+```yaml
+template: ./welcome.eml
+template-vars:
+  - "Name=World"
+  - "Rcpt=user@example.com"
+```
+
 ```powershell
 gomailtest smtp sendmail --config ./smtp-prod.yaml
 ```
