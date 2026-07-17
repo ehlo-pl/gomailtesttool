@@ -161,6 +161,27 @@ gomailtest ews getschedule --host mail.example.com \
 
 Output legend: `0`=Free, `1`=Tentative, `2`=Busy, `3`=Out of Office, `4`=Working Elsewhere.
 
+### findtimeslot — Search Free Meeting Slots
+
+Searches a recipient's calendar for available meeting slots. Busy data comes from `GetUserAvailability` (detailed FreeBusy view) and slots are computed client-side, constrained to working hours (08:00–17:00 UTC, Monday–Friday). Defaults: 30-minute slots, next 5 working days, first 3 slots.
+
+```powershell
+gomailtest ews findtimeslot --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --to targetuser@example.com
+
+# Custom duration and count
+gomailtest ews findtimeslot --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --to targetuser@example.com --duration 60 --count 5
+
+# Explicit window
+gomailtest ews findtimeslot --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --to targetuser@example.com \
+    --start "2026-08-01T08:00:00Z" --end "2026-08-10T17:00:00Z"
+```
+
 ## Flags
 
 | Flag | Default | Description |

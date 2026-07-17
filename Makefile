@@ -7,12 +7,12 @@ VERSION := $(shell grep -oP 'Version = "\K[^"]+' internal/common/version/version
 
 .PHONY: build build-verbose test integration-test clean help
 
-build: ## Build the gomailtest binary
-	go build -ldflags="-s -w" -o $(BINARY) ./cmd/gomailtest
+build: ## Build the gomailtest binary (optimized for size & reproducibility)
+	go build -ldflags="-s -w" -trimpath -o $(BINARY) ./cmd/gomailtest
 	@echo "Built $(BINARY) — version $(VERSION)"
 
 build-verbose: ## Build the gomailtest binary with verbose output
-	go build -v -ldflags="-s -w" -o $(BINARY) ./cmd/gomailtest
+	go build -v -ldflags="-s -w" -trimpath -o $(BINARY) ./cmd/gomailtest
 	@echo "Built $(BINARY) — version $(VERSION)"
 
 test: ## Run unit tests

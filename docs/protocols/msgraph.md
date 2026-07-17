@@ -117,6 +117,22 @@ gomailtest msgraph listmail --folder inbox --count 20
 gomailtest msgraph getschedule --to "colleague@example.com"
 ```
 
+### findtimeslot — Search Free Meeting Slots
+
+Searches a recipient's calendar for available meeting slots. Busy data comes from the Graph `getSchedule` API and slots are computed client-side, constrained to working hours (08:00–17:00 UTC, Monday–Friday). Defaults: 30-minute slots, next 5 working days, first 3 slots.
+
+```powershell
+gomailtest msgraph findtimeslot --to "colleague@example.com"
+
+# Custom duration and count
+gomailtest msgraph findtimeslot --to "colleague@example.com" \
+    --duration 60 --count 5
+
+# Explicit window
+gomailtest msgraph findtimeslot --to "colleague@example.com" \
+    --start "2026-08-01T08:00:00Z" --end "2026-08-10T17:00:00Z"
+```
+
 ### exportinbox — Export Inbox to JSON (deprecated)
 
 Deprecated: use `exportmessages --folder inbox` (note: exportinbox writes JSON,
