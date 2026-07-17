@@ -66,6 +66,19 @@ gomailtest jmap listfolders --host jmap.fastmail.com \
     --username user@example.com --accesstoken "your-api-token"
 ```
 
+### listmail — List Recent Inbox Messages
+
+Queries the Inbox via `Email/query` + `Email/get` and displays subject, sender, received date, and a body preview. Defaults to the 3 most recent messages.
+
+```powershell
+gomailtest jmap listmail --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token"
+
+# Custom count
+gomailtest jmap listmail --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token" --count 10
+```
+
 ### sendmail — Send an Email
 
 Builds an email via `Email/set` and submits it via `EmailSubmission/set`.
@@ -90,6 +103,33 @@ gomailtest jmap sendmail --host jmap.fastmail.com \
 - `--template-vars key=value` (repeatable) supplies variables referenced as
   `{{.key}}` in the template.
 
+### exportmessages — Search and Export Messages as .eml
+
+Searches for messages matching `--messageid` and/or `--subject` (substring
+match), downloads each match's raw RFC822 content via the JMAP blob endpoint,
+and writes it as a `.eml` file to the export directory. At least one of
+`--messageid` or `--subject` is required.
+
+```powershell
+# Search by Message-ID
+gomailtest jmap exportmessages --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token" \
+    --messageid "<abc123@example.com>"
+
+# Search by subject substring
+gomailtest jmap exportmessages --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token" \
+    --subject "Invoice"
+
+# Custom export directory and result count
+gomailtest jmap exportmessages --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token" \
+    --subject "Invoice" --exportdir C:\exports --count 50
+```
+
+- Exported filenames are `{sanitized-subject-or-email-id}_{email-id}.eml`.
+- `--exportdir` defaults to the OS temp directory when omitted.
+
 ## Flags
 
 | Flag | Description | Environment Variable | Default |
@@ -105,11 +145,14 @@ gomailtest jmap sendmail --host jmap.fastmail.com \
 | `--authmethod` | Auth method: auto, basic, bearer | `JMAPAUTHMETHOD` | auto |
 | `--skipverify` | Skip TLS certificate verification | `JMAPSKIPVERIFY` | false |
 | `--to` / `--cc` / `--bcc` | Comma-separated recipients (sendmail) | `JMAPTO` / `JMAPCC` / `JMAPBCC` | — |
-| `--subject` | Email subject (sendmail) | `JMAPSUBJECT` | Automated Tool Notification |
+| `--subject` | Email subject (sendmail); subject substring to search for (exportmessages) | `JMAPSUBJECT` | Automated Tool Notification (empty for exportmessages) |
 | `--body` | Email body text (sendmail) | `JMAPBODY` | test message |
 | `--bodyhtml` | HTML body content (sendmail) | `JMAPBODYHTML` | — |
 | `--template` | Message template file with Go `text/template` variables: `.eml` fields are mapped to `Email/set`, any other extension is used as the HTML body (sendmail) | `JMAPTEMPLATE` | — |
 | `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` (repeatable, sendmail) | `JMAPTEMPLATEVARS` | — |
+| `--messageid` | Internet Message-ID to search for (exportmessages) | `JMAPMESSAGEID` | — |
+| `--exportdir` | Directory for the export folder (exportmessages) | `JMAPEXPORTDIR` | OS temp dir |
+| `--count` | Maximum number of results to return (listmail, exportmessages) | `JMAPCOUNT` | action-specific: `3` (listmail), `25` (exportmessages) |
 | `--verbose` | Enable verbose output | `JMAPVERBOSE` | false |
 | `--loglevel` | Log level: debug, info, warn, error | `JMAPLOGLEVEL` | info |
 | `--logformat` | Log file format: csv, json | `JMAPLOGFORMAT` | csv |
