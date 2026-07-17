@@ -182,6 +182,38 @@ gomailtest ews findtimeslot --host mail.example.com \
     --start "2026-08-01T08:00:00Z" --end "2026-08-10T17:00:00Z"
 ```
 
+### sendmail — Send an Email
+
+Sends an email via EWS `CreateItem` with `MessageDisposition="SendAndSaveCopy"`
+(the sent message is saved to Sent Items). The sender is always the
+authenticated (or impersonated) user.
+
+```powershell
+gomailtest ews sendmail --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --to recipient@example.com --subject "Test" --body "plain text"
+
+# HTML body
+gomailtest ews sendmail --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --to recipient@example.com --subject "Test" --bodyhtml "<p>html</p>"
+
+# Send from a template file (Go text/template variables via --template-vars)
+gomailtest ews sendmail --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --template .\message.eml --template-vars Name=World
+```
+
+- `--template` with a `.eml` file parses the rendered message and maps its
+  recognised fields (`To`/`Cc`/`Subject`/text and HTML bodies) onto
+  `CreateItem`; recipient flags win over the EML headers when both are given.
+  The EML `From` header is ignored (EWS sends as the authenticated user), and
+  `Bcc` recipients and headers without a `CreateItem` mapping are logged as
+  skipped. Any other extension is rendered and used as the HTML body.
+  Mutually exclusive with `--body`/`--bodyhtml`.
+- `--template-vars key=value` (repeatable) supplies variables referenced as
+  `{{.key}}` in the template.
+
 ## Flags
 
 | Flag | Default | Description |
@@ -197,6 +229,12 @@ gomailtest ews findtimeslot --host mail.example.com \
 | `--authmethod` | `auto` | Auth method: `NTLM`, `Basic`, `Bearer`, `auto` |
 | `--domain` | | AD domain for NTLM (optional; can be embedded in username) |
 | `--mailbox` | | Target mailbox SMTP address for impersonation |
+| `--to` / `--cc` | | Comma-separated recipients (sendmail) |
+| `--subject` | `Automated Tool Notification` | Email subject (sendmail) |
+| `--body` | test message | Email body text (sendmail) |
+| `--bodyhtml` | | HTML body content, overrides `--body` (sendmail) |
+| `--template` | | Message template file with Go `text/template` variables: `.eml` fields are mapped to `CreateItem`, any other extension is used as the HTML body (sendmail) |
+| `--template-vars` | | Template variable in `key=value` form, referenced as `{{.key}}` (repeatable, sendmail) |
 | `--skipverify` | `false` | Skip TLS certificate verification (self-signed certs) |
 | `--tlsversion` | `1.2` | Minimum TLS version: `1.2`, `1.3` |
 | `--proxy` | | HTTP/HTTPS or SOCKS5 proxy URL |

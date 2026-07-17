@@ -115,8 +115,13 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 				config.BodyHTML = string(content)
 			}
 
+			if err := resolveTemplate(config); err != nil {
+				return fmt.Errorf("template failed: %w", err)
+			}
+
 			// Default To to the mailbox if no recipients were specified.
-			if len(config.To) == 0 && len(config.Cc) == 0 && len(config.Bcc) == 0 {
+			// An .eml template carries its own recipients in the raw message.
+			if config.RawEML == nil && len(config.To) == 0 && len(config.Cc) == 0 && len(config.Bcc) == 0 {
 				config.To = stringSlice{config.Mailbox}
 			}
 
@@ -134,6 +139,8 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: GMAILBODY)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: GMAILBODYHTML)")
 	cmd.Flags().String("body-template", "", "Path to HTML email body template file (env: GMAILBODYTEMPLATE)")
+	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file is sent as the complete RFC 822 message; any other extension is used as the HTML body (env: GMAILTEMPLATE)")
+	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: GMAILTEMPLATEVARS)")
 	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: GMAILATTACHMENTS)")
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: GMAILINLINEATTACHMENTS)")
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: GMAILHEADER — comma-separated)")

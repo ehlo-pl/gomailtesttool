@@ -11,7 +11,9 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	tlsutil "github.com/ehlo-pl/gomailtesttool/internal/common/tls"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
 )
 
 // SendMail performs end-to-end email sending test.
@@ -45,6 +47,9 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	bodyType := "Text"
 	if config.BodyHTML != "" {
 		bodyType = "HTML"
+	}
+	if config.RawMessage != nil {
+		bodyType = "EML"
 	}
 	attachmentCount := len(config.Attachments) + len(config.InlineAttachments)
 	attachmentCountStr := fmt.Sprintf("%d", attachmentCount)
@@ -213,21 +218,26 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		fmt.Println("✓ Authentication successful")
 	}
 
-	// Build email message
-	messageData, err := buildMIMEMessage(config, slogLogger)
-	if err != nil {
-		logger.LogError(slogLogger, "Failed to build email message", "error", err)
-		if logErr := writeSMTPCSVRow(csvLogger, []string{
-			config.Action, "FAILURE", config.Host, fmt.Sprintf("%d", config.Port),
-			config.ConnectAddress, config.From, strings.Join(config.To, ", "), strings.Join(config.Cc, ", "), strings.Join(config.Bcc, ", "), config.Subject, bodyType, attachmentCountStr, "", "",
-			"", "", "", "", "", "", "", "", "",
-			fmt.Sprintf("Failed to build message: %v", err),
-		}); logErr != nil {
-			logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
+	// Build email message — unless an .eml --template already provided the
+	// complete rendered message for raw injection.
+	messageData := config.RawMessage
+	messageID := config.RawMessageID
+	if messageData == nil {
+		messageData, err = buildMIMEMessage(config, slogLogger)
+		if err != nil {
+			logger.LogError(slogLogger, "Failed to build email message", "error", err)
+			if logErr := writeSMTPCSVRow(csvLogger, []string{
+				config.Action, "FAILURE", config.Host, fmt.Sprintf("%d", config.Port),
+				config.ConnectAddress, config.From, strings.Join(config.To, ", "), strings.Join(config.Cc, ", "), strings.Join(config.Bcc, ", "), config.Subject, bodyType, attachmentCountStr, "", "",
+				"", "", "", "", "", "", "", "", "",
+				fmt.Sprintf("Failed to build message: %v", err),
+			}); logErr != nil {
+				logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
+			}
+			return fmt.Errorf("failed to build email message: %w", err)
 		}
-		return fmt.Errorf("failed to build email message: %w", err)
+		messageID = generateMessageID(config.Host)
 	}
-	messageID := generateMessageID(config.Host)
 
 	// Send email. The SMTP envelope (RCPT TO) includes To, Cc, and Bcc
 	// recipients; only To and Cc appear in the message headers.
@@ -254,7 +264,9 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	}
 
 	fmt.Println("✓ Message sent successfully")
-	fmt.Printf("  Message-ID: <%s>\n", messageID)
+	if messageID != "" {
+		fmt.Printf("  Message-ID: <%s>\n", messageID)
+	}
 
 	// Log to CSV
 	tlsData := formatTLSInfoForCSV(tlsState, client.GetHost())
@@ -372,6 +384,70 @@ func sanitizeEmailHeader(header string) string {
 // for the given priority.
 func priorityHeaderLines(priority string) []string {
 	return mimebuilder.PriorityHeaderLines(priority)
+}
+
+// resolveTemplate renders --template (if set) and applies it to the config.
+// HTML mode (non-.eml extension) fills BodyHTML with the rendered content;
+// EML mode stores the complete rendered message for raw injection into DATA
+// and fills the envelope fields from the EML headers where flags were not
+// provided (flags win over EML headers).
+func resolveTemplate(config *Config) error {
+	if config.Template == "" {
+		return nil
+	}
+
+	vars, err := template.ParseVars(config.TemplateVars)
+	if err != nil {
+		return fmt.Errorf("invalid -template-vars: %w", err)
+	}
+	rendered, err := template.Render(config.Template, vars)
+	if err != nil {
+		return err
+	}
+
+	if !template.IsEML(config.Template) {
+		config.BodyHTML = rendered
+		return nil
+	}
+
+	parsed, err := template.ParseEML(rendered)
+	if err != nil {
+		return fmt.Errorf("template %s: %w", config.Template, err)
+	}
+	if config.From == "" {
+		config.From = parsed.From
+	}
+	if len(config.To) == 0 {
+		config.To = parsed.To
+	}
+	if len(config.Cc) == 0 {
+		config.Cc = parsed.Cc
+	}
+	if len(config.Bcc) == 0 {
+		config.Bcc = parsed.Bcc
+	}
+	if parsed.Subject != "" {
+		config.Subject = parsed.Subject
+	}
+
+	if config.From == "" {
+		return fmt.Errorf("template %s has no From header; provide -from", config.Template)
+	}
+	if err := validation.ValidateEmail(config.From); err != nil {
+		return fmt.Errorf("invalid sender email in template: %w", err)
+	}
+	if len(config.To)+len(config.Cc)+len(config.Bcc) == 0 {
+		return fmt.Errorf("template %s has no recipients; provide -to", config.Template)
+	}
+	for _, addr := range collectEnvelopeRecipients(config) {
+		if err := validation.ValidateEmail(strings.TrimSpace(addr)); err != nil {
+			return fmt.Errorf("invalid recipient email in template: %w", err)
+		}
+	}
+
+	config.RawMessage = []byte(rendered)
+	config.RawMessageID = parsed.MessageID
+	return nil
 }
 
 // collectEnvelopeRecipients returns the full list of SMTP envelope (RCPT TO)

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
+	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -44,8 +45,10 @@ type Config struct {
 	Subject      string // Email subject line
 	Body         string // Email body text content
 	BodyHTML     string // Email body HTML content (future use)
-	BodyTemplate string // Path to HTML email body template file
-	Priority     string // Email priority: high, normal, low (maps to Graph Importance)
+	BodyTemplate string   // Path to HTML email body template file
+	Priority     string   // Email priority: high, normal, low (maps to Graph Importance)
+	Template     string   // Path to a message template: .eml (fields mapped to the Graph API) or HTML body file
+	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
 
 	// Calendar invite configuration
 	InviteSubject string // Subject of calendar meeting invitation
@@ -175,6 +178,8 @@ func BindEnvs(v *viper.Viper) {
 		"bodyhtml":           "MSGRAPHBODYHTML",
 		"priority":           "MSGRAPHPRIORITY",
 		"body-template":      "MSGRAPHBODYTEMPLATE",
+		"template":           "MSGRAPHTEMPLATE",
+		"template-vars":      "MSGRAPHTEMPLATEVARS",
 		"attachments":        "MSGRAPHATTACHMENTS",
 		"inline-attachments": "MSGRAPHINLINEATTACHMENTS",
 		"start":              "MSGRAPHSTART",
@@ -276,6 +281,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		BodyHTML:              v.GetString("bodyhtml"),
 		BodyTemplate:          v.GetString("body-template"),
 		Priority:              priority,
+		Template:              v.GetString("template"),
+		TemplateVars:          v.GetStringSlice("template-vars"),
 		InviteSubject:         v.GetString("invite-subject"),
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
@@ -346,6 +353,30 @@ func validateConfiguration(config *Config) error {
 	if config.BodyTemplate != "" {
 		if err := validateFilePath(config.BodyTemplate, "Body template file"); err != nil {
 			return err
+		}
+	}
+
+	// Validate --template/--template-vars. Unlike SMTP/gmail, an .eml
+	// template is parsed and its recognised fields mapped onto the Graph
+	// send API, so attachment/header/priority flags still apply.
+	if len(config.TemplateVars) > 0 && config.Template == "" {
+		return fmt.Errorf("--template-vars requires --template")
+	}
+	if config.Template != "" {
+		if err := validateFilePath(config.Template, "Template file"); err != nil {
+			return err
+		}
+		if config.BodyHTML != "" {
+			return fmt.Errorf("cannot use both --template and --bodyhtml simultaneously")
+		}
+		if config.BodyTemplate != "" {
+			return fmt.Errorf("cannot use both --template and --body-template simultaneously")
+		}
+		if config.Body != NewConfig().Body {
+			return fmt.Errorf("cannot use both --template and --body simultaneously")
+		}
+		if _, err := tmpl.ParseVars(config.TemplateVars); err != nil {
+			return fmt.Errorf("invalid --template-vars: %w", err)
 		}
 	}
 

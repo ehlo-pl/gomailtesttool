@@ -468,6 +468,9 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 			if csvLogger != nil {
 				defer func() { _ = csvLogger.Close() }()
 			}
+			if err := resolveTemplate(config, slogger); err != nil {
+				return fmt.Errorf("template failed: %w", err)
+			}
 			return sendMail(ctx, config, csvLogger, slogger)
 		},
 	}
@@ -476,6 +479,8 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: EWSSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: EWSBODY)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (overrides --body if set) (env: EWSBODYHTML)")
+	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (To/Cc/Subject/bodies) mapped to EWS CreateItem; any other extension is used as the HTML body (env: EWSTEMPLATE)")
+	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: EWSTEMPLATEVARS)")
 	return cmd
 }
 

@@ -66,6 +66,30 @@ gomailtest jmap listfolders --host jmap.fastmail.com \
     --username user@example.com --accesstoken "your-api-token"
 ```
 
+### sendmail — Send an Email
+
+Builds an email via `Email/set` and submits it via `EmailSubmission/set`.
+
+```powershell
+gomailtest jmap sendmail --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token" \
+    --to recipient@example.com --subject "Test" --body "plain text" --bodyhtml "<p>html</p>"
+
+# Send from a template file (Go text/template variables via --template-vars)
+gomailtest jmap sendmail --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token" \
+    --template .\message.eml --template-vars Name=World
+```
+
+- `--template` with a `.eml` file parses the rendered message and maps its
+  recognised fields (`From`/`To`/`Cc`/`Bcc`/`Subject`/text and HTML bodies)
+  onto `Email/set`; recipient flags win over the EML headers when both are
+  given, and headers that have no JMAP mapping are logged as skipped. Any
+  other extension is rendered and used as the HTML body. Mutually exclusive
+  with `--body`/`--bodyhtml`.
+- `--template-vars key=value` (repeatable) supplies variables referenced as
+  `{{.key}}` in the template.
+
 ## Flags
 
 | Flag | Description | Environment Variable | Default |
@@ -80,6 +104,12 @@ gomailtest jmap listfolders --host jmap.fastmail.com \
 | `--accesstoken` | Access token for Bearer authentication | `JMAPACCESSTOKEN` | — |
 | `--authmethod` | Auth method: auto, basic, bearer | `JMAPAUTHMETHOD` | auto |
 | `--skipverify` | Skip TLS certificate verification | `JMAPSKIPVERIFY` | false |
+| `--to` / `--cc` / `--bcc` | Comma-separated recipients (sendmail) | `JMAPTO` / `JMAPCC` / `JMAPBCC` | — |
+| `--subject` | Email subject (sendmail) | `JMAPSUBJECT` | Automated Tool Notification |
+| `--body` | Email body text (sendmail) | `JMAPBODY` | test message |
+| `--bodyhtml` | HTML body content (sendmail) | `JMAPBODYHTML` | — |
+| `--template` | Message template file with Go `text/template` variables: `.eml` fields are mapped to `Email/set`, any other extension is used as the HTML body (sendmail) | `JMAPTEMPLATE` | — |
+| `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` (repeatable, sendmail) | `JMAPTEMPLATEVARS` | — |
 | `--verbose` | Enable verbose output | `JMAPVERBOSE` | false |
 | `--loglevel` | Log level: debug, info, warn, error | `JMAPLOGLEVEL` | info |
 | `--logformat` | Log file format: csv, json | `JMAPLOGFORMAT` | csv |

@@ -233,6 +233,10 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 				defer func() { _ = csvLogger.Close() }()
 			}
 
+			if err := resolveTemplate(config, slogger); err != nil {
+				return fmt.Errorf("template failed: %w", err)
+			}
+
 			return sendMail(ctx, config, csvLogger, slogger)
 		},
 	}
@@ -242,6 +246,8 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: JMAPSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: JMAPBODY)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: JMAPBODYHTML)")
+	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (From/To/Cc/Bcc/Subject/bodies) mapped to JMAP Email/set; any other extension is used as the HTML body (env: JMAPTEMPLATE)")
+	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: JMAPTEMPLATEVARS)")
 	return cmd
 }
 

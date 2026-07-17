@@ -145,6 +145,10 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 				config.BodyHTML = string(content)
 			}
 
+			if err := resolveTemplate(config); err != nil {
+				return fmt.Errorf("template failed: %w", err)
+			}
+
 			client, err := NewGraphServiceClient(ctx, config, slogger)
 			if err != nil {
 				return err
@@ -165,6 +169,8 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: MSGRAPHBODY)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: MSGRAPHBODYHTML)")
 	cmd.Flags().String("body-template", "", "Path to HTML email body template file (env: MSGRAPHBODYTEMPLATE)")
+	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (From/To/Cc/Bcc/Subject/bodies) mapped to the Graph API; any other extension is used as the HTML body (env: MSGRAPHTEMPLATE)")
+	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: MSGRAPHTEMPLATEVARS)")
 	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: MSGRAPHATTACHMENTS)")
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: MSGRAPHINLINEATTACHMENTS)")
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: MSGRAPHHEADER — comma-separated; avoid commas in header values)")

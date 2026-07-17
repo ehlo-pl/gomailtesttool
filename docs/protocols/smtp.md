@@ -133,6 +133,45 @@ gomailtest smtp sendmail \
 - `--cc` recipients receive the message via `RCPT TO` and appear in the `Cc:` header (visible to all recipients). `--bcc` recipients receive the message via `RCPT TO` but are never written to any message header.
 - `--priority high` or `--priority low` add the `X-Priority`, `Importance`, and `Priority` headers recognized by most mail clients; `--priority normal` (the default) adds none of these headers.
 
+#### Sending from a template (`--template` / `--template-vars`)
+
+`--template` sends from a file processed through Go `text/template`; variables
+supplied with repeatable `--template-vars key=value` flags are referenced as
+`{{.key}}` (referencing an unsupplied variable is an error). The file
+extension picks the mode:
+
+- **`.eml` (full message mode):** the rendered file is a complete RFC 822
+  message and is injected verbatim into the SMTP `DATA` phase — every header
+  and MIME part is preserved exactly. The envelope (`MAIL FROM`/`RCPT TO`)
+  uses `--from`/`--to`/`--cc`/`--bcc` when given, otherwise falls back to the
+  rendered `From`/`To`/`Cc`/`Bcc` headers. Because the file *is* the message,
+  `--body`, `--bodyhtml`, `--attachments`, `--inline-attachments`, `--header`,
+  and a non-default `--priority` are rejected — embed those in the file.
+- **any other extension (HTML body mode):** the rendered content becomes the
+  HTML body (same as `--bodyhtml`); all other sendmail flags work as usual.
+
+```powershell
+# Full message from a .eml template
+gomailtest smtp sendmail --host smtp.example.com --port 587 \
+  --template .\welcome.eml --template-vars Name=World --template-vars Rcpt=user@example.com
+
+# HTML body from a template file
+gomailtest smtp sendmail --host smtp.example.com --port 587 \
+  --from sender@example.com --to user@example.com \
+  --template .\body.html --template-vars Name=World
+```
+
+Where `welcome.eml` might contain:
+
+```
+From: Sender <sender@example.com>
+To: {{.Rcpt}}
+Subject: Welcome, {{.Name}}!
+Content-Type: text/plain; charset=utf-8
+
+Hello {{.Name}}, this message came from an EML template.
+```
+
 ## Flags
 
 ### Persistent (all subcommands)
@@ -184,6 +223,8 @@ vars). `teststarttls` requires either STARTTLS or `--smtps` to test, so
 | `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` | `SMTPINLINEATTACHMENTS` |
 | `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values) | `SMTPHEADER` |
 | `--priority` | Email priority: `high`, `normal`, `low`. `high`/`low` add `X-Priority`, `Importance`, and `Priority` headers; `normal` (default) adds no extra headers | `SMTPPRIORITY` |
+| `--template` | Message template file with Go `text/template` variables: a `.eml` file is sent as the complete RFC 822 message (mutually exclusive with `--body`/`--bodyhtml` and, for `.eml`, the attachment/header/priority flags); any other extension is used as the HTML body | `SMTPTEMPLATE` |
+| `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` in `--template` (repeatable) | `SMTPTEMPLATEVARS` |
 
 ## Environment Variables
 

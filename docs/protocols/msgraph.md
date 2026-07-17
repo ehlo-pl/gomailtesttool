@@ -81,9 +81,24 @@ gomailtest msgraph sendmail \
     --bodyHTML '<p>Hello! Here is our logo: <img src="cid:logo.png"></p>' \
     --inline-attachments "C:\Branding\logo.png" \
     --header "X-Custom-Header: example-value"
+
+# Send from a template file (Go text/template variables via --template-vars)
+gomailtest msgraph sendmail --template "C:\Templates\message.eml" --template-vars Name=World
+gomailtest msgraph sendmail --to "recipient@example.com" \
+    --template "C:\Templates\body.html" --template-vars Name=World
 ```
 
 > **Note:** Microsoft Graph only passes through `X-`-prefixed custom headers. Standard RFC headers (From, To, Subject, Date, Message-ID, etc.) are set by the Graph API itself and cannot be overridden via `--header`.
+
+`--template` with a `.eml` file parses the rendered message and maps its
+recognised fields (`To`/`Cc`/`Bcc`/`Subject`/text and HTML bodies) onto the
+Graph send API; recipient flags win over the EML headers when both are given.
+The EML `From` header is ignored (Graph always sends as `--mailbox`) and
+headers without a Graph mapping are reported in verbose mode. Any other
+extension is rendered and used as the HTML body (like `--body-template`, plus
+variable substitution). Mutually exclusive with
+`--body`/`--bodyHTML`/`--body-template`; `--template-vars key=value`
+(repeatable) supplies variables referenced as `{{.key}}`.
 
 ### sendinvite — Create Calendar Invitations
 
@@ -273,6 +288,8 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--body` | Email body text | `MSGRAPHBODY` |
 | `--bodyHTML` | Email body HTML | `MSGRAPHBODYHTML` |
 | `--body-template` | Path to HTML template file | `MSGRAPHBODYTEMPLATE` |
+| `--template` | Message template file with Go `text/template` variables: `.eml` fields are mapped to the Graph API, any other extension is used as the HTML body; mutually exclusive with `--body`/`--bodyHTML`/`--body-template` | `MSGRAPHTEMPLATE` |
+| `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` in `--template` (repeatable) | `MSGRAPHTEMPLATEVARS` |
 | `--attachments` | Comma-separated file paths | `MSGRAPHATTACHMENTS` |
 | `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` (referenced from `--bodyHTML`) | `MSGRAPHINLINEATTACHMENTS` |
 | `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values). **Microsoft Graph only passes through `X-`-prefixed custom headers** — standard RFC headers (From, To, Subject, etc.) are controlled by the API itself and cannot be injected here | `MSGRAPHHEADER` |

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
+	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -32,12 +33,14 @@ type Config struct {
 	Mailbox     string // Target mailbox for impersonation (optional)
 
 	// Email composition (sendmail)
-	To      []string
-	Cc      []string
-	Bcc     []string
-	Subject string
-	Body    string
-	BodyHTML string
+	To           []string
+	Cc           []string
+	Bcc          []string
+	Subject      string
+	Body         string
+	BodyHTML     string
+	Template     string   // Path to a message template: .eml (fields mapped to EWS CreateItem) or HTML body file
+	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
 
 	// Calendar (getevents, sendinvite, getschedule)
 	StartTime string
@@ -67,6 +70,10 @@ type Config struct {
 	LogLevel    string
 	LogFormat   string // csv, json
 }
+
+// defaultSendMailBody is the sendmail --body flag default. It is also used to
+// detect an explicit --body when checking mutual exclusion with --template.
+const defaultSendMailBody = "It's a test message, please ignore"
 
 // Action constants
 const (
@@ -156,6 +163,8 @@ func BindEnvs(v *viper.Viper) {
 		"subject":          "EWSSUBJECT",
 		"body":             "EWSBODY",
 		"bodyhtml":         "EWSBODYHTML",
+		"template":         "EWSTEMPLATE",
+		"template-vars":    "EWSTEMPLATEVARS",
 		"start":            "EWSSTART",
 		"end":              "EWSEND",
 		"messageid":        "EWSMESSAGEID",
@@ -223,7 +232,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 
 	body := v.GetString("body")
 	if body == "" {
-		body = "It's a test message, please ignore"
+		body = defaultSendMailBody
 	}
 
 	count := v.GetInt("count")
@@ -254,6 +263,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:          subject,
 		Body:             body,
 		BodyHTML:         v.GetString("bodyhtml"),
+		Template:         v.GetString("template"),
+		TemplateVars:     v.GetStringSlice("template-vars"),
 		StartTime:        v.GetString("start"),
 		EndTime:          v.GetString("end"),
 		MessageID:        v.GetString("messageid"),
@@ -364,7 +375,29 @@ func validateConfiguration(config *Config) error {
 	}
 
 	if config.Action == ActionSendMail {
-		if len(config.To) == 0 {
+		// Validate --template/--template-vars. An .eml template is parsed
+		// and its recognised fields mapped onto EWS CreateItem, so
+		// recipients may come from its To/Cc headers instead of --to.
+		emlTemplate := false
+		if len(config.TemplateVars) > 0 && config.Template == "" {
+			return fmt.Errorf("--template-vars requires --template")
+		}
+		if config.Template != "" {
+			if err := validation.ValidateFilePath(config.Template, "Template file"); err != nil {
+				return err
+			}
+			if config.BodyHTML != "" {
+				return fmt.Errorf("cannot use both --template and --bodyhtml simultaneously")
+			}
+			if config.Body != defaultSendMailBody {
+				return fmt.Errorf("cannot use both --template and --body simultaneously")
+			}
+			if _, err := tmpl.ParseVars(config.TemplateVars); err != nil {
+				return fmt.Errorf("invalid --template-vars: %w", err)
+			}
+			emlTemplate = tmpl.IsEML(config.Template)
+		}
+		if len(config.To) == 0 && !emlTemplate {
 			return fmt.Errorf("sendmail requires at least one recipient (--to)")
 		}
 	}
