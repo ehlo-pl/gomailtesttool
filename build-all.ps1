@@ -1,9 +1,16 @@
 #!/usr/bin/env pwsh
 # Build script for gomailtesttool
 # Builds the unified gomailtest binary (optimized)
+#
+# To build a protocol-subset binary, pass the -Protocols parameter with a
+# space-separated list of protocol tags, e.g.:
+#   .\build-all.ps1 -Protocols "smtp imap pop3"
+# Valid protocol tags: smtp, imap, pop3, jmap, ews, gmail, msgraph
+# The output binary will be named gomailtest-<protocol1>-<protocol2>...exe
 
 param(
-    [switch]$Verbose
+    [switch]$Verbose,
+    [string]$Protocols = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,21 +40,36 @@ if (-not $match) {
 }
 $version = $match.Matches[0].Groups[1].Value
 
-# Build gomailtest
-$outputFile = Join-Path $binDir "gomailtest.exe"
-
-if ($Verbose) {
-    go build -v -ldflags="-s -w" -o $outputFile ./cmd/gomailtest
+# Determine output file name and build tags
+if ($Protocols -ne "") {
+    $suffix = ($Protocols.Trim() -split '\s+') -join '-'
+    $outputFile = Join-Path $binDir "gomailtest-$suffix.exe"
+    $buildTags = "custom $Protocols"
+    Write-ColorOutput "  Protocol-subset build: $Protocols" "Yellow"
 } else {
-    go build -ldflags="-s -w" -o $outputFile ./cmd/gomailtest
+    $outputFile = Join-Path $binDir "gomailtest.exe"
+    $buildTags = ""
 }
+
+# Build gomailtest
+$buildArgs = @("-ldflags=-s -w", "-trimpath", "-o", $outputFile)
+if ($Verbose) {
+    $buildArgs = @("-v") + $buildArgs
+}
+if ($buildTags -ne "") {
+    $buildArgs = @("-tags", $buildTags) + $buildArgs
+}
+$buildArgs += "./cmd/gomailtest"
+
+& go build @buildArgs
 
 if ($LASTEXITCODE -ne 0) {
     Write-ColorOutput "  ✗ Build failed" "Red"
     exit 1
 }
 
-Write-ColorOutput "  Built bin/gomailtest.exe — version $version" "Green"
+$relPath = $outputFile.Replace($PSScriptRoot + [System.IO.Path]::DirectorySeparatorChar, "")
+Write-ColorOutput "  Built $relPath — version $version" "Green"
 
 # Summary
 Write-ColorOutput "`n═══════════════════════════════════════════════════════════" "Cyan"
