@@ -117,6 +117,63 @@ go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 golangci-lint run
 ```
 
+## Protocol-Subset Builds
+
+By default, `go build` compiles **all** protocols into the binary. You can produce
+a smaller binary containing only the protocols you need by using Go build tags.
+
+### How it works
+
+A special `custom` meta-tag enables selective compilation. Each protocol has its
+own build constraint (`smtp || !custom`, `imap || !custom`, etc.), so:
+
+- **No tags** (default): every protocol is included.
+- **`-tags custom`**: only protocols whose tag is explicitly listed are included.
+
+Valid protocol tags: `smtp`, `imap`, `pop3`, `jmap`, `ews`, `gmail`, `msgraph`
+
+> The `devtools` and `serve` sub-commands are always compiled in regardless of
+> the protocol selection.
+
+### Using Make
+
+```bash
+# SMTP + IMAP + POP3 → bin/gomailtest-smtp-imap-pop3
+make build-custom PROTOCOLS="smtp imap pop3"
+
+# SMTP only → bin/gomailtest-smtp
+make build-smtp-only
+
+# Microsoft Graph only → bin/gomailtest-msgraph
+make build-msgraph-only
+
+# SMTP + IMAP + POP3 standard subset → bin/gomailtest-smtp-imap-pop3
+make build-standard-only
+```
+
+### Using PowerShell
+
+```powershell
+# SMTP + IMAP only → bin/gomailtest-smtp-imap.exe
+.\build-all.ps1 -Protocols "smtp imap"
+
+# Microsoft Graph + Gmail → bin/gomailtest-msgraph-gmail.exe
+.\build-all.ps1 -Protocols "msgraph gmail"
+```
+
+### Direct `go build`
+
+```bash
+# SMTP + JMAP + EWS
+go build -tags "custom smtp jmap ews" -ldflags="-s -w" -trimpath \
+    -o bin/gomailtest-smtp-jmap-ews ./cmd/gomailtest
+```
+
+### Binary naming convention
+
+The output binary is named `gomailtest-<protocol1>-<protocol2>-...` (protocols
+in the order provided). The default full build keeps the name `gomailtest`.
+
 ## Build Flags Explained
 
 | Flag | Description |

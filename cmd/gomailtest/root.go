@@ -5,13 +5,6 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/version"
 	"github.com/ehlo-pl/gomailtesttool/internal/devtools"
-	"github.com/ehlo-pl/gomailtesttool/internal/protocols/ews"
-	"github.com/ehlo-pl/gomailtesttool/internal/protocols/gmail"
-	"github.com/ehlo-pl/gomailtesttool/internal/protocols/imap"
-	"github.com/ehlo-pl/gomailtesttool/internal/protocols/jmap"
-	"github.com/ehlo-pl/gomailtesttool/internal/protocols/msgraph"
-	"github.com/ehlo-pl/gomailtesttool/internal/protocols/pop3"
-	"github.com/ehlo-pl/gomailtesttool/internal/protocols/smtp"
 	"github.com/ehlo-pl/gomailtesttool/internal/serve"
 )
 
@@ -22,7 +15,8 @@ var rootCmd = &cobra.Command{
 	Long: `gomailtest is a unified CLI for testing email and calendar protocols.
 
 Supports SMTP, IMAP, POP3, JMAP, EWS, Microsoft Graph (Exchange Online), and
-Gmail / Google Workspace.
+Gmail / Google Workspace. Protocol-subset builds may include only a selection
+of these protocols (see BUILD.md for details).
 
 Run 'gomailtest <protocol> --help' for protocol-specific usage.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -36,15 +30,11 @@ Run 'gomailtest <protocol> --help' for protocol-specific usage.`,
 func init() {
 	rootCmd.PersistentFlags().String("config", "", "Path to a YAML config file providing default flag values (CLI flags and env vars still take precedence)")
 
-	rootCmd.AddCommand(msgraph.NewCmd())
-	rootCmd.AddCommand(gmail.NewCmd())
-	rootCmd.AddCommand(smtp.NewCmd())
-	rootCmd.AddCommand(pop3.NewCmd())
-	rootCmd.AddCommand(imap.NewCmd())
-	rootCmd.AddCommand(jmap.NewCmd())
-	rootCmd.AddCommand(ews.NewCmd())
 	rootCmd.AddCommand(devtools.NewCmd())
 	rootCmd.AddCommand(serve.NewCmd())
+	// Protocol sub-commands are registered via per-protocol files
+	// (protocols_smtp.go, protocols_imap.go, etc.) that use build tags
+	// to support protocol-subset builds. See BUILD.md for details.
 }
 
 // Execute runs the root command and returns any error.
