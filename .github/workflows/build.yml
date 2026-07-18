@@ -86,51 +86,65 @@ jobs:
     - name: Create bin directory
       run: mkdir -p bin
 
-    - name: Build binary
+    - name: Build gomailtest (smtp+pop3+imap+jmap)
       env:
         GOARCH: ${{ matrix.goarch }}
       run: |
-        go build -ldflags="-s -w" -o bin/gomailtest${{ matrix.ext }} ./cmd/gomailtest
+        go build -tags "custom,smtp,pop3,imap,jmap" -ldflags="-s -w" -o bin/gomailtest${{ matrix.ext }} ./cmd/gomailtest
+
+    - name: Build gomailtest-exchange (ews+msgraph)
+      env:
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        go build -tags "custom,ews,msgraph" -ldflags="-s -w" -o bin/gomailtest-exchange${{ matrix.ext }} ./cmd/gomailtest
+
+    - name: Build gomailtest-gmail (gmail)
+      env:
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        go build -tags "custom,gmail" -ldflags="-s -w" -o bin/gomailtest-gmail${{ matrix.ext }} ./cmd/gomailtest
 
     - name: Set ZIP name
       shell: bash
       run: echo "ZIP_NAME=${{ matrix.artifact_name }}-${{ github.ref_name }}.zip" >> "$GITHUB_ENV"
 
-    - name: Verify build output (Windows)
+    - name: Verify build outputs (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        $binary = "bin\gomailtest${{ matrix.ext }}"
-        if (Test-Path $binary) {
-          Write-Host "✓ gomailtest build successful"
-          Get-Item $binary | Select-Object Name, Length
-        } else {
-          Write-Error "✗ gomailtest build failed"
-          exit 1
+        foreach ($binary in @("bin\gomailtest${{ matrix.ext }}", "bin\gomailtest-exchange${{ matrix.ext }}", "bin\gomailtest-gmail${{ matrix.ext }}")) {
+          if (Test-Path $binary) {
+            Write-Host "✓ $binary build successful"
+            Get-Item $binary | Select-Object Name, Length
+          } else {
+            Write-Error "✗ $binary build failed"
+            exit 1
+          }
         }
 
-    - name: Verify build output (Linux/macOS)
+    - name: Verify build outputs (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        if [ -f "bin/gomailtest${{ matrix.ext }}" ]; then
-          echo "✓ gomailtest build successful"
-          ls -lh "bin/gomailtest${{ matrix.ext }}"
-        else
-          echo "✗ gomailtest build failed"
-          exit 1
-        fi
+        for binary in bin/gomailtest bin/gomailtest-exchange bin/gomailtest-gmail; do
+          if [ -f "${binary}${{ matrix.ext }}" ]; then
+            echo "✓ ${binary} build successful"
+            ls -lh "${binary}${{ matrix.ext }}"
+          else
+            echo "✗ ${binary} build failed"
+            exit 1
+          fi
+        done
 
     - name: Create ZIP archive (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        Compress-Archive -Path bin\gomailtest${{ matrix.ext }},README.md,TOOLS.md,LICENSE -DestinationPath $env:ZIP_NAME
+        Compress-Archive -Path bin\gomailtest${{ matrix.ext }},bin\gomailtest-exchange${{ matrix.ext }},bin\gomailtest-gmail${{ matrix.ext }},README.md,TOOLS.md,LICENSE -DestinationPath $env:ZIP_NAME
         Write-Host "Created ZIP archive: $env:ZIP_NAME"
         Get-Item $env:ZIP_NAME | Select-Object Name, Length
 
     - name: Create ZIP archive (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        cd bin && zip ../$ZIP_NAME gomailtest${{ matrix.ext }} && cd ..
-        zip -u $ZIP_NAME README.md TOOLS.md LICENSE
+        zip $ZIP_NAME bin/gomailtest bin/gomailtest-exchange bin/gomailtest-gmail README.md TOOLS.md LICENSE
         echo "Created ZIP archive: $ZIP_NAME"
         ls -lh $ZIP_NAME
 
@@ -145,14 +159,16 @@ jobs:
       with:
         files: ${{ env.ZIP_NAME }}
         body: |
-          ## gomailtesttool Suite - Email Infrastructure Testing Tools
+          ## gomailtesttool Suite v4.0 - Email Infrastructure Testing Tools
 
-          Portable CLI tools for comprehensive email infrastructure testing - covering cloud services (Exchange Online via Microsoft Graph), SMTP, IMAP, POP3, and JMAP protocols.
+          Portable CLI tools for comprehensive email infrastructure testing, now split into focused binaries.
 
           ### What's Included
 
-          Each ZIP archive contains a single unified binary:
-          - **gomailtest** - Unified CLI for all protocols (smtp, imap, pop3, jmap, msgraph subcommands)
+          Each ZIP archive contains three separate binaries:
+          - **gomailtest** - Standard protocols (smtp, imap, pop3, jmap)
+          - **gomailtest-exchange** - Microsoft/Exchange protocols (ews, msgraph)
+          - **gomailtest-gmail** - Gmail / Google Workspace
 
           Plus documentation:
           - **README.md** - Main documentation
@@ -164,69 +180,64 @@ jobs:
           **Windows (amd64):**
           1. Download `gomailtesttool-windows-amd64-${{ github.ref_name }}.zip`
           2. Extract the ZIP file
-          3. Run: `gomailtest.exe --help`
+          3. Run e.g.: `gomailtest.exe --help`
 
           **Linux (amd64):**
           1. Download `gomailtesttool-linux-amd64-${{ github.ref_name }}.zip`
           2. Extract: `unzip gomailtesttool-linux-amd64-${{ github.ref_name }}.zip`
-          3. Make executable: `chmod +x gomailtest`
-          4. Run: `./gomailtest --help`
+          3. Make executables: `chmod +x gomailtest gomailtest-exchange gomailtest-gmail`
+          4. Run e.g.: `./gomailtest --help`
 
           **macOS (Apple Silicon/arm64):**
           1. Download `gomailtesttool-macos-arm64-${{ github.ref_name }}.zip`
           2. Extract: `unzip gomailtesttool-macos-arm64-${{ github.ref_name }}.zip`
-          3. Make executable: `chmod +x gomailtest`
-          4. Run: `./gomailtest --help`
+          3. Make executables: `chmod +x gomailtest gomailtest-exchange gomailtest-gmail`
+          4. Run e.g.: `./gomailtest --help`
 
           **Note for macOS:** If you see "cannot be opened because the developer cannot be verified":
           - Right-click the binary and select "Open", or
-          - Run: `xattr -d com.apple.quarantine gomailtest`
+          - Run: `xattr -d com.apple.quarantine gomailtest gomailtest-exchange gomailtest-gmail`
 
           ### Quick Start Examples
 
           **SMTP Testing:**
           ```bash
-          # Test connectivity
           ./gomailtest smtp testconnect --host smtp.example.com --port 25
-
-          # TLS diagnostics
           ./gomailtest smtp teststarttls --host smtp.example.com --port 587
           ```
 
           **IMAP Testing:**
           ```bash
-          # Test connection
-          ./gomailtest imap testconnect --host imap.gmail.com --imaps
-
-          # List folders with OAuth2
-          ./gomailtest imap listfolders --host imap.gmail.com --imaps \
-            --username user@gmail.com --accesstoken "ya29..."
+          ./gomailtest imap testconnect --host imap.example.com --imaps
+          ./gomailtest imap listfolders --host imap.example.com --imaps \
+            --username user@example.com --accesstoken "ya29..."
           ```
 
           **POP3 Testing:**
           ```bash
-          # Test connection
-          ./gomailtest pop3 testconnect --host pop.gmail.com --pop3s
-
-          # List mail
-          ./gomailtest pop3 listmail --host pop.gmail.com --pop3s \
-            --username user@gmail.com --password "app-password"
+          ./gomailtest pop3 testconnect --host pop.example.com --pop3s
+          ./gomailtest pop3 listmail --host pop.example.com --pop3s \
+            --username user@example.com --password "app-password"
           ```
 
           **JMAP Testing:**
           ```bash
-          # Discover session
           ./gomailtest jmap testconnect --host jmap.fastmail.com
-
-          # Get mailboxes
           ./gomailtest jmap getmailboxes --host jmap.fastmail.com \
             --username user@fastmail.com --accesstoken "token"
           ```
 
-          **Microsoft Graph:**
+          **EWS / Microsoft Graph:**
           ```bash
-          ./gomailtest msgraph getinbox --tenantid "..." --clientid "..." --secret "..." \
+          ./gomailtest-exchange ews testconnect --host mail.example.com
+          ./gomailtest-exchange msgraph getinbox --tenantid "..." --clientid "..." --secret "..." \
             --mailbox "user@example.com"
+          ```
+
+          **Gmail / Google Workspace:**
+          ```bash
+          ./gomailtest-gmail gmail listmessages --credentials credentials.json \
+            --mailbox user@gmail.com
           ```
 
           ### Documentation
