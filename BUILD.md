@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-1. **Go 1.24+**: [Download Go](https://golang.org/dl/)
+1. **Go 1.25+**: [Download Go](https://golang.org/dl/)
 2. **Git**: [Download Git](https://git-scm.com/downloads)
 
 ## Quick Build (All Tools)

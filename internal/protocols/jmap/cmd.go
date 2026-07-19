@@ -208,6 +208,12 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 		Use:   "sendmail",
 		Short: "Send an email via JMAP",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if bt := cmd.Flags().Lookup("body-template"); bt != nil && bt.Changed {
+				if cmd.Flags().Lookup("template").Changed {
+					return fmt.Errorf("cannot use both --template and --body-template")
+				}
+				_ = cmd.Flags().Set("template", bt.Value.String())
+			}
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
@@ -246,8 +252,12 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: JMAPSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: JMAPBODY)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: JMAPBODYHTML)")
+	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: JMAPATTACHMENTS)")
+	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: JMAPINLINEATTACHMENTS)")
 	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (From/To/Cc/Bcc/Subject/bodies) mapped to JMAP Email/set; any other extension is used as the HTML body (env: JMAPTEMPLATE)")
 	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: JMAPTEMPLATEVARS)")
+	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
+	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd
 }
 

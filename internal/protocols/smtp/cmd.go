@@ -182,6 +182,12 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 		Long: `Send a test email through the SMTP server. Authenticates if credentials are provided,
 upgrades to TLS automatically, and logs the result (including TLS details) to CSV.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if bt := cmd.Flags().Lookup("body-template"); bt != nil && bt.Changed {
+				if cmd.Flags().Lookup("template").Changed {
+					return fmt.Errorf("cannot use both --template and --body-template")
+				}
+				_ = cmd.Flags().Set("template", bt.Value.String())
+			}
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
@@ -236,6 +242,8 @@ upgrades to TLS automatically, and logs the result (including TLS details) to CS
 	cmd.Flags().String("priority", "normal", "Email priority: high, normal, low; high/low add X-Priority, Importance, and Priority headers (env: SMTPPRIORITY)")
 	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file is sent as the complete RFC 822 message; any other extension is used as the HTML body (env: SMTPTEMPLATE)")
 	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: SMTPTEMPLATEVARS)")
+	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
+	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 
 	return cmd
 }

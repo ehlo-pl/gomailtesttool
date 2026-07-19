@@ -33,14 +33,16 @@ type Config struct {
 	Mailbox     string // Target mailbox for impersonation (optional)
 
 	// Email composition (sendmail)
-	To           []string
-	Cc           []string
-	Bcc          []string
-	Subject      string
-	Body         string
-	BodyHTML     string
-	Template     string   // Path to a message template: .eml (fields mapped to EWS CreateItem) or HTML body file
-	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
+	To                  []string
+	Cc                  []string
+	Bcc                 []string
+	Subject             string
+	Body                string
+	BodyHTML            string
+	Template            string   // Path to a message template: .eml (fields mapped to EWS CreateItem) or HTML body file
+	TemplateVars        []string // Template variables in "key=value" form, referenced as {{.key}}
+	AttachmentFiles     []string // File paths to attach
+	InlineAttachmentFiles []string // File paths to embed inline via cid:<filename>
 
 	// Calendar (getevents, sendinvite, getschedule)
 	StartTime string
@@ -163,8 +165,10 @@ func BindEnvs(v *viper.Viper) {
 		"subject":          "EWSSUBJECT",
 		"body":             "EWSBODY",
 		"bodyhtml":         "EWSBODYHTML",
-		"template":         "EWSTEMPLATE",
-		"template-vars":    "EWSTEMPLATEVARS",
+		"template":           "EWSTEMPLATE",
+		"template-vars":      "EWSTEMPLATEVARS",
+		"attachments":        "EWSATTACHMENTS",
+		"inline-attachments": "EWSINLINEATTACHMENTS",
 		"start":            "EWSSTART",
 		"end":              "EWSEND",
 		"messageid":        "EWSMESSAGEID",
@@ -263,8 +267,10 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:          subject,
 		Body:             body,
 		BodyHTML:         v.GetString("bodyhtml"),
-		Template:         v.GetString("template"),
-		TemplateVars:     v.GetStringSlice("template-vars"),
+		Template:              v.GetString("template"),
+		TemplateVars:          v.GetStringSlice("template-vars"),
+		AttachmentFiles:       parseStringSlice(v.GetString("attachments")),
+		InlineAttachmentFiles: parseStringSlice(v.GetString("inline-attachments")),
 		StartTime:        v.GetString("start"),
 		EndTime:          v.GetString("end"),
 		MessageID:        v.GetString("messageid"),

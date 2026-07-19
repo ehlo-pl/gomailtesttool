@@ -373,6 +373,51 @@ func (c *JMAPClient) fetchEmailDetails(ctx context.Context, accountId protocol.I
 	return emailGetResult.List, nil
 }
 
+// UploadBlob uploads raw data to the JMAP upload endpoint and returns the
+// assigned blobId. The upload URL template is taken from the session (RFC 8621
+// §6.1): the {accountId} placeholder is replaced with the primary mail account.
+func (c *JMAPClient) UploadBlob(ctx context.Context, contentType string, data []byte) (protocol.Id, error) {
+	if c.session == nil {
+		return "", fmt.Errorf("no session available")
+	}
+
+	accountId, ok := c.session.GetPrimaryMailAccountId()
+	if !ok {
+		return "", fmt.Errorf("no primary mail account found")
+	}
+
+	uploadURL := strings.ReplaceAll(c.session.UploadURL, "{accountId}", url.PathEscape(string(accountId)))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", uploadURL, bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("failed to create upload request: %w", err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	c.addAuth(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("blob upload failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("blob upload failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var uploadResp struct {
+		BlobId protocol.Id `json:"blobId"`
+	}
+	if err := json.Unmarshal(body, &uploadResp); err != nil {
+		return "", fmt.Errorf("failed to parse upload response: %w", err)
+	}
+	if uploadResp.BlobId == "" {
+		return "", fmt.Errorf("upload response missing blobId")
+	}
+	return uploadResp.BlobId, nil
+}
+
 // DownloadBlob downloads a blob by blobId, returning the raw bytes.
 // Uses the session downloadUrl template, replacing {accountId}, {blobId}, {name}, {type}.
 func (c *JMAPClient) DownloadBlob(ctx context.Context, accountId protocol.Id, blobId protocol.Id, name string) ([]byte, error) {

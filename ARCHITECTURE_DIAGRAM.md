@@ -2,14 +2,24 @@
 
 ## Overview
 
-**gomailtesttool** is a unified CLI (`gomailtest`) for email infrastructure testing, with 6 protocol subcommands plus developer tooling and an HTTP server mode:
+**gomailtesttool** is a unified CLI (`gomailtest`) for email infrastructure testing, with 7 protocol subcommands plus developer tooling and an HTTP/MCP server mode.
+
+Released as **3 separate binaries** per platform (build-tag-selected at compile time):
+- **`gomailtest`** — standard protocols: smtp, imap, pop3, jmap
+- **`gomailtest-exchange`** — Microsoft/Exchange protocols: ews, msgraph
+- **`gomailtest-gmail`** — Google Workspace: gmail
+
+All three binaries always include `serve` and `devtools`.
+
+Protocol subcommands:
 - **smtp** - SMTP connectivity and TLS diagnostics
 - **imap** - IMAP server testing with OAuth2
 - **pop3** - POP3 server testing with OAuth2
 - **jmap** - JMAP protocol testing
 - **ews** - Exchange Web Services (on-premises Exchange 2007–2019)
 - **msgraph** - Microsoft Graph API (Exchange Online)
-- **serve** - HTTP/REST server for triggering send operations programmatically
+- **gmail** - Google Workspace / Gmail API
+- **serve** - HTTP/REST + MCP server for triggering send operations programmatically
 - **devtools** - Release automation and environment management
 
 ## File Structure and Dependencies
@@ -17,42 +27,62 @@
 ```
 gomailtesttool/
 ├── cmd/
-│   └── gomailtest/                   # Single binary entry point
+│   └── gomailtest/                   # Single binary entry point (build-tag-selected protocols)
 │       ├── main.go                   # main() → Execute()
-│       └── root.go                   # Cobra root command, registers subcommands
+│       ├── root.go                   # Cobra root command, registers subcommands
+│       ├── protocols_smtp.go         # //go:build smtp || !custom
+│       ├── protocols_imap.go         # //go:build imap || !custom
+│       ├── protocols_pop3.go         # //go:build pop3 || !custom
+│       ├── protocols_jmap.go         # //go:build jmap || !custom
+│       ├── protocols_ews.go          # //go:build ews || !custom
+│       ├── protocols_msgraph.go      # //go:build msgraph || !custom
+│       └── protocols_gmail.go        # //go:build gmail || !custom
 │
 ├── internal/
 │   ├── common/                       # Cross-protocol utilities
 │   │   ├── bootstrap/
-│   │   │   └── bootstrap.go          # Signal context setup
+│   │   │   └── bootstrap.go          # Signal context setup, config/logger init
+│   │   ├── email/                    # Email address parsing and validation
+│   │   │   └── email.go
+│   │   ├── export/
+│   │   │   └── export.go             # JSON export helpers
 │   │   ├── logger/                   # Structured logging
 │   │   │   ├── csv.go
 │   │   │   ├── json.go
-│   │   │   ├── json_test.go
 │   │   │   ├── logger.go
 │   │   │   └── slog.go               # slog-based structured logger
+│   │   ├── mime/                     # MIME type detection
+│   │   │   └── mime.go
+│   │   ├── network/                  # Dial helpers: ResolveForDial, LookupMX, ValidateIPVersionFlags
+│   │   │   └── network.go
 │   │   ├── ratelimit/
-│   │   │   ├── ratelimit.go
-│   │   │   └── ratelimit_test.go
+│   │   │   └── ratelimit.go
 │   │   ├── retry/
-│   │   │   └── retry.go              # Exponential backoff
+│   │   │   └── retry.go              # Exponential backoff; protocol-specific classifier hook
 │   │   ├── security/
-│   │   │   ├── masking.go
-│   │   │   └── masking_test.go
+│   │   │   └── masking.go
+│   │   ├── template/                 # Email template rendering (--template / --template-vars)
+│   │   │   └── template.go           # ParseVars, Render, IsEML, ParseEML
+│   │   ├── timeslot/                 # Calendar availability analysis (findtimeslot)
+│   │   │   └── timeslot.go
+│   │   ├── tls/                      # TLS certificate display and validation
+│   │   │   ├── certificate.go
+│   │   │   ├── display.go
+│   │   │   └── validation.go
 │   │   ├── validation/
-│   │   │   ├── validation.go
-│   │   │   ├── validation_test.go
-│   │   │   └── proxy_test.go
+│   │   │   └── validation.go
 │   │   └── version/
 │   │       └── version.go            # Single source of truth for version
 │   │
-│   ├── serve/                        # HTTP server subcommand
+│   ├── serve/                        # HTTP + MCP server subcommand
 │   │   ├── cmd.go                    # 'gomailtest serve' — startup, env loading, client init
-│   │   ├── config.go                 # ServeConfig (Port, Listen, APIKey)
+│   │   ├── config.go                 # ServeConfig (Port, Listen, APIKey, EnableMCP)
 │   │   ├── server.go                 # HTTP server, mux, API key middleware, /health
+│   │   ├── send.go                   # Transport-agnostic send core (sendSMTP / sendMsgraph)
 │   │   ├── smtp_handler.go           # POST /smtp/sendmail
 │   │   ├── msgraph_handler.go        # POST /msgraph/sendmail
 │   │   ├── ews_handler.go            # POST /ews/sendmail (501 placeholder)
+│   │   ├── mcp.go                    # MCP server: tool registration, stdio/HTTP transports
 │   │   └── server_test.go
 │   │
 │   ├── devtools/                     # Developer-facing subcommand
@@ -73,70 +103,111 @@ gomailtesttool/
 │   │
 │   ├── protocols/                    # Protocol implementations
 │   │   ├── smtp/
-│   │   │   ├── cmd.go                # Cobra subcommand wiring
+│   │   │   ├── cmd.go
 │   │   │   ├── config.go
-│   │   │   ├── config_test.go
 │   │   │   ├── smtp_client.go
-│   │   │   ├── smtp_client_test.go
 │   │   │   ├── testconnect.go
 │   │   │   ├── teststarttls.go
 │   │   │   ├── testauth.go
 │   │   │   ├── sendmail.go
-│   │   │   ├── sendmail_test.go
 │   │   │   ├── tls_display.go
-│   │   │   ├── utils.go
-│   │   │   └── utils_test.go
+│   │   │   └── utils.go
 │   │   │
 │   │   ├── imap/
 │   │   │   ├── cmd.go
 │   │   │   ├── config.go
 │   │   │   ├── imap_client.go
-│   │   │   ├── listfolders.go
 │   │   │   ├── testconnect.go
+│   │   │   ├── teststarttls.go
 │   │   │   ├── testauth.go
+│   │   │   ├── listfolders.go
+│   │   │   ├── listmail.go
+│   │   │   ├── exportmessages.go
 │   │   │   └── utils.go
 │   │   │
 │   │   ├── pop3/
 │   │   │   ├── cmd.go
 │   │   │   ├── config.go
 │   │   │   ├── pop3_client.go
-│   │   │   ├── listmail.go
 │   │   │   ├── testconnect.go
+│   │   │   ├── teststarttls.go
 │   │   │   ├── testauth.go
+│   │   │   ├── listmail.go
+│   │   │   ├── exportmessages.go
 │   │   │   └── utils.go
 │   │   │
 │   │   ├── jmap/
 │   │   │   ├── cmd.go
 │   │   │   ├── config.go
-│   │   │   ├── config_test.go
 │   │   │   ├── jmap_client.go
-│   │   │   ├── getmailboxes.go
 │   │   │   ├── testconnect.go
 │   │   │   ├── testauth.go
-│   │   │   ├── utils.go
-│   │   │   └── utils_test.go
+│   │   │   ├── listfolders.go
+│   │   │   ├── listmail.go
+│   │   │   ├── sendmail.go
+│   │   │   ├── exportmessages.go
+│   │   │   └── utils.go
 │   │   │
 │   │   ├── ews/
 │   │   │   ├── cmd.go
 │   │   │   ├── config.go
-│   │   │   ├── config_test.go
 │   │   │   ├── ews_client.go
 │   │   │   ├── soap_bodies.go
 │   │   │   ├── testconnect.go
 │   │   │   ├── testauth.go
 │   │   │   ├── getfolder.go
 │   │   │   ├── autodiscover.go
+│   │   │   ├── listfolders.go
+│   │   │   ├── listmail.go
+│   │   │   ├── sendmail.go
+│   │   │   ├── sendinvite.go
+│   │   │   ├── getevents.go
+│   │   │   ├── getschedule.go
+│   │   │   ├── findtimeslot.go
+│   │   │   ├── exportmessages.go
 │   │   │   └── utils.go
 │   │   │
-│   │   └── msgraph/
+│   │   ├── msgraph/
+│   │   │   ├── cmd.go
+│   │   │   ├── config.go
+│   │   │   ├── auth.go
+│   │   │   ├── handlers.go
+│   │   │   ├── testconnect.go
+│   │   │   ├── testauth.go
+│   │   │   ├── getevents.go
+│   │   │   ├── sendinvite.go
+│   │   │   ├── getschedule.go
+│   │   │   ├── findtimeslot.go
+│   │   │   ├── sendmail.go
+│   │   │   ├── getinbox.go
+│   │   │   ├── listfolders.go
+│   │   │   ├── listmail.go
+│   │   │   ├── exportinbox.go
+│   │   │   ├── exportmessages.go
+│   │   │   ├── searchandexport.go
+│   │   │   ├── exportbearertoken.go
+│   │   │   ├── cert_windows.go       # Windows cert store (build: windows)
+│   │   │   ├── cert_stub.go          # Cross-platform stub (build: !windows)
+│   │   │   └── utils.go
+│   │   │
+│   │   └── gmail/
 │   │       ├── cmd.go
 │   │       ├── config.go
-│   │       ├── auth.go
+│   │       ├── auth.go               # Service account DWD, bearer token, OAuth loopback
 │   │       ├── handlers.go
-│   │       ├── utils.go
-│   │       ├── utils_test.go
-│   │       ├── cert_windows.go       # Windows cert store (build: windows)
-│   │       └── cert_stub.go          # Cross-platform stub (build: !windows)
+│   │       ├── testconnect.go
+│   │       ├── testauth.go
+│   │       ├── sendmail.go
+│   │       ├── getinbox.go
+│   │       ├── listfolders.go
+│   │       ├── listmail.go
+│   │       ├── exportmessages.go
+│   │       ├── getevents.go
+│   │       ├── sendinvite.go
+│   │       ├── getschedule.go
+│   │       ├── findtimeslot.go
+│   │       ├── exportbearertoken.go
+│   │       └── utils.go
 │   │
 │   ├── smtp/                         # SMTP protocol primitives
 │   │   ├── exchange/
@@ -144,42 +215,41 @@ gomailtesttool/
 │   │   └── protocol/
 │   │       ├── capabilities.go
 │   │       ├── commands.go
-│   │       ├── commands_test.go
-│   │       ├── responses.go
-│   │       └── responses_test.go
+│   │       └── responses.go
 │   │
 │   ├── imap/protocol/
-│   │   ├── capabilities.go
-│   │   └── capabilities_test.go
+│   │   └── capabilities.go
 │   │
 │   ├── pop3/protocol/
 │   │   ├── capabilities.go
-│   │   ├── capabilities_test.go
 │   │   ├── commands.go
-│   │   ├── commands_test.go
 │   │   └── responses.go
 │   │
 │   └── jmap/protocol/
 │       ├── methods.go
-│       ├── methods_test.go
 │       ├── session.go
-│       ├── session_test.go
-│       ├── types.go
-│       └── types_test.go
+│       └── types.go
 │
 ├── tests/
-│   ├── README.md
 │   └── integration/
 │       └── sendmail_test.go          # MS Graph integration tests (build: integration)
 │
 ├── scripts/
 │   └── check-integration-env.sh     # Validates MSGRAPH* env vars before integration tests
 │
+├── docs/
+│   ├── config-examples/              # Per-protocol YAML config examples
+│   ├── env-examples/                 # Per-protocol .env examples
+│   ├── protocols/                    # Per-protocol user guides
+│   │   ├── smtp.md, imap.md, pop3.md, jmap.md
+│   │   ├── ews.md, msgraph.md, gmail.md
+│   │   └── serve.md                  # HTTP/REST + MCP server docs
+│   └── config-file.md
+│
 ├── ChangeLog/                        # Per-version changelogs
 ├── Makefile                          # Primary build system
 ├── build-all.ps1                     # Windows build script
 ├── run-integration-tests.ps1         # Integration test runner
-├── run-interactive-release.ps1       # Legacy release script (superseded by devtools)
 ├── go.mod
 └── go.sum
 ```
@@ -195,34 +265,71 @@ gomailtest
 │   └── sendmail
 ├── imap
 │   ├── testconnect
+│   ├── teststarttls
 │   ├── testauth
-│   └── listfolders
+│   ├── listfolders
+│   ├── listmail
+│   └── exportmessages
 ├── pop3
 │   ├── testconnect
+│   ├── teststarttls
 │   ├── testauth
-│   └── listmail
+│   ├── listmail
+│   └── exportmessages
 ├── jmap
 │   ├── testconnect
 │   ├── testauth
-│   └── getmailboxes
+│   ├── listfolders
+│   ├── listmail
+│   ├── sendmail
+│   └── exportmessages
 ├── ews
 │   ├── testconnect
 │   ├── testauth
 │   ├── getfolder
-│   └── autodiscover
-├── msgraph
-│   ├── getevents
-│   ├── sendinvite
-│   ├── getschedule
+│   ├── autodiscover
+│   ├── listfolders
+│   ├── listmail
 │   ├── sendmail
+│   ├── sendinvite
+│   ├── getevents
+│   ├── getschedule
+│   ├── findtimeslot
+│   └── exportmessages
+├── msgraph
+│   ├── testconnect
+│   ├── testauth
+│   ├── sendmail
+│   ├── sendinvite
 │   ├── getinbox
+│   ├── listfolders
+│   ├── listmail
+│   ├── getevents
+│   ├── getschedule
+│   ├── findtimeslot
 │   ├── exportinbox
-│   └── searchandexport
+│   ├── exportmessages
+│   ├── searchandexport
+│   └── exportbearertoken
+├── gmail
+│   ├── testconnect
+│   ├── testauth
+│   ├── sendmail
+│   ├── sendinvite
+│   ├── getinbox
+│   ├── listfolders
+│   ├── listmail
+│   ├── getevents
+│   ├── getschedule
+│   ├── findtimeslot
+│   ├── exportmessages
+│   └── exportbearertoken
 ├── serve
 │   ├── (GET)  /health
 │   ├── (POST) /smtp/sendmail
 │   ├── (POST) /msgraph/sendmail
-│   └── (POST) /ews/sendmail        (501 — not yet implemented)
+│   ├── (POST) /ews/sendmail        (501 — not yet implemented)
+│   └── (POST) /mcp                 (Streamable HTTP MCP endpoint, behind X-API-Key)
 └── devtools
     ├── env       (get/set/clear MSGRAPH* environment variables)
     └── release   (interactive: version bump → changelog → git tag → GitHub release)
@@ -244,8 +351,41 @@ make help           → list targets
 ### build-all.ps1 (Windows convenience)
 
 ```
-.\build-all.ps1           → build bin/gomailtest.exe
+.\build-all.ps1           → build bin/gomailtest.exe (default tags)
 .\build-all.ps1 -Verbose  → build with verbose Go output
+```
+
+### Build Tags System
+
+Protocols are selectively compiled via build tags. The `custom` meta-tag enables selective
+compilation; without it all protocols are included (default `go build`).
+
+Valid protocol tags: `smtp`, `imap`, `pop3`, `jmap`, `ews`, `msgraph`, `gmail`
+
+`serve` and `devtools` are always compiled regardless of tags.
+
+### GitHub Actions CI/CD (.github/workflows/build.yml)
+
+```
+On: push tags (v*) | pull_request → main
+
+test job (ubuntu / windows / macos):
+  └── go test -v -race ./...
+  └── coverage report (ubuntu only)
+
+lint job (ubuntu, continue-on-error):
+  └── golangci-lint
+
+build job (on tag push, needs: test):
+  Matrix: windows-latest (amd64), ubuntu-latest (amd64), macos-latest (arm64)
+  ├── go build -tags "custom,smtp,pop3,imap,jmap"  -o bin/gomailtest[.exe]
+  ├── go build -tags "custom,ews,msgraph"           -o bin/gomailtest-exchange[.exe]
+  ├── go build -tags "custom,gmail"                 -o bin/gomailtest-gmail[.exe]
+  ├── Verify all three binaries exist
+  ├── Create ZIP: all 3 binaries + README.md + TOOLS.md + LICENSE
+  │   → gomailtesttool-{os}-{arch}-{tag}.zip
+  ├── Upload artifacts
+  └── Create GitHub Release (softprops/action-gh-release)
 ```
 
 ## Application Flow
@@ -255,14 +395,15 @@ gomailtest <subcommand> [flags]
           │
           ▼
 cmd/gomailtest/root.go
-  rootCmd.AddCommand(smtp.NewCmd())
-  rootCmd.AddCommand(imap.NewCmd())
-  rootCmd.AddCommand(pop3.NewCmd())
-  rootCmd.AddCommand(jmap.NewCmd())
-  rootCmd.AddCommand(ews.NewCmd())
-  rootCmd.AddCommand(msgraph.NewCmd())
-  rootCmd.AddCommand(serve.NewCmd())
-  rootCmd.AddCommand(devtools.NewCmd())
+  rootCmd.AddCommand(smtp.NewCmd())      ← protocols_smtp.go    (build: smtp || !custom)
+  rootCmd.AddCommand(imap.NewCmd())      ← protocols_imap.go    (build: imap || !custom)
+  rootCmd.AddCommand(pop3.NewCmd())      ← protocols_pop3.go    (build: pop3 || !custom)
+  rootCmd.AddCommand(jmap.NewCmd())      ← protocols_jmap.go    (build: jmap || !custom)
+  rootCmd.AddCommand(ews.NewCmd())       ← protocols_ews.go     (build: ews || !custom)
+  rootCmd.AddCommand(msgraph.NewCmd())   ← protocols_msgraph.go (build: msgraph || !custom)
+  rootCmd.AddCommand(gmail.NewCmd())     ← protocols_gmail.go   (build: gmail || !custom)
+  rootCmd.AddCommand(serve.NewCmd())     ← always included
+  rootCmd.AddCommand(devtools.NewCmd())  ← always included
           │
           ▼
 internal/protocols/<protocol>/cmd.go   ← flags, validation, dispatch
@@ -273,6 +414,9 @@ internal/protocols/<protocol>/<action>.go  ← operation logic
           ├─► internal/common/logger/    ← CSV/JSON/slog output
           ├─► internal/common/retry/     ← exponential backoff
           ├─► internal/common/ratelimit/ ← token bucket
+          ├─► internal/common/network/   ← dial helpers, MX lookup, IPv4/IPv6 resolution
+          ├─► internal/common/template/  ← --template / --template-vars rendering
+          ├─► internal/common/timeslot/  ← findtimeslot availability logic
           └─► internal/<protocol>/protocol/ ← protocol primitives
 ```
 
@@ -285,7 +429,7 @@ cmd.go
   └─► testconnect.go     — TCP connectivity test
   └─► teststarttls.go    — TLS handshake, cert validation, cipher strength, Exchange detection
   └─► testauth.go        — PLAIN, LOGIN, CRAM-MD5, XOAUTH2
-  └─► sendmail.go        — send test email
+  └─► sendmail.go        — send test email; --template/.eml raw injection; --use-mx
   └─► smtp_client.go     — SMTP client logic
   └─► tls_display.go     — TLS diagnostic output
 ```
@@ -295,8 +439,11 @@ cmd.go
 ```
 cmd.go
   └─► testconnect.go     — TCP/TLS connectivity
+  └─► teststarttls.go    — STARTTLS upgrade and TLS diagnostics
   └─► testauth.go        — PLAIN, LOGIN, XOAUTH2
   └─► listfolders.go     — list IMAP folders
+  └─► listmail.go        — list messages in a folder
+  └─► exportmessages.go  — export messages to JSON
   └─► imap_client.go     — IMAP client logic
 ```
 
@@ -305,8 +452,10 @@ cmd.go
 ```
 cmd.go
   └─► testconnect.go     — TCP/TLS connectivity
+  └─► teststarttls.go    — STLS upgrade and TLS diagnostics
   └─► testauth.go        — USER/PASS, APOP, XOAUTH2
   └─► listmail.go        — retrieve message list
+  └─► exportmessages.go  — export messages to JSON
   └─► pop3_client.go     — POP3 client logic
 ```
 
@@ -316,7 +465,10 @@ cmd.go
 cmd.go
   └─► testconnect.go     — JMAP session discovery
   └─► testauth.go        — Basic, Bearer
-  └─► getmailboxes.go    — list JMAP mailboxes
+  └─► listfolders.go     — list JMAP mailboxes
+  └─► listmail.go        — list messages
+  └─► sendmail.go        — send email via JMAP
+  └─► exportmessages.go  — export messages to JSON
   └─► jmap_client.go     — HTTP-based JMAP client
 ```
 
@@ -324,10 +476,18 @@ cmd.go
 
 ```
 cmd.go
-  └─► testconnect.go   — HTTP/TLS probe; HTTP 401 confirms server alive; reports TLS version, cipher, cert
+  └─► testconnect.go   — HTTP/TLS probe; HTTP 401 confirms server alive; TLS version/cipher/cert
   └─► testauth.go      — NTLM, Basic, Bearer (OAuth2); verifies via GetFolder(Inbox)
   └─► getfolder.go     — retrieve Inbox folder properties (display name, total/unread count, folder ID)
-  └─► autodiscover.go  — POST GetUserSettings to Autodiscover; resolves EWS URLs, user display name, AD server
+  └─► autodiscover.go  — POST GetUserSettings; resolves EWS URLs, user display name, AD server
+  └─► listfolders.go   — list EWS folders
+  └─► listmail.go      — list messages
+  └─► sendmail.go      — send email via EWS
+  └─► sendinvite.go    — send calendar invitation
+  └─► getevents.go     — list calendar events
+  └─► getschedule.go   — get free/busy schedule
+  └─► findtimeslot.go  — find available meeting time slots
+  └─► exportmessages.go — export messages to JSON
   └─► ews_client.go    — HTTP/SOAP client with NTLM transport (go-ntlmssp), Basic, Bearer auth
   └─► soap_bodies.go   — SOAP request body builders
 ```
@@ -341,25 +501,65 @@ Auth method auto-detection:
 
 ```
 cmd.go → handlers.go
+  ├─► Connectivity
+  │   ├─► handleTestConnect()      (testconnect)
+  │   └─► handleTestAuth()         (testauth)
   ├─► Calendar
-  │   ├─► handleGetEvents()     (getevents)
-  │   ├─► handleSendInvite()    (sendinvite)
-  │   └─► handleGetSchedule()   (getschedule)
+  │   ├─► handleGetEvents()        (getevents)
+  │   ├─► handleSendInvite()       (sendinvite)
+  │   ├─► handleGetSchedule()      (getschedule)
+  │   └─► handleFindTimeSlot()     (findtimeslot)
   ├─► Mail
-  │   ├─► handleSendMail()      (sendmail)
-  │   └─► handleGetInbox()      (getinbox)
+  │   ├─► handleSendMail()         (sendmail)
+  │   ├─► handleGetInbox()         (getinbox)
+  │   ├─► handleListFolders()      (listfolders)
+  │   └─► handleListMail()         (listmail)
   └─► Export
       ├─► handleExportInbox()        (exportinbox)
-      └─► handleSearchAndExport()    (searchandexport)
+      ├─► handleExportMessages()     (exportmessages)
+      ├─► handleSearchAndExport()    (searchandexport)
+      └─► handleExportBearerToken()  (exportbearertoken)
 
 auth.go → NewGraphServiceClient() → getCredential()
-  ├─► azidentity.NewClientSecretCredential()   (-secret / MSGRAPHSECRET)
+  ├─► azidentity.NewClientSecretCredential()         (--secret / MSGRAPHSECRET)
   ├─► azidentity.NewClientCertificateCredential()
-  │   ├─► From PFX file (-pfx + -pfxpass)
-  │   └─► From Windows Cert Store (-thumbprint) → cert_windows.go
-  └─► azidentity.NewBearerTokenCredential()    (-accesstoken)
+  │   ├─► From PFX file (--pfx + --pfxpass)
+  │   └─► From Windows Cert Store (--thumbprint) → cert_windows.go
+  ├─► azidentity.NewBearerTokenCredential()          (--bearertoken)
+  └─► azidentity delegated flows                      (--delegated --authflow devicecode|browser)
+
+Retry: isRetryableGraphError classifies *odataerrors.ODataError (HTTP 429/503/504,
+Graph codes TooManyRequests/activityLimitReached/ServiceUnavailable/GatewayTimeout),
+honors Retry-After header (capped at 5 min).
 
 NewGraphServiceClient() is also called by internal/serve/cmd.go at server startup.
+```
+
+### gmail (internal/protocols/gmail/)
+
+```
+cmd.go → handlers.go
+  ├─► Connectivity
+  │   ├─► handleTestConnect()      (testconnect)
+  │   └─► handleTestAuth()         (testauth)
+  ├─► Calendar
+  │   ├─► handleGetEvents()        (getevents)
+  │   ├─► handleSendInvite()       (sendinvite)
+  │   ├─► handleGetSchedule()      (getschedule)
+  │   └─► handleFindTimeSlot()     (findtimeslot)
+  ├─► Mail
+  │   ├─► handleSendMail()         (sendmail)
+  │   ├─► handleGetInbox()         (getinbox)
+  │   ├─► handleListFolders()      (listfolders)
+  │   └─► handleListMail()         (listmail)
+  └─► Export
+      ├─► handleExportMessages()     (exportmessages)
+      └─► handleExportBearerToken()  (exportbearertoken)
+
+auth.go → getCredential()
+  ├─► Service account JSON + domain-wide delegation (--credentials + --mailbox)
+  ├─► Pre-obtained OAuth2 bearer token              (--bearertoken)
+  └─► Interactive loopback OAuth2 flow              (--oauth)
 ```
 
 ### serve (internal/serve/)
@@ -367,22 +567,32 @@ NewGraphServiceClient() is also called by internal/serve/cmd.go at server startu
 ```
 cmd.go → server.go
   ├── Startup
-  │   ├── Requires --api-key / SERVE_API_KEY (fails fast if absent)
+  │   ├── Requires --api-key / SERVE_API_KEY (fails fast if absent, unless --mcp-stdio)
   │   ├── Loads SMTP base config from SMTP* env vars via smtp.ConfigFromViper()
   │   │   └── SMTPHOST absent → SMTP endpoint returns 503 (server still starts)
   │   ├── Loads MS Graph base config from MSGRAPH* env vars via msgraph.ConfigFromViper()
   │   │   └── Missing TenantID/ClientID → Graph endpoint returns 503
-  │   │   └── Client init failure → Graph endpoint returns 503
   │   └── msgraph.NewGraphServiceClient() — created once, reused across requests
   │
   ├── Middleware
   │   └── X-API-Key header check on all routes except GET /health
   │
-  └── Endpoints
-      ├── GET  /health           → {"status":"ok","version":"3.x.x"}
-      ├── POST /smtp/sendmail    → smtp_handler.go → smtp.SendMail()
-      ├── POST /msgraph/sendmail → msgraph_handler.go → msgraph.SendEmail()
-      └── POST /ews/sendmail     → ews_handler.go → 501 Not Implemented
+  ├── HTTP Endpoints
+  │   ├── GET  /health           → {"status":"ok","version":"4.x.x"}
+  │   ├── POST /smtp/sendmail    → smtp_handler.go → send.go → smtp.SendMail()
+  │   ├── POST /msgraph/sendmail → msgraph_handler.go → send.go → msgraph.SendEmail()
+  │   ├── POST /ews/sendmail     → ews_handler.go → 501 Not Implemented
+  │   └── POST /mcp              → mcp.go → Streamable HTTP MCP transport (behind X-API-Key)
+  │
+  └── MCP (Model Context Protocol)
+      ├── Streamable HTTP: POST /mcp (default, --mcp=true, env SERVE_MCP)
+      │   └── Behind X-API-Key header; mounted on the same HTTP server
+      ├── stdio: --mcp-stdio (env SERVE_MCP_STDIO=true)
+      │   └── No HTTP server started; no API key required; stdout re-pointed to stderr
+      └── MCP Tools exposed (via send.go core — same logic as REST endpoints):
+          ├── smtp_sendmail
+          ├── msgraph_sendmail
+          └── list_backends
 ```
 
 Credential model: credentials loaded from env vars at startup; request bodies carry
@@ -392,13 +602,20 @@ only message content (to, subject, body, etc.) — no credentials in HTTP reques
 
 ```
 internal/common/
-  ├── bootstrap/     — signal context (SIGINT/SIGTERM) wired via cobra PersistentPreRunE
+  ├── bootstrap/     — signal context (SIGINT/SIGTERM), config file loading, logger init
+  ├── email/         — email address parsing and validation
+  ├── export/        — JSON export helpers (date-stamped directories)
   ├── logger/        — CSV action logs, JSON export, slog structured logger
+  ├── mime/          — MIME type detection for attachments
+  ├── network/       — ResolveForDial (A/AAAA), LookupMX, ValidateIPVersionFlags
   ├── ratelimit/     — token bucket algorithm
-  ├── retry/         — exponential backoff (50ms → 10s cap), retryable error detection
-  ├── security/      — credential masking (maskSecret, maskGUID)
+  ├── retry/         — exponential backoff (50ms → 10s cap); protocol-specific classifier hook
+  ├── security/      — credential masking (MaskPassword, MaskAccessToken, maskGUID)
+  ├── template/      — --template: ParseVars, Render (text/template), IsEML, ParseEML
+  ├── timeslot/      — findtimeslot availability analysis (shared by EWS/msgraph/gmail)
+  ├── tls/           — TLS certificate display, validation, cipher strength reporting
   ├── validation/    — email, GUID, RFC3339, proxy URL, path, OData injection prevention
-  └── version/       — single const Version = "3.3.1"
+  └── version/       — single const Version = "4.0.1"
 ```
 
 ## devtools Subcommand
@@ -441,15 +658,29 @@ cert_stub.go (build: !windows)
 ```
 Unit tests (go test ./...):
   ├── internal/protocols/smtp/          config_test.go, smtp_client_test.go,
-  │                                     sendmail_test.go, utils_test.go
+  │                                     sendmail_test.go, sendmail_mime_test.go,
+  │                                     sendmail_template_test.go
+  ├── internal/protocols/imap/          config_test.go
+  ├── internal/protocols/pop3/          config_test.go
   ├── internal/protocols/jmap/          config_test.go, utils_test.go
   ├── internal/protocols/ews/           config_test.go
-  ├── internal/protocols/msgraph/       utils_test.go
-  ├── internal/serve/                   server_test.go
-  │                                     (middleware, health, EWS 501, SMTP/Graph validation)
+  ├── internal/protocols/msgraph/       config_test.go, utils_test.go,
+  │                                     retry_classification_test.go,
+  │                                     empty_result_retry_test.go,
+  │                                     handlers_attachments_test.go
+  ├── internal/protocols/gmail/         config_test.go
+  ├── internal/serve/                   server_test.go, mcp_test.go
+  │                                     (middleware, health, EWS 501, SMTP/Graph validation, MCP tools)
+  ├── internal/common/bootstrap/        precedence_check_test.go
   ├── internal/common/logger/           json_test.go
+  ├── internal/common/email/            email_test.go
+  ├── internal/common/mime/             mime_test.go
+  ├── internal/common/network/          network_test.go
   ├── internal/common/ratelimit/        ratelimit_test.go
+  ├── internal/common/retry/            retry_test.go
   ├── internal/common/security/         masking_test.go
+  ├── internal/common/tls/              certificate_test.go, validation_test.go
+  ├── internal/common/timeslot/         timeslot_test.go
   ├── internal/common/validation/       validation_test.go, proxy_test.go
   ├── internal/smtp/protocol/           commands_test.go, responses_test.go
   ├── internal/imap/protocol/           capabilities_test.go
@@ -460,28 +691,6 @@ Integration tests (go test -tags integration ./tests/integration/):
   └── tests/integration/sendmail_test.go
       └── Requires MSGRAPH* env vars (validated by scripts/check-integration-env.sh)
           └── make integration-test  (or: .\run-integration-tests.ps1)
-```
-
-## GitHub Actions CI/CD (.github/workflows/build.yml)
-
-```
-On: push tags (v*) | pull_request → main
-
-test job (ubuntu / windows / macos):
-  └── go test -v -race ./...
-  └── coverage report (ubuntu only)
-
-lint job (ubuntu, continue-on-error):
-  └── golangci-lint
-
-build job (on tag push, needs: test):
-  Matrix: windows-latest (amd64), ubuntu-latest (amd64), macos-latest (arm64)
-  ├── go build -ldflags="-s -w" -o bin/gomailtest[.exe] ./cmd/gomailtest
-  ├── Verify binary exists
-  ├── Create ZIP: bin/gomailtest[.exe] + README.md + TOOLS.md + LICENSE
-  │   → gomailtesttool-{os}-{arch}.zip
-  ├── Upload artifacts
-  └── Create GitHub Release (softprops/action-gh-release)
 ```
 
 ## Data Flow Example: Send Email via msgraph
@@ -504,7 +713,7 @@ internal/protocols/msgraph/handlers.go — handleSendMail()
           │
           ▼
 internal/common/retry/retry.go       — retryWithBackoff()
-  ├── isRetryableError() → 429, 503, 504
+  ├── isRetryableGraphError() → HTTP 429/503/504, OData throttle codes
   └── exponential backoff: 50ms → 100ms → 200ms → ... → 10s cap
           │
           ▼
@@ -541,7 +750,8 @@ tests := []struct {
 ### 3. Retry with Exponential Backoff
 
 ```go
-retryWithBackoff(ctx, maxRetries, baseDelay, operation func() error)
+retryWithBackoff(ctx, maxRetries, baseDelay, classifier, operation func() error)
+// classifier: nil → generic network errors; non-nil → protocol-specific (e.g. Graph OData errors)
 ```
 
 ### 4. Platform-Specific Builds
@@ -570,17 +780,20 @@ Action-specific files prevent schema conflicts:
 %TEMP%\_servetool_msgraph-sendmail_{date}.csv
 ```
 
-### 6. HTTP Serve Pattern
+### 6. HTTP/MCP Serve Pattern
 
-`gomailtest serve` exposes send operations as REST endpoints using only stdlib `net/http`:
+`gomailtest serve` exposes send operations as REST and MCP endpoints:
 
 ```
 Startup:  load SMTP*/MSGRAPH* env vars → build base configs → init Graph client once
-Request:  X-API-Key middleware → decode JSON body → validate → call protocol Send*() → JSON response
+Request:  X-API-Key middleware → decode JSON body → validate → call send.go core → JSON response
 
 POST /smtp/sendmail    body: {to, from?, subject, body}
 POST /msgraph/sendmail body: {to, cc?, bcc?, subject, body?, bodyHTML?, attachments?}
-GET  /health           → {"status":"ok","version":"3.x.x"}
+POST /mcp              MCP Streamable HTTP — tools: smtp_sendmail, msgraph_sendmail, list_backends
+GET  /health           → {"status":"ok","version":"4.x.x"}
+
+MCP stdio:  gomailtest serve --mcp-stdio  (subprocess mode, no HTTP server, no API key)
 ```
 
 Credentials never appear in request bodies. A missing credential set causes graceful 503
@@ -597,16 +810,30 @@ Export actions create date-stamped directories:
   message_search_{timestamp}.json
 ```
 
+### 8. Build Tags Pattern
+
+Protocol registration files use build constraints so each binary includes only the
+selected protocols while sharing the same entry point:
+
+```go
+// protocols_gmail.go
+//go:build gmail || !custom
+
+package main
+import "github.com/ehlo-pl/gomailtesttool/internal/protocols/gmail"
+func init() { rootCmd.AddCommand(gmail.NewCmd()) }
+```
+
 ---
 
 ## Project Statistics
 
-**Version:** 3.3.1 (Latest)
-**Last Updated:** 2026-04-28
+**Version:** 4.0.1 (Latest)
+**Last Updated:** 2026-07-19
 
 ### Codebase Metrics
-- **Binary:** 1 unified `gomailtest` (cobra CLI)
-- **Protocol subcommands:** 6 (smtp, imap, pop3, jmap, ews, msgraph) + serve mode
+- **Binaries:** 3 per platform (`gomailtest`, `gomailtest-exchange`, `gomailtest-gmail`)
+- **Protocol subcommands:** 7 (smtp, imap, pop3, jmap, ews, msgraph, gmail) + serve mode
 - **Supported Platforms:** Windows (amd64), Linux (amd64), macOS (arm64)
 - **Integration Tests:** MS Graph sendmail (tests/integration/)
 
@@ -615,6 +842,9 @@ Export actions create date-stamped directories:
 - **v2.0+:** Multi-tool suite (5 separate binaries) with shared internal packages
 - **v3.0+:** Unified `gomailtest` binary with cobra subcommands; protocol logic in `internal/protocols/`; `devtools` subcommand replaces PS1 release scripts
 - **v3.3+:** Added `ews` subcommand for on-premises Exchange Web Services (NTLM/Basic/Bearer, Autodiscover)
-- **v3.3+:** Added `serve` subcommand — HTTP/REST server for triggering sends via API (no new dependencies, stdlib `net/http`)
+- **v3.3+:** Added `serve` subcommand — HTTP/REST server for triggering sends via API (stdlib `net/http`)
+- **v3.5+:** `serve` extended with MCP (Model Context Protocol) over Streamable HTTP and stdio transports
+- **v3.6+:** Added `findtimeslot`, `sendinvite`, `getschedule`, `listmail`, `exportmessages` across EWS/msgraph; IMAP/POP3/JMAP gained `teststarttls`, `exportmessages`, `sendmail`
+- **v4.0+:** Added `gmail` subcommand (Google Workspace / Gmail API); build-tag system splits protocols into 3 per-platform release binaries
 
                           ..ooOO END OOoo..

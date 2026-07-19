@@ -3,6 +3,7 @@ package ews
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 )
@@ -133,6 +135,22 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	toXML := buildRecipientsXML(config.To)
 	ccXML := buildRecipientsXML(config.Cc)
 
+	// Load attachments.
+	onSkip := func(path string, err error) {
+		logger.LogWarn(slogLogger, "Skipping attachment", "path", path, "error", err)
+	}
+	attachments, err := email.LoadAttachments(config.AttachmentFiles, onSkip)
+	if err != nil {
+		writeRow("FAILURE", 0, err.Error())
+		return err
+	}
+	inlineAttachments, err := email.LoadInlineAttachments(config.InlineAttachmentFiles, onSkip)
+	if err != nil {
+		writeRow("FAILURE", 0, err.Error())
+		return err
+	}
+	attachmentsXML := buildAttachmentsXML(append(attachments, inlineAttachments...))
+
 	// Determine body type and content.
 	bodyType := "Text"
 	bodyContent := config.Body
@@ -145,6 +163,7 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		xmlEscape(config.Subject),
 		bodyType,
 		xmlEscape(bodyContent),
+		attachmentsXML,
 		toXML,
 		ccXML,
 	)
@@ -184,6 +203,29 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	return nil
 }
 
+// buildAttachmentsXML builds the EWS <t:Attachments> XML block for a slice of
+// attachments. Returns an empty string when there are no attachments.
+func buildAttachmentsXML(attachments []email.Attachment) string {
+	if len(attachments) == 0 {
+		return ""
+	}
+	var b bytes.Buffer
+	b.WriteString("          <t:Attachments>\n")
+	for _, att := range attachments {
+		b.WriteString("            <t:FileAttachment>\n")
+		fmt.Fprintf(&b, "              <t:Name>%s</t:Name>\n", xmlEscape(att.Name))
+		fmt.Fprintf(&b, "              <t:ContentType>%s</t:ContentType>\n", xmlEscape(att.ContentType))
+		if att.Inline {
+			b.WriteString("              <t:IsInline>true</t:IsInline>\n")
+			fmt.Fprintf(&b, "              <t:ContentId>%s</t:ContentId>\n", xmlEscape(att.ContentID))
+		}
+		fmt.Fprintf(&b, "              <t:Content>%s</t:Content>\n", base64.StdEncoding.EncodeToString(att.Data))
+		b.WriteString("            </t:FileAttachment>\n")
+	}
+	b.WriteString("          </t:Attachments>\n")
+	return b.String()
+}
+
 // buildRecipientsXML builds the EWS Mailbox XML for a list of email addresses.
 func buildRecipientsXML(addrs []string) string {
 	if len(addrs) == 0 {
@@ -206,7 +248,9 @@ func xmlEscape(s string) string {
 
 // createItemSOAPBodyFmt is the SOAP body for CreateItem (sendmail).
 // Args: XML-escaped subject, body type ("Text"/"HTML"), XML-escaped body,
-// recipient XML blocks for To and Cc.
+// attachments XML block (empty string when none), recipient XML blocks for To
+// and Cc. The Attachments block precedes the recipient elements because the EWS
+// schema orders t:Item members (Attachments) before t:Message members (recipients).
 const createItemSOAPBodyFmt = `    <m:CreateItem MessageDisposition="SendAndSaveCopy">
       <m:SavedItemFolderId>
         <t:DistinguishedFolderId Id="sentitems"/>
@@ -215,7 +259,7 @@ const createItemSOAPBodyFmt = `    <m:CreateItem MessageDisposition="SendAndSave
         <t:Message>
           <t:Subject>%s</t:Subject>
           <t:Body BodyType="%s">%s</t:Body>
-          <t:ToRecipients>
+%s          <t:ToRecipients>
 %s      </t:ToRecipients>
           <t:CcRecipients>
 %s      </t:CcRecipients>
