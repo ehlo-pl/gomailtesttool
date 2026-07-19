@@ -98,6 +98,12 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 		Use:   "sendmail",
 		Short: "Send an email via the Gmail API",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if bt := cmd.Flags().Lookup("body-template"); bt != nil && bt.Changed {
+				if cmd.Flags().Lookup("template").Changed {
+					return fmt.Errorf("cannot use both --template and --body-template")
+				}
+				_ = cmd.Flags().Set("template", bt.Value.String())
+			}
 			config, ctx, cancel, slogger, csvLogger, err := setup(cmd, v, ActionSendMail)
 			if err != nil {
 				return err
@@ -105,14 +111,6 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 			defer cancel()
 			if csvLogger != nil {
 				defer func() { _ = csvLogger.Close() }()
-			}
-
-			if config.BodyTemplate != "" {
-				content, err := os.ReadFile(config.BodyTemplate)
-				if err != nil {
-					return fmt.Errorf("failed to read body template file: %w", err)
-				}
-				config.BodyHTML = string(content)
 			}
 
 			if err := resolveTemplate(config); err != nil {
@@ -138,13 +136,14 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: GMAILSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: GMAILBODY)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: GMAILBODYHTML)")
-	cmd.Flags().String("body-template", "", "Path to HTML email body template file (env: GMAILBODYTEMPLATE)")
 	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file is sent as the complete RFC 822 message; any other extension is used as the HTML body (env: GMAILTEMPLATE)")
 	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: GMAILTEMPLATEVARS)")
 	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: GMAILATTACHMENTS)")
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: GMAILINLINEATTACHMENTS)")
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: GMAILHEADER — comma-separated)")
 	cmd.Flags().String("priority", "normal", "Email priority: high, normal, low (env: GMAILPRIORITY)")
+	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
+	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd
 }
 

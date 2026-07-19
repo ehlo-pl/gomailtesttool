@@ -111,10 +111,9 @@ gomailtest gmail sendmail --credentials sa.json --mailbox user@corp.com \
   sends the result **verbatim** as the raw Gmail message — every header and
   MIME part is preserved. Because the file *is* the message, Gmail takes
   recipients and subject from its headers: `--to`/`--cc`/`--bcc`,
-  `--subject`, `--body`/`--bodyhtml`/`--body-template`, the attachment
+  `--subject`, `--body`/`--bodyhtml`, the attachment
   flags, `--header`, and a non-default `--priority` are all rejected in this
-  mode. Any other extension is rendered and used as the HTML body (like
-  `--body-template`, plus variable substitution).
+  mode. Any other extension is rendered and used as the HTML body.
 - `--template-vars key=value` (repeatable) supplies variables referenced as
   `{{.key}}` in the template.
 

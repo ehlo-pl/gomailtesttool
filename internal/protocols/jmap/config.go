@@ -33,15 +33,17 @@ type Config struct {
 	SkipVerify bool
 
 	// Email composition (sendmail)
-	To           []string
-	Cc           []string
-	Bcc          []string
-	Subject      string
-	Body         string
-	BodyHTML     string
-	From         string   // Sender override; filled from an .eml --template's From header (no flag)
-	Template     string   // Path to a message template: .eml (fields mapped to Email/set) or HTML body file
-	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
+	To                    []string
+	Cc                    []string
+	Bcc                   []string
+	Subject               string
+	Body                  string
+	BodyHTML              string
+	From                  string   // Sender override; filled from an .eml --template's From header (no flag)
+	Template              string   // Path to a message template: .eml (fields mapped to Email/set) or HTML body file
+	TemplateVars          []string // Template variables in "key=value" form, referenced as {{.key}}
+	AttachmentFiles       []string // File paths to attach
+	InlineAttachmentFiles []string // File paths to embed inline via cid:<filename>
 
 	// Search / export (exportmessages)
 	MessageID string
@@ -126,8 +128,10 @@ func BindEnvs(v *viper.Viper) {
 		"subject":       "JMAPSUBJECT",
 		"body":          "JMAPBODY",
 		"bodyhtml":      "JMAPBODYHTML",
-		"template":      "JMAPTEMPLATE",
-		"template-vars": "JMAPTEMPLATEVARS",
+		"template":           "JMAPTEMPLATE",
+		"template-vars":      "JMAPTEMPLATEVARS",
+		"attachments":        "JMAPATTACHMENTS",
+		"inline-attachments": "JMAPINLINEATTACHMENTS",
 		"messageid":   "JMAPMESSAGEID",
 		"exportdir":   "JMAPEXPORTDIR",
 		"count":       "JMAPCOUNT",
@@ -197,8 +201,10 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:        subject,
 		Body:           body,
 		BodyHTML:       v.GetString("bodyhtml"),
-		Template:       v.GetString("template"),
-		TemplateVars:   v.GetStringSlice("template-vars"),
+		Template:              v.GetString("template"),
+		TemplateVars:          v.GetStringSlice("template-vars"),
+		AttachmentFiles:       parseStringSlice(v.GetString("attachments")),
+		InlineAttachmentFiles: parseStringSlice(v.GetString("inline-attachments")),
 		MessageID:      v.GetString("messageid"),
 		ExportDir:      v.GetString("exportdir"),
 		Count:          count,

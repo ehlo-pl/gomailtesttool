@@ -106,6 +106,12 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 		Use:   "sendmail",
 		Short: "Send an email via Microsoft Graph",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if bt := cmd.Flags().Lookup("body-template"); bt != nil && bt.Changed {
+				if cmd.Flags().Lookup("template").Changed {
+					return fmt.Errorf("cannot use both --template and --body-template")
+				}
+				_ = cmd.Flags().Set("template", bt.Value.String())
+			}
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
 
@@ -136,15 +142,6 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
-			// Load body template if provided
-			if config.BodyTemplate != "" {
-				content, err := os.ReadFile(config.BodyTemplate)
-				if err != nil {
-					return fmt.Errorf("failed to read body template file: %w", err)
-				}
-				config.BodyHTML = string(content)
-			}
-
 			if err := resolveTemplate(config); err != nil {
 				return fmt.Errorf("template failed: %w", err)
 			}
@@ -168,13 +165,14 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: MSGRAPHSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: MSGRAPHBODY)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: MSGRAPHBODYHTML)")
-	cmd.Flags().String("body-template", "", "Path to HTML email body template file (env: MSGRAPHBODYTEMPLATE)")
 	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (From/To/Cc/Bcc/Subject/bodies) mapped to the Graph API; any other extension is used as the HTML body (env: MSGRAPHTEMPLATE)")
 	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: MSGRAPHTEMPLATEVARS)")
 	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: MSGRAPHATTACHMENTS)")
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: MSGRAPHINLINEATTACHMENTS)")
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: MSGRAPHHEADER — comma-separated; avoid commas in header values)")
 	cmd.Flags().String("priority", "normal", "Email priority/importance: high, normal, low (env: MSGRAPHPRIORITY)")
+	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
+	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd
 }
 

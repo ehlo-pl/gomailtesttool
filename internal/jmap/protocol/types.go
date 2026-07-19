@@ -178,6 +178,16 @@ type EmailBodyPart struct {
 	Type   string `json:"type"`
 }
 
+// EmailAttachment describes a file attachment in an Email/set create call.
+// BlobId must be obtained by uploading the file to the JMAP upload endpoint first.
+type EmailAttachment struct {
+	BlobId      Id     `json:"blobId"`
+	Type        string `json:"type"`
+	Name        string `json:"name,omitempty"`
+	Disposition string `json:"disposition,omitempty"` // "attachment" or "inline"
+	Cid         string `json:"cid,omitempty"`         // Content-ID for inline attachments
+}
+
 // EmailBodyValue holds the content for a body part.
 type EmailBodyValue struct {
 	Value   string `json:"value"`
@@ -186,16 +196,17 @@ type EmailBodyValue struct {
 
 // EmailCreate is the argument map for Email/set create.
 type EmailCreate struct {
-	MailboxIds map[Id]bool              `json:"mailboxIds"`
-	Keywords   map[string]bool          `json:"keywords,omitempty"`
-	From       []EmailAddress           `json:"from,omitempty"`
-	To         []EmailAddress           `json:"to,omitempty"`
-	Cc         []EmailAddress           `json:"cc,omitempty"`
-	Bcc        []EmailAddress           `json:"bcc,omitempty"`
-	Subject    string                   `json:"subject,omitempty"`
-	BodyValues map[string]EmailBodyValue `json:"bodyValues,omitempty"`
-	TextBody   []EmailBodyPart          `json:"textBody,omitempty"`
-	HTMLBody   []EmailBodyPart          `json:"htmlBody,omitempty"`
+	MailboxIds  map[Id]bool              `json:"mailboxIds"`
+	Keywords    map[string]bool          `json:"keywords,omitempty"`
+	From        []EmailAddress           `json:"from,omitempty"`
+	To          []EmailAddress           `json:"to,omitempty"`
+	Cc          []EmailAddress           `json:"cc,omitempty"`
+	Bcc         []EmailAddress           `json:"bcc,omitempty"`
+	Subject     string                   `json:"subject,omitempty"`
+	BodyValues  map[string]EmailBodyValue `json:"bodyValues,omitempty"`
+	TextBody    []EmailBodyPart          `json:"textBody,omitempty"`
+	HTMLBody    []EmailBodyPart          `json:"htmlBody,omitempty"`
+	Attachments []EmailAttachment        `json:"attachments,omitempty"`
 }
 
 // GetMailboxesResponse represents the response from Mailbox/get.

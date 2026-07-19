@@ -41,7 +41,6 @@ type Config struct {
 	Subject      string
 	Body         string
 	BodyHTML     string
-	BodyTemplate string
 	Priority     string
 	Template     string   // Path to a message template: .eml (full RFC 822 message) or HTML body file
 	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
@@ -154,7 +153,6 @@ func BindEnvs(v *viper.Viper) {
 		"body":               "GMAILBODY",
 		"bodyhtml":           "GMAILBODYHTML",
 		"priority":           "GMAILPRIORITY",
-		"body-template":      "GMAILBODYTEMPLATE",
 		"template":           "GMAILTEMPLATE",
 		"template-vars":      "GMAILTEMPLATEVARS",
 		"attachments":        "GMAILATTACHMENTS",
@@ -252,7 +250,6 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:               subject,
 		Body:                  body,
 		BodyHTML:              v.GetString("bodyhtml"),
-		BodyTemplate:          v.GetString("body-template"),
 		Priority:              priority,
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
@@ -355,11 +352,6 @@ func validateConfiguration(config *Config) error {
 	if _, err := email.ParseHeaders(config.Headers); err != nil {
 		return fmt.Errorf("invalid --header: %w", err)
 	}
-	if config.BodyTemplate != "" {
-		if err := validateFilePath(config.BodyTemplate, "Body template file"); err != nil {
-			return err
-		}
-	}
 	if len(config.TemplateVars) > 0 && config.Template == "" {
 		return fmt.Errorf("--template-vars requires --template")
 	}
@@ -369,9 +361,6 @@ func validateConfiguration(config *Config) error {
 		}
 		if config.BodyHTML != "" {
 			return fmt.Errorf("cannot use both --template and --bodyhtml simultaneously")
-		}
-		if config.BodyTemplate != "" {
-			return fmt.Errorf("cannot use both --template and --body-template simultaneously")
 		}
 		if config.Body != NewConfig().Body {
 			return fmt.Errorf("cannot use both --template and --body simultaneously")

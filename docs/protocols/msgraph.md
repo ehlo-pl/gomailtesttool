@@ -2,8 +2,6 @@
 
 Exchange Online mailbox operations via Microsoft Graph API: send emails, manage calendar events, export inbox.
 
-> **Legacy name:** `msgraphtool`. Use `gomailtest msgraph <action> --flag` (see the migration table in README.md).
-
 ## Quick Start
 
 ```powershell
@@ -95,9 +93,8 @@ recognised fields (`To`/`Cc`/`Bcc`/`Subject`/text and HTML bodies) onto the
 Graph send API; recipient flags win over the EML headers when both are given.
 The EML `From` header is ignored (Graph always sends as `--mailbox`) and
 headers without a Graph mapping are reported in verbose mode. Any other
-extension is rendered and used as the HTML body (like `--body-template`, plus
-variable substitution). Mutually exclusive with
-`--body`/`--bodyHTML`/`--body-template`; `--template-vars key=value`
+extension is rendered and used as the HTML body. Mutually exclusive with
+`--body`/`--bodyHTML`; `--template-vars key=value`
 (repeatable) supplies variables referenced as `{{.key}}`.
 
 ### sendinvite — Create Calendar Invitations
@@ -210,7 +207,7 @@ gomailtest msgraph exportbearertoken --tenantid "..." --clientid "..." --secret 
 # JSON output
 gomailtest msgraph exportbearertoken --tenantid "..." --clientid "..." --secret "..." --output json
 ```
- 
+
 ### testconnect — Probe endpoint reachability
 
 Unauthenticated HTTP/TLS probe against `https://graph.microsoft.com`. No
@@ -287,17 +284,16 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--subject` | Email subject | `MSGRAPHSUBJECT` |
 | `--body` | Email body text | `MSGRAPHBODY` |
 | `--bodyHTML` | Email body HTML | `MSGRAPHBODYHTML` |
-| `--body-template` | Path to HTML template file | `MSGRAPHBODYTEMPLATE` |
-| `--template` | Message template file with Go `text/template` variables: `.eml` fields are mapped to the Graph API, any other extension is used as the HTML body; mutually exclusive with `--body`/`--bodyHTML`/`--body-template` | `MSGRAPHTEMPLATE` |
+| `--template` | Message template file with Go `text/template` variables: `.eml` fields are mapped to the Graph API, any other extension is used as the HTML body; mutually exclusive with `--body`/`--bodyHTML` | `MSGRAPHTEMPLATE` |
 | `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` in `--template` (repeatable) | `MSGRAPHTEMPLATEVARS` |
 | `--attachments` | Comma-separated file paths | `MSGRAPHATTACHMENTS` |
 | `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` (referenced from `--bodyHTML`) | `MSGRAPHINLINEATTACHMENTS` |
-| `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values). **Microsoft Graph only passes through `X-`-prefixed custom headers** — standard RFC headers (From, To, Subject, etc.) are controlled by the API itself and cannot be injected here | `MSGRAPHHEADER` |
+| `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values). **Microsoft Graph only passes through `X-`-prefixed custom headers** — standard RFC headers (From, To, Subject, etc.) are controlled by the API itself and cannot be injected here. Note: several X-item (on the same names) will end with only first one - it's MAPI limitation.  | `MSGRAPHHEADER` |
 | `--priority` | Email priority/importance: `high`, `normal`, `low` (maps to the Graph `importance` field) | `MSGRAPHPRIORITY` |
 | `--start` | Start time (RFC3339) | `MSGRAPHSTART` |
 | `--end` | End time (RFC3339) | `MSGRAPHEND` |
 | `--messageid` | Internet Message ID | `MSGRAPHMESSAGEID` |
-| `--exportdir` | Directory under which to create the dated export folder (used by `exportinbox`, `searchandexport`, `exportmessages`) | `MSGRAPHEXPORTDIR` | OS temp dir |
+| `--exportdir` | Directory under which to create the dated export folder (used by `exportinbox`, `searchandexport`, `exportmessages`) | `MSGRAPHEXPORTDIR` |
 
 ### exportmessages-specific
 
@@ -309,9 +305,24 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 
 ## Authentication Methods
 
-Provide exactly one method. Mutually exclusive:
+Microsoft Graph supports two authentication models. Pick the one that matches how
+the tool should run, then provide exactly one credential within it (credentials are
+mutually exclusive):
 
-### Client Secret
+- **Application (app-only) mode** — the app authenticates as itself for unattended
+  automation. See below.
+- **Delegated mode** — the app acts on behalf of an interactively signed-in user.
+  See [Delegated mode](#delegated-mode).
+
+### Application (app-only) mode
+
+The application authenticates as itself via the OAuth2 **client-credentials** flow —
+no user signs in. This requires **application permissions** granted with tenant admin
+consent (see [Required Azure AD Permissions](#required-azure-ad-permissions)), and
+`--mailbox` selects the mailbox to operate on. Best for scheduled jobs, monitoring,
+and service scenarios. Provide exactly one of the credentials below.
+
+#### Client Secret
 
 ```powershell
 gomailtest msgraph getevents \
@@ -320,7 +331,7 @@ gomailtest msgraph getevents \
     --mailbox "user@example.com"
 ```
 
-### PFX Certificate
+#### PFX Certificate
 
 ```powershell
 gomailtest msgraph getevents \
@@ -329,7 +340,7 @@ gomailtest msgraph getevents \
     --mailbox "user@example.com"
 ```
 
-### Windows Certificate Store (Thumbprint)
+#### Windows Certificate Store (Thumbprint)
 
 ```powershell
 gomailtest msgraph getevents \
@@ -338,16 +349,16 @@ gomailtest msgraph getevents \
     --mailbox "user@example.com"
 ```
 
-### Bearer Token
+### Delegated mode
 
-```powershell
-gomailtest msgraph getevents \
-    --tenantid "..." --clientid "..." \
-    --bearertoken "eyJ0eXAi..." \
-    --mailbox "user@example.com"
-```
+The application acts **on behalf of a signed-in user** via an interactive sign-in.
+This requires **delegated permissions** consented by the user (or an admin);
+operations run in that user's context, so app-only application permissions do not
+apply. Enable with `--delegated`, choose the flow with `--authflow`, and request
+scopes with `--scope`. Best for interactive use where a user is present at the
+console.
 
-### Delegated Permissions (Device Code)
+#### Delegated Permissions (Device Code)
 
 ```powershell
 gomailtest msgraph getinbox \
@@ -356,7 +367,7 @@ gomailtest msgraph getinbox \
     --mailbox "user@example.com"
 ```
 
-### Delegated Permissions (Browser + Redirect URL)
+#### Delegated Permissions (Browser + Redirect URL)
 
 ```powershell
 gomailtest msgraph sendmail \
@@ -365,6 +376,20 @@ gomailtest msgraph sendmail \
     --redirecturl "http://localhost:8400/callback" \
     --mailbox "user@example.com" \
     --to "recipient@example.com"
+```
+
+### Bearer Token (either mode)
+
+A pre-obtained access token is used as-is — whichever model it was minted for
+(app-only or delegated) is already encoded in the token, and Entra ID is not
+contacted to acquire it. Works with any action; pass `--mailbox` where the action
+needs a target mailbox.
+
+```powershell
+gomailtest msgraph getevents \
+    --tenantid "..." --clientid "..." \
+    --bearertoken "eyJ0eXAi..." \
+    --mailbox "user@example.com"
 ```
 
 ## Environment Variables

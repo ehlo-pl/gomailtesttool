@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/jmap/protocol"
@@ -151,17 +152,54 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		htmlBody = []protocol.EmailBodyPart{{PartId: "htmlPart", Type: "text/html"}}
 	}
 
+	// Load and upload attachments.
+	onSkip := func(path string, err error) {
+		logger.LogWarn(slogLogger, "Skipping attachment", "path", path, "error", err)
+	}
+	regularAtts, err := email.LoadAttachments(config.AttachmentFiles, onSkip)
+	if err != nil {
+		writeRow("FAILURE", err.Error())
+		return err
+	}
+	inlineAtts, err := email.LoadInlineAttachments(config.InlineAttachmentFiles, onSkip)
+	if err != nil {
+		writeRow("FAILURE", err.Error())
+		return err
+	}
+
+	var jmapAttachments []protocol.EmailAttachment
+	for _, att := range append(regularAtts, inlineAtts...) {
+		blobId, uploadErr := client.UploadBlob(ctx, att.ContentType, att.Data)
+		if uploadErr != nil {
+			writeRow("FAILURE", uploadErr.Error())
+			return fmt.Errorf("failed to upload attachment %q: %w", att.Name, uploadErr)
+		}
+		ja := protocol.EmailAttachment{
+			BlobId: blobId,
+			Type:   att.ContentType,
+			Name:   att.Name,
+		}
+		if att.Inline {
+			ja.Disposition = "inline"
+			ja.Cid = att.ContentID
+		} else {
+			ja.Disposition = "attachment"
+		}
+		jmapAttachments = append(jmapAttachments, ja)
+	}
+
 	draft := protocol.EmailCreate{
-		MailboxIds: mailboxIds,
-		Keywords:   map[string]bool{"$draft": true},
-		From:       []protocol.EmailAddress{{Email: mailFrom}},
-		To:         toAddrs,
-		Cc:         ccAddrs,
-		Bcc:        bccAddrs,
-		Subject:    config.Subject,
-		BodyValues: bodyValues,
-		TextBody:   textBody,
-		HTMLBody:   htmlBody,
+		MailboxIds:  mailboxIds,
+		Keywords:    map[string]bool{"$draft": true},
+		From:        []protocol.EmailAddress{{Email: mailFrom}},
+		To:          toAddrs,
+		Cc:          ccAddrs,
+		Bcc:         bccAddrs,
+		Subject:     config.Subject,
+		BodyValues:  bodyValues,
+		TextBody:    textBody,
+		HTMLBody:    htmlBody,
+		Attachments: jmapAttachments,
 	}
 
 	logger.LogDebug(slogLogger, "Sending mail",

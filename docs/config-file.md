@@ -27,7 +27,7 @@ environment variable names. Use the flag tables in each protocol's docs
 (e.g. [docs/protocols/smtp.md](protocols/smtp.md),
 [docs/protocols/msgraph.md](protocols/msgraph.md)) for the full list of
 available keys. Hyphenated flags (e.g. `--inline-attachments`,
-`--body-template`) use the hyphenated form as the YAML key.
+`--template-vars`) use the hyphenated form as the YAML key.
 
 ### Example: SMTP
 

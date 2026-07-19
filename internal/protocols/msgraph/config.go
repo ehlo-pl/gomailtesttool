@@ -45,7 +45,6 @@ type Config struct {
 	Subject      string // Email subject line
 	Body         string // Email body text content
 	BodyHTML     string // Email body HTML content (future use)
-	BodyTemplate string   // Path to HTML email body template file
 	Priority     string   // Email priority: high, normal, low (maps to Graph Importance)
 	Template     string   // Path to a message template: .eml (fields mapped to the Graph API) or HTML body file
 	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
@@ -177,7 +176,6 @@ func BindEnvs(v *viper.Viper) {
 		"body":               "MSGRAPHBODY",
 		"bodyhtml":           "MSGRAPHBODYHTML",
 		"priority":           "MSGRAPHPRIORITY",
-		"body-template":      "MSGRAPHBODYTEMPLATE",
 		"template":           "MSGRAPHTEMPLATE",
 		"template-vars":      "MSGRAPHTEMPLATEVARS",
 		"attachments":        "MSGRAPHATTACHMENTS",
@@ -279,7 +277,6 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:               subject,
 		Body:                  body,
 		BodyHTML:              v.GetString("bodyhtml"),
-		BodyTemplate:          v.GetString("body-template"),
 		Priority:              priority,
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
@@ -349,13 +346,6 @@ func validateConfiguration(config *Config) error {
 		return fmt.Errorf("invalid -header: %w", err)
 	}
 
-	// Validate body template file path
-	if config.BodyTemplate != "" {
-		if err := validateFilePath(config.BodyTemplate, "Body template file"); err != nil {
-			return err
-		}
-	}
-
 	// Validate --template/--template-vars. Unlike SMTP/gmail, an .eml
 	// template is parsed and its recognised fields mapped onto the Graph
 	// send API, so attachment/header/priority flags still apply.
@@ -368,9 +358,6 @@ func validateConfiguration(config *Config) error {
 		}
 		if config.BodyHTML != "" {
 			return fmt.Errorf("cannot use both --template and --bodyhtml simultaneously")
-		}
-		if config.BodyTemplate != "" {
-			return fmt.Errorf("cannot use both --template and --body-template simultaneously")
 		}
 		if config.Body != NewConfig().Body {
 			return fmt.Errorf("cannot use both --template and --body simultaneously")
