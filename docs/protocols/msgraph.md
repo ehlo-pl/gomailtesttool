@@ -2,8 +2,6 @@
 
 Exchange Online mailbox operations via Microsoft Graph API: send emails, manage calendar events, export inbox.
 
-> **Legacy name:** `msgraphtool`. Use `gomailtest msgraph <action> --flag` (see the migration table in README.md).
-
 ## Quick Start
 
 ```powershell
@@ -290,7 +288,7 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` in `--template` (repeatable) | `MSGRAPHTEMPLATEVARS` |
 | `--attachments` | Comma-separated file paths | `MSGRAPHATTACHMENTS` |
 | `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` (referenced from `--bodyHTML`) | `MSGRAPHINLINEATTACHMENTS` |
-| `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values). **Microsoft Graph only passes through `X-`-prefixed custom headers** — standard RFC headers (From, To, Subject, etc.) are controlled by the API itself and cannot be injected here | `MSGRAPHHEADER` |
+| `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values). **Microsoft Graph only passes through `X-`-prefixed custom headers** — standard RFC headers (From, To, Subject, etc.) are controlled by the API itself and cannot be injected here. Note: several X-item (on the same names) will end with only first one - it's MAPI limitation.  | `MSGRAPHHEADER` |
 | `--priority` | Email priority/importance: `high`, `normal`, `low` (maps to the Graph `importance` field) | `MSGRAPHPRIORITY` |
 | `--start` | Start time (RFC3339) | `MSGRAPHSTART` |
 | `--end` | End time (RFC3339) | `MSGRAPHEND` |
