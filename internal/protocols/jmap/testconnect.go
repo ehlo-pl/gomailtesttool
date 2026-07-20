@@ -13,8 +13,8 @@ import (
 // testConnect tests JMAP server connectivity by discovering the session.
 func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
 	discoveryURL := protocol.DiscoveryURL(config.Host)
-	fmt.Printf("Testing JMAP connectivity to %s...\n", config.Host)
-	fmt.Printf("Discovery URL: %s\n", discoveryURL)
+	logger.Tprintf("Testing JMAP connectivity to %s...\n", config.Host)
+	logger.Tprintf("Discovery URL: %s\n", discoveryURL)
 
 	// CSV columns for testconnect
 	columns := []string{"Action", "Status", "Server", "Port", "Discovery_URL", "API_URL", "Capabilities", "Accounts", "Error"}
@@ -42,24 +42,26 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 		return fmt.Errorf("JMAP discovery failed: %w", err)
 	}
 
-	fmt.Println("✓ JMAP session discovered successfully")
-	fmt.Printf("\nSession Information:\n")
-	fmt.Printf("  API URL:      %s\n", session.APIURL)
-	fmt.Printf("  Username:     %s\n", session.Username)
-	fmt.Printf("  Accounts:     %d\n", session.GetAccountCount())
+	logger.Tprintln("✓ JMAP session discovered successfully")
+	fmt.Println()
+	logger.Tprintf("Session Information:\n")
+	logger.Tprintf("  API URL:      %s\n", session.APIURL)
+	logger.Tprintf("  Username:     %s\n", session.Username)
+	logger.Tprintf("  Accounts:     %d\n", session.GetAccountCount())
 
 	// Display capabilities
 	caps := session.GetCapabilityNames()
-	fmt.Printf("  Capabilities: %d\n", len(caps))
+	logger.Tprintf("  Capabilities: %d\n", len(caps))
 	for _, cap := range caps {
-		fmt.Printf("    - %s\n", cap)
+		logger.Tprintf("    - %s\n", cap)
 	}
 
 	// Display accounts
 	if session.GetAccountCount() > 0 {
-		fmt.Printf("\nAccounts:\n")
+		fmt.Println()
+		logger.Tprintf("Accounts:\n")
 		for id, account := range session.Accounts {
-			fmt.Printf("  %s: %s\n", id, account.Name)
+			logger.Tprintf("  %s: %s\n", id, account.Name)
 		}
 	}
 
@@ -78,6 +80,7 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 		"capabilities", len(caps),
 		"accounts", session.GetAccountCount())
 
-	fmt.Println("\n✓ JMAP connectivity test completed")
+	fmt.Println()
+	logger.Tprintln("✓ JMAP connectivity test completed")
 	return nil
 }

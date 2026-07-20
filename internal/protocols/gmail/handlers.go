@@ -73,6 +73,10 @@ func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv l
 		}
 	}
 
+	if !config.SaveToSent {
+		logVerbose(config.VerboseMode, "Gmail API always saves sent messages to Sent Mail; --save-to-sent has no effect")
+	}
+
 	// Gmail requires the message base64url-encoded into Raw; the SDK does not
 	// encode it for you (standard base64 silently fails).
 	gmsg := &gmailapi.Message{Raw: base64.URLEncoding.EncodeToString(raw)}

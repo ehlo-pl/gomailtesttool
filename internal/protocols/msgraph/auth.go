@@ -184,10 +184,22 @@ var defaultDelegatedScopes = []string{
 	"offline_access",
 }
 
+// defaultDelegatedScopesTestAuth uses only User.Read so testauth works without
+// admin consent — testauth only acquires a token and optionally reads a user
+// object; it does not touch mail or calendar data. Override with --scope if you
+// want to verify that specific mail/calendar permissions are granted.
+var defaultDelegatedScopesTestAuth = []string{
+	"https://graph.microsoft.com/User.Read",
+	"offline_access",
+}
+
 func effectiveScopes(config *Config) []string {
 	if config.Delegated {
 		if len(config.Scopes) > 0 {
 			return config.Scopes
+		}
+		if config.Action == ActionTestAuth {
+			return defaultDelegatedScopesTestAuth
 		}
 		return defaultDelegatedScopes
 	}

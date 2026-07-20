@@ -11,7 +11,7 @@ import (
 
 // testConnect tests basic POP3 connectivity.
 func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
-	fmt.Printf("Testing POP3 connection to %s:%d...\n", config.Host, config.Port)
+	logger.Tprintf("Testing POP3 connection to %s:%d...\n", config.Host, config.Port)
 
 	// CSV columns for testconnect
 	columns := []string{"Action", "Status", "Server", "Port", "Connected", "Greeting", "Capabilities", "TLS_Version", "Error"}
@@ -40,26 +40,26 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 	}
 	defer func() { _ = client.Quit() }()
 
-	fmt.Printf("✓ Connected to %s:%d\n", config.Host, config.Port)
-	fmt.Printf("  Greeting: %s\n", client.GetGreeting())
+	logger.Tprintf("✓ Connected to %s:%d\n", config.Host, config.Port)
+	logger.Tprintf("  Greeting: %s\n", client.GetGreeting())
 
 	// Get TLS info if connected via POP3S
 	tlsVersion := ""
 	if state := client.GetTLSState(); state != nil {
 		tlsVersion = getTLSVersionString(state.Version)
-		fmt.Printf("  TLS: %s\n", tlsVersion)
+		logger.Tprintf("  TLS: %s\n", tlsVersion)
 	}
 
 	// Try STLS if not already using TLS and STARTTLS is requested
 	if config.StartTLS && client.GetTLSState() == nil {
-		fmt.Println("Attempting STLS upgrade...")
+		logger.Tprintln("Attempting STLS upgrade...")
 		if err := client.StartTLS(nil); err != nil {
 			logger.LogWarn(slogLogger, "STLS upgrade failed", "error", err)
-			fmt.Printf("  ✗ STLS failed: %v\n", err)
+			logger.Tprintf("  ✗ STLS failed: %v\n", err)
 		} else {
 			if state := client.GetTLSState(); state != nil {
 				tlsVersion = getTLSVersionString(state.Version)
-				fmt.Printf("  ✓ STLS upgrade successful (TLS %s)\n", tlsVersion)
+				logger.Tprintf("  ✓ STLS upgrade successful (TLS %s)\n", tlsVersion)
 			}
 		}
 	}
@@ -69,29 +69,29 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 	capsStr := ""
 	if err != nil {
 		logger.LogWarn(slogLogger, "CAPA command failed", "error", err)
-		fmt.Printf("  CAPA: not supported or failed\n")
+		logger.Tprintf("  CAPA: not supported or failed\n")
 	} else {
 		capsStr = caps.String()
-		fmt.Printf("  Capabilities: %s\n", capsStr)
+		logger.Tprintf("  Capabilities: %s\n", capsStr)
 
 		// Show interesting capabilities
 		if caps.SupportsSTLS() {
-			fmt.Println("    - STLS (STARTTLS) supported")
+			logger.Tprintln("    - STLS (STARTTLS) supported")
 		}
 		if caps.SupportsUIDL() {
-			fmt.Println("    - UIDL supported")
+			logger.Tprintln("    - UIDL supported")
 		}
 		if caps.SupportsTOP() {
-			fmt.Println("    - TOP supported")
+			logger.Tprintln("    - TOP supported")
 		}
 		if caps.SupportsUSER() {
-			fmt.Println("    - USER/PASS supported")
+			logger.Tprintln("    - USER/PASS supported")
 		}
 		if mechanisms := caps.GetAuthMechanisms(); len(mechanisms) > 0 {
-			fmt.Printf("    - SASL mechanisms: %s\n", strings.Join(mechanisms, ", "))
+			logger.Tprintf("    - SASL mechanisms: %s\n", strings.Join(mechanisms, ", "))
 		}
 		if impl := caps.GetImplementation(); impl != "" {
-			fmt.Printf("    - Implementation: %s\n", impl)
+			logger.Tprintf("    - Implementation: %s\n", impl)
 		}
 	}
 
@@ -108,7 +108,8 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 		logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 	}
 
-	fmt.Println("\n✓ Connection test successful")
+	fmt.Println()
+	logger.Tprintln("✓ Connection test successful")
 	return nil
 }
 

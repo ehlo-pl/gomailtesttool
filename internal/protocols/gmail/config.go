@@ -45,6 +45,8 @@ type Config struct {
 	Template     string   // Path to a message template: .eml (full RFC 822 message) or HTML body file
 	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
 
+	SaveToSent bool // Declared for CLI consistency; Gmail API always saves to Sent Mail automatically
+
 	// Runtime state filled by resolveTemplate for an .eml --template (not a flag)
 	RawEML []byte // Rendered EML message sent verbatim as gmail Message.Raw
 
@@ -172,6 +174,7 @@ func BindEnvs(v *viper.Viper) {
 		"logformat":          "GMAILLOGFORMAT",
 		"count":              "GMAILCOUNT",
 		"header":             "GMAILHEADER",
+		"save-to-sent":       "GMAILSAVETOSENT",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -253,6 +256,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Priority:              priority,
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
+		SaveToSent:            v.GetBool("save-to-sent"),
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
 		Duration:              duration,

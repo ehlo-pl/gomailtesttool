@@ -44,6 +44,7 @@ type Config struct {
 	TemplateVars          []string // Template variables in "key=value" form, referenced as {{.key}}
 	AttachmentFiles       []string // File paths to attach
 	InlineAttachmentFiles []string // File paths to embed inline via cid:<filename>
+	SaveToSent            bool     // Place created email in the Sent mailbox (JMAP mailboxIds)
 
 	// Search / export (exportmessages)
 	MessageID string
@@ -132,6 +133,7 @@ func BindEnvs(v *viper.Viper) {
 		"template-vars":      "JMAPTEMPLATEVARS",
 		"attachments":        "JMAPATTACHMENTS",
 		"inline-attachments": "JMAPINLINEATTACHMENTS",
+		"save-to-sent":       "JMAPSAVETOSENT",
 		"messageid":   "JMAPMESSAGEID",
 		"exportdir":   "JMAPEXPORTDIR",
 		"count":       "JMAPCOUNT",
@@ -205,7 +207,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		TemplateVars:          v.GetStringSlice("template-vars"),
 		AttachmentFiles:       parseStringSlice(v.GetString("attachments")),
 		InlineAttachmentFiles: parseStringSlice(v.GetString("inline-attachments")),
-		MessageID:      v.GetString("messageid"),
+		SaveToSent:            v.GetBool("save-to-sent"),
+		MessageID:             v.GetString("messageid"),
 		ExportDir:      v.GetString("exportdir"),
 		Count:          count,
 		VerboseMode:    v.GetBool("verbose"),

@@ -159,7 +159,11 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		bodyContent = config.BodyHTML
 	}
 
-	soapBody := fmt.Sprintf(createItemSOAPBodyFmt,
+	tpl := createItemSOAPBodySendOnlyFmt
+	if config.SaveToSent {
+		tpl = createItemSOAPBodySaveToSentFmt
+	}
+	soapBody := fmt.Sprintf(tpl,
 		xmlEscape(config.Subject),
 		bodyType,
 		xmlEscape(bodyContent),
@@ -246,15 +250,32 @@ func xmlEscape(s string) string {
 	return b.String()
 }
 
-// createItemSOAPBodyFmt is the SOAP body for CreateItem (sendmail).
+// createItemSOAPBodySaveToSentFmt is the SOAP body for CreateItem with
+// MessageDisposition="SendAndSaveCopy" — saves a copy in Sent Items.
 // Args: XML-escaped subject, body type ("Text"/"HTML"), XML-escaped body,
 // attachments XML block (empty string when none), recipient XML blocks for To
 // and Cc. The Attachments block precedes the recipient elements because the EWS
 // schema orders t:Item members (Attachments) before t:Message members (recipients).
-const createItemSOAPBodyFmt = `    <m:CreateItem MessageDisposition="SendAndSaveCopy">
+const createItemSOAPBodySaveToSentFmt = `    <m:CreateItem MessageDisposition="SendAndSaveCopy">
       <m:SavedItemFolderId>
         <t:DistinguishedFolderId Id="sentitems"/>
       </m:SavedItemFolderId>
+      <m:Items>
+        <t:Message>
+          <t:Subject>%s</t:Subject>
+          <t:Body BodyType="%s">%s</t:Body>
+%s          <t:ToRecipients>
+%s      </t:ToRecipients>
+          <t:CcRecipients>
+%s      </t:CcRecipients>
+        </t:Message>
+      </m:Items>
+    </m:CreateItem>`
+
+// createItemSOAPBodySendOnlyFmt is the SOAP body for CreateItem with
+// MessageDisposition="SendOnly" — sends without saving a copy.
+// Args match createItemSOAPBodySaveToSentFmt.
+const createItemSOAPBodySendOnlyFmt = `    <m:CreateItem MessageDisposition="SendOnly">
       <m:Items>
         <t:Message>
           <t:Subject>%s</t:Subject>

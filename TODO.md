@@ -4,16 +4,14 @@ Outstanding work items for gomailtesttool. Carried over from [CODE_REVIEW.md](CO
 
 ## Email composition features
 
-- [x] Attachments: File attachments with MIME type detection
-- [x] Inline Attachments: For embedding images in HTML emails (Content-ID/`cid:` references)
-- [x] `--template` - add alias --body-template
+- [ ] empty
 ## Configuration
 
 - [ ] empty
 
 ## Connection / TLS
 
--- [ ] empty
+- [ ] empty
 
 ## Security Fixes
 

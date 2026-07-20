@@ -33,7 +33,8 @@ const gmailConnectTimeout = 30 * time.Second
 // interception. The certificate Issuer is the payload: a corporate TLS-MITM
 // proxy surfaces there.
 func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
-	fmt.Printf("Testing Gmail API connectivity to %s...\n\n", gmailConnectEndpoint)
+	logger.Tprintf("Testing Gmail API connectivity to %s...\n", gmailConnectEndpoint)
+	fmt.Println()
 
 	writeConnectHeader(csvLogger, slogLogger)
 
@@ -60,7 +61,7 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 		// A transport error (DNS, connection refused, or an untrusted MITM
 		// certificate that fails verification → no resp.TLS) is itself a useful
 		// diagnostic signal.
-		fmt.Printf("✗ Could not reach Gmail endpoint: %s\n", err)
+		logger.Tprintf("✗ Could not reach Gmail endpoint: %s\n", err)
 		writeConnectCSV(csvLogger, slogLogger, config, "", 0, "", "", nil, elapsed, err.Error())
 		logError(slogLogger, "Gmail probe failed", "error", err)
 		return err
@@ -82,33 +83,36 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 		printJSON(buildConnectResult(httpStatus, statusCode, tlsVersion, cipherSuite, certs, elapsed))
 	} else {
 		// Any HTTP response (including 401) means the endpoint is alive.
-		fmt.Printf("✓ Gmail endpoint responded: HTTP %s\n", httpStatus)
+		logger.Tprintf("✓ Gmail endpoint responded: HTTP %s\n", httpStatus)
 		if statusCode == http.StatusUnauthorized {
-			fmt.Println("  (401 Unauthorized — endpoint is reachable; credentials are required for data operations)")
+			logger.Tprintln("  (401 Unauthorized — endpoint is reachable; credentials are required for data operations)")
 		}
 
 		if resp.TLS != nil {
-			fmt.Printf("\nTLS Connection:\n")
-			fmt.Printf("  Protocol:     %s\n", tlsVersion)
-			fmt.Printf("  Cipher Suite: %s\n", cipherSuite)
+			fmt.Println()
+			logger.Tprintf("TLS Connection:\n")
+			logger.Tprintf("  Protocol:     %s\n", tlsVersion)
+			logger.Tprintf("  Cipher Suite: %s\n", cipherSuite)
 
 			if len(certs) > 0 {
 				cert := certs[0]
-				fmt.Printf("\nServer Certificate:\n")
-				fmt.Printf("  Subject:    %s\n", cert.Subject.CommonName)
-				fmt.Printf("  Issuer:     %s\n", cert.Issuer.CommonName)
-				fmt.Printf("  Valid From: %s\n", cert.NotBefore.Format("2006-01-02"))
-				fmt.Printf("  Valid To:   %s\n", cert.NotAfter.Format("2006-01-02"))
+				fmt.Println()
+				logger.Tprintf("Server Certificate:\n")
+				logger.Tprintf("  Subject:    %s\n", cert.Subject.CommonName)
+				logger.Tprintf("  Issuer:     %s\n", cert.Issuer.CommonName)
+				logger.Tprintf("  Valid From: %s\n", cert.NotBefore.Format("2006-01-02"))
+				logger.Tprintf("  Valid To:   %s\n", cert.NotAfter.Format("2006-01-02"))
 				if len(cert.DNSNames) > 0 {
-					fmt.Printf("  SANs:       %s\n", strings.Join(cert.DNSNames, ", "))
+					logger.Tprintf("  SANs:       %s\n", strings.Join(cert.DNSNames, ", "))
 				}
-				fmt.Println("  (An unexpected Issuer here indicates a TLS-intercepting proxy.)")
+				logger.Tprintln("  (An unexpected Issuer here indicates a TLS-intercepting proxy.)")
 			}
 			fmt.Println()
 		}
 
-		fmt.Printf("  Response time: %d ms\n\n", elapsed)
-		fmt.Println("✓ Connectivity test completed")
+		logger.Tprintf("  Response time: %d ms\n", elapsed)
+		fmt.Println()
+		logger.Tprintln("✓ Connectivity test completed")
 	}
 
 	logVerbose(config.VerboseMode, "testconnect completed: http_status=%s elapsed_ms=%d", httpStatus, elapsed)

@@ -48,6 +48,7 @@ type Config struct {
 	Priority     string   // Email priority: high, normal, low (maps to Graph Importance)
 	Template     string   // Path to a message template: .eml (fields mapped to the Graph API) or HTML body file
 	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
+	SaveToSent   bool     // Save a copy in Sent Items (Graph API saveToSentItems)
 
 	// Calendar invite configuration
 	InviteSubject string // Subject of calendar meeting invitation
@@ -133,9 +134,13 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.String("pfxpass", "", "Password for the .pfx file (env: MSGRAPHPFXPASS)")
 	f.String("thumbprint", "", "Thumbprint of the certificate in the CurrentUser\\My store (env: MSGRAPHTHUMBPRINT)")
 	f.Bool("delegated", false, "Use delegated permissions auth flow (env: MSGRAPHDELEGATED)")
+	_ = f.MarkDeprecated("delegated", "delegated mode flags are deprecated; see docs/protocols/msgraph.md")
 	f.String("authflow", AuthFlowDeviceCode, "Delegated auth flow: devicecode, browser (env: MSGRAPHAUTHFLOW)")
+	_ = f.MarkDeprecated("authflow", "delegated mode flags are deprecated; see docs/protocols/msgraph.md")
 	f.String("redirecturl", "", "Redirect URL for browser auth flow (env: MSGRAPHREDIRECTURL)")
+	_ = f.MarkDeprecated("redirecturl", "delegated mode flags are deprecated; see docs/protocols/msgraph.md")
 	f.String("scope", "", "Comma-separated delegated scopes; default covers mail/calendar operations (env: MSGRAPHSCOPE)")
+	_ = f.MarkDeprecated("scope", "delegated mode flags are deprecated; see docs/protocols/msgraph.md")
 	f.String("bearertoken", "", "Pre-obtained Bearer token for authentication (env: MSGRAPHBEARERTOKEN)")
 
 	// Target
@@ -194,6 +199,7 @@ func BindEnvs(v *viper.Viper) {
 		"logformat":          "MSGRAPHLOGFORMAT",
 		"count":              "MSGRAPHCOUNT",
 		"header":             "MSGRAPHHEADER",
+		"save-to-sent":       "MSGRAPHSAVETOSENT",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -255,6 +261,10 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		logFormat = defaults.LogFormat
 	}
 
+	authFlow := strings.ToLower(v.GetString("authflow"))
+	// --authflow devicecode|browser implies delegated mode; --delegated is deprecated.
+	delegated := v.GetBool("delegated") || authFlow == AuthFlowDeviceCode || authFlow == AuthFlowBrowser
+
 	return &Config{
 		TenantID:              v.GetString("tenantid"),
 		ClientID:              v.GetString("clientid"),
@@ -264,8 +274,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		PfxPass:               v.GetString("pfxpass"),
 		Thumbprint:            v.GetString("thumbprint"),
 		BearerToken:           v.GetString("bearertoken"),
-		Delegated:             v.GetBool("delegated"),
-		AuthFlow:              strings.ToLower(v.GetString("authflow")),
+		Delegated:             delegated,
+		AuthFlow:              authFlow,
 		RedirectURL:           strings.TrimSpace(v.GetString("redirecturl")),
 		Scopes:                parseStringSlice(v.GetString("scope")),
 		To:                    parseStringSlice(v.GetString("to")),
@@ -280,6 +290,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Priority:              priority,
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
+		SaveToSent:            v.GetBool("save-to-sent"),
 		InviteSubject:         v.GetString("invite-subject"),
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
