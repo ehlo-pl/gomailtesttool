@@ -489,6 +489,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: EWSINLINEATTACHMENTS)")
 	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (To/Cc/Subject/bodies) mapped to EWS CreateItem; any other extension is used as the HTML body (env: EWSTEMPLATE)")
 	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: EWSTEMPLATEVARS)")
+	cmd.Flags().Bool("save-to-sent", false, "Save a copy in the Sent Items folder via SendAndSaveCopy (env: EWSSAVETOSENT)")
 	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
 	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd

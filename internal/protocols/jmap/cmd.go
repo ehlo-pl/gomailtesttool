@@ -256,6 +256,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: JMAPINLINEATTACHMENTS)")
 	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (From/To/Cc/Bcc/Subject/bodies) mapped to JMAP Email/set; any other extension is used as the HTML body (env: JMAPTEMPLATE)")
 	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: JMAPTEMPLATEVARS)")
+	cmd.Flags().Bool("save-to-sent", false, "Place the sent message in the Sent mailbox (JMAP mailboxIds) (env: JMAPSAVETOSENT)")
 	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
 	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd

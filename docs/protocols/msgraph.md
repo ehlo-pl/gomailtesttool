@@ -89,7 +89,7 @@ gomailtest msgraph sendmail --to "recipient@example.com" \
 > **Note:** Microsoft Graph only passes through `X-`-prefixed custom headers. Standard RFC headers (From, To, Subject, Date, Message-ID, etc.) are set by the Graph API itself and cannot be overridden via `--header`.
 
 `--template` with a `.eml` file parses the rendered message and maps its
-recognised fields (`To`/`Cc`/`Bcc`/`Subject`/text and HTML bodies) onto the
+recognized fields (`To`/`Cc`/`Bcc`/`Subject`/text and HTML bodies) onto the
 Graph send API; recipient flags win over the EML headers when both are given.
 The EML `From` header is ignored (Graph always sends as `--mailbox`) and
 headers without a Graph mapping are reported in verbose mode. Any other
@@ -261,10 +261,10 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--pfx` | Path to .pfx certificate file | `MSGRAPHPFX` | — |
 | `--pfxpass` | Password for .pfx certificate | `MSGRAPHPFXPASS` | — |
 | `--thumbprint` | Certificate thumbprint (Windows only) | `MSGRAPHTHUMBPRINT` | — |
-| `--delegated` | Use delegated permissions auth flow | `MSGRAPHDELEGATED` | false |
-| `--authflow` | Delegated auth flow: `devicecode` or `browser` | `MSGRAPHAUTHFLOW` | devicecode |
-| `--redirecturl` | Redirect URL used by browser delegated flow | `MSGRAPHREDIRECTURL` | — |
-| `--scope` | Comma-separated delegated scopes | `MSGRAPHSCOPE` | Mail.ReadWrite,Mail.Send,Calendars.ReadWrite,offline_access |
+| ~~`--delegated`~~ | **Deprecated.** Enable delegated auth flow. | `MSGRAPHDELEGATED` | false |
+| ~~`--authflow`~~ | **Deprecated.** Delegated auth flow: `devicecode` or `browser`. | `MSGRAPHAUTHFLOW` | devicecode |
+| ~~`--redirecturl`~~ | **Deprecated.** Redirect URL for browser delegated flow. | `MSGRAPHREDIRECTURL` | — |
+| ~~`--scope`~~ | **Deprecated.** Comma-separated delegated scopes. | `MSGRAPHSCOPE` | — |
 | `--bearertoken` | Pre-obtained Bearer token | `MSGRAPHBEARERTOKEN` | — |
 | `--proxy` | HTTP/HTTPS proxy URL | `MSGRAPHPROXY` | — |
 | `--maxretries` | Maximum retry attempts | `MSGRAPHMAXRETRIES` | 3 |
@@ -349,21 +349,21 @@ gomailtest msgraph getevents \
     --mailbox "user@example.com"
 ```
 
-### Delegated mode
+### Delegated mode *(deprecated)*
+
+> **Deprecated.** Delegated mode and its flags (`--delegated`, `--authflow`, `--redirecturl`, `--scope`) are deprecated and hidden from interactive help. They remain functional for backward compatibility.
 
 The application acts **on behalf of a signed-in user** via an interactive sign-in.
 This requires **delegated permissions** consented by the user (or an admin);
 operations run in that user's context, so app-only application permissions do not
-apply. Enable with `--delegated`, choose the flow with `--authflow`, and request
-scopes with `--scope`. Best for interactive use where a user is present at the
-console.
+apply.
 
 #### Delegated Permissions (Device Code)
 
 ```powershell
 gomailtest msgraph getinbox \
     --tenantid "..." --clientid "..." \
-    --delegated --authflow devicecode \
+    --authflow devicecode \
     --mailbox "user@example.com"
 ```
 
@@ -372,7 +372,7 @@ gomailtest msgraph getinbox \
 ```powershell
 gomailtest msgraph sendmail \
     --tenantid "..." --clientid "..." \
-    --delegated --authflow browser \
+    --authflow browser \
     --redirecturl "http://localhost:8400/callback" \
     --mailbox "user@example.com" \
     --to "recipient@example.com"

@@ -27,8 +27,7 @@ exporting inbox messages, and searching by Message-ID.
 
 Authentication methods: --secret (client secret), --pfx (certificate file),
 --thumbprint (Windows certificate store), --bearertoken (pre-obtained token).
-Delegated permissions: use --delegated with --authflow devicecode|browser
-(browser flow requires --redirecturl).`,
+Delegated permissions (deprecated): see docs/protocols/msgraph.md.`,
 	}
 
 	RegisterPersistentFlags(cmd)
@@ -171,6 +170,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: MSGRAPHINLINEATTACHMENTS)")
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: MSGRAPHHEADER — comma-separated; avoid commas in header values)")
 	cmd.Flags().String("priority", "normal", "Email priority/importance: high, normal, low (env: MSGRAPHPRIORITY)")
+	cmd.Flags().Bool("save-to-sent", false, "Save a copy in the Sent Items folder (Graph API saveToSentItems) (env: MSGRAPHSAVETOSENT)")
 	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
 	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd

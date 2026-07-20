@@ -235,6 +235,8 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 
 	requestBody := users.NewItemSendMailPostRequestBody()
 	requestBody.SetMessage(message)
+	saveToSentItems := config.SaveToSent
+	requestBody.SetSaveToSentItems(&saveToSentItems)
 
 	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/sendMail", senderMailbox)
 	logVerbose(config.VerboseMode, "Email details - To: %v, CC: %v, BCC: %v", to, cc, bcc)

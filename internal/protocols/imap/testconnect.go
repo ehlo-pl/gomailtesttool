@@ -11,7 +11,7 @@ import (
 
 // testConnect tests basic IMAP connectivity.
 func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
-	fmt.Printf("Testing IMAP connection to %s:%d...\n", config.Host, config.Port)
+	logger.Tprintf("Testing IMAP connection to %s:%d...\n", config.Host, config.Port)
 
 	// CSV columns for testconnect
 	columns := []string{"Action", "Status", "Server", "Port", "Connected", "Capabilities", "TLS_Version", "Error"}
@@ -40,7 +40,7 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 	}
 	defer func() { _ = client.Logout() }()
 
-	fmt.Printf("✓ Connected to %s:%d\n", config.Host, config.Port)
+	logger.Tprintf("✓ Connected to %s:%d\n", config.Host, config.Port)
 
 	// Get TLS info if connected via IMAPS or STARTTLS
 	tlsVersion := ""
@@ -50,7 +50,7 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 		} else if config.StartTLS {
 			tlsVersion = "STARTTLS"
 		}
-		fmt.Printf("  TLS: %s\n", tlsVersion)
+		logger.Tprintf("  TLS: %s\n", tlsVersion)
 	}
 
 	caps := client.GetCapabilities()
@@ -59,31 +59,31 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 	capsStr := ""
 	if caps != nil {
 		capsStr = caps.String()
-		fmt.Printf("  Capabilities: %s\n", capsStr)
+		logger.Tprintf("  Capabilities: %s\n", capsStr)
 
 		// Show interesting capabilities
 		if caps.SupportsIMAP4rev2() {
-			fmt.Println("    - IMAP4rev2 supported")
+			logger.Tprintln("    - IMAP4rev2 supported")
 		} else if caps.SupportsIMAP4rev1() {
-			fmt.Println("    - IMAP4rev1 supported")
+			logger.Tprintln("    - IMAP4rev1 supported")
 		}
 		if caps.SupportsSTARTTLS() {
-			fmt.Println("    - STARTTLS supported")
+			logger.Tprintln("    - STARTTLS supported")
 		}
 		if caps.SupportsIDLE() {
-			fmt.Println("    - IDLE (push notifications) supported")
+			logger.Tprintln("    - IDLE (push notifications) supported")
 		}
 		if caps.SupportsNAMESPACE() {
-			fmt.Println("    - NAMESPACE supported")
+			logger.Tprintln("    - NAMESPACE supported")
 		}
 		if caps.SupportsQUOTA() {
-			fmt.Println("    - QUOTA supported")
+			logger.Tprintln("    - QUOTA supported")
 		}
 		if mechanisms := caps.GetAuthMechanisms(); len(mechanisms) > 0 {
-			fmt.Printf("    - Auth mechanisms: %s\n", strings.Join(mechanisms, ", "))
+			logger.Tprintf("    - Auth mechanisms: %s\n", strings.Join(mechanisms, ", "))
 		}
 		if caps.IsLoginDisabled() {
-			fmt.Println("    - LOGIN disabled (use STARTTLS first)")
+			logger.Tprintln("    - LOGIN disabled (use STARTTLS first)")
 		}
 	}
 
@@ -99,6 +99,7 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 		logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 	}
 
-	fmt.Println("\n✓ Connection test successful")
+	fmt.Println()
+	logger.Tprintln("✓ Connection test successful")
 	return nil
 }

@@ -33,16 +33,17 @@ type Config struct {
 	Mailbox     string // Target mailbox for impersonation (optional)
 
 	// Email composition (sendmail)
-	To                  []string
-	Cc                  []string
-	Bcc                 []string
-	Subject             string
-	Body                string
-	BodyHTML            string
-	Template            string   // Path to a message template: .eml (fields mapped to EWS CreateItem) or HTML body file
-	TemplateVars        []string // Template variables in "key=value" form, referenced as {{.key}}
-	AttachmentFiles     []string // File paths to attach
+	To                    []string
+	Cc                    []string
+	Bcc                   []string
+	Subject               string
+	Body                  string
+	BodyHTML              string
+	Template              string   // Path to a message template: .eml (fields mapped to EWS CreateItem) or HTML body file
+	TemplateVars          []string // Template variables in "key=value" form, referenced as {{.key}}
+	AttachmentFiles       []string // File paths to attach
 	InlineAttachmentFiles []string // File paths to embed inline via cid:<filename>
+	SaveToSent            bool     // Save a copy in the Sent Items folder (EWS SendAndSaveCopy)
 
 	// Calendar (getevents, sendinvite, getschedule)
 	StartTime string
@@ -169,6 +170,7 @@ func BindEnvs(v *viper.Viper) {
 		"template-vars":      "EWSTEMPLATEVARS",
 		"attachments":        "EWSATTACHMENTS",
 		"inline-attachments": "EWSINLINEATTACHMENTS",
+		"save-to-sent":       "EWSSAVETOSENT",
 		"start":            "EWSSTART",
 		"end":              "EWSEND",
 		"messageid":        "EWSMESSAGEID",
@@ -271,7 +273,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		TemplateVars:          v.GetStringSlice("template-vars"),
 		AttachmentFiles:       parseStringSlice(v.GetString("attachments")),
 		InlineAttachmentFiles: parseStringSlice(v.GetString("inline-attachments")),
-		StartTime:        v.GetString("start"),
+		SaveToSent:            v.GetBool("save-to-sent"),
+		StartTime:             v.GetString("start"),
 		EndTime:          v.GetString("end"),
 		MessageID:        v.GetString("messageid"),
 		ExportDir:        v.GetString("exportdir"),

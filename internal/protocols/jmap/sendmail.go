@@ -114,19 +114,18 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		return fmt.Errorf("no sender address available: provide --username or a From header in the template")
 	}
 
-	// Find Sent mailbox for outgoing mail storage.
-	mailboxes, err := client.GetMailboxes(ctx)
-	if err != nil {
-		logger.LogError(slogLogger, "Failed to retrieve mailboxes", "error", err)
-		writeRow("FAILURE", err.Error())
-		return fmt.Errorf("failed to retrieve mailboxes: %w", err)
-	}
-
-	sentMb := findMailboxByRole(mailboxes, "sent")
-
+	// Optionally find and record the Sent mailbox in mailboxIds.
 	mailboxIds := map[protocol.Id]bool{}
-	if sentMb != nil {
-		mailboxIds[sentMb.Id] = true
+	if config.SaveToSent {
+		mailboxes, err := client.GetMailboxes(ctx)
+		if err != nil {
+			logger.LogError(slogLogger, "Failed to retrieve mailboxes", "error", err)
+			writeRow("FAILURE", err.Error())
+			return fmt.Errorf("failed to retrieve mailboxes: %w", err)
+		}
+		if sentMb := findMailboxByRole(mailboxes, "sent"); sentMb != nil {
+			mailboxIds[sentMb.Id] = true
+		}
 	}
 
 	toAddrs := make([]protocol.EmailAddress, 0, len(config.To))

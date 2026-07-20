@@ -14,17 +14,18 @@ import (
 func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
 	if config.SMTPS {
 		if config.ConnectAddress != "" {
-			fmt.Printf("Testing SMTPS connectivity to %s:%d (connecting via %s)...\n\n", config.Host, config.Port, config.ConnectAddress)
+			logger.Tprintf("Testing SMTPS connectivity to %s:%d (connecting via %s)...\n", config.Host, config.Port, config.ConnectAddress)
 		} else {
-			fmt.Printf("Testing SMTPS connectivity to %s:%d...\n\n", config.Host, config.Port)
+			logger.Tprintf("Testing SMTPS connectivity to %s:%d...\n", config.Host, config.Port)
 		}
 	} else {
 		if config.ConnectAddress != "" {
-			fmt.Printf("Testing SMTP connectivity to %s:%d (connecting via %s)...\n\n", config.Host, config.Port, config.ConnectAddress)
+			logger.Tprintf("Testing SMTP connectivity to %s:%d (connecting via %s)...\n", config.Host, config.Port, config.ConnectAddress)
 		} else {
-			fmt.Printf("Testing SMTP connectivity to %s:%d...\n\n", config.Host, config.Port)
+			logger.Tprintf("Testing SMTP connectivity to %s:%d...\n", config.Host, config.Port)
 		}
 	}
+	fmt.Println()
 
 	// Write CSV header
 	if shouldWrite, _ := csvLogger.ShouldWriteHeader(); shouldWrite {
@@ -60,18 +61,19 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 
 	if config.SMTPS {
 		if config.ConnectAddress != "" {
-			fmt.Printf("✓ Connected successfully with SMTPS (implicit TLS) via %s\n", config.ConnectAddress)
+			logger.Tprintf("✓ Connected successfully with SMTPS (implicit TLS) via %s\n", config.ConnectAddress)
 		} else {
-			fmt.Printf("✓ Connected successfully with SMTPS (implicit TLS)\n")
+			logger.Tprintf("✓ Connected successfully with SMTPS (implicit TLS)\n")
 		}
 	} else {
 		if config.ConnectAddress != "" {
-			fmt.Printf("✓ Connected successfully via %s\n", config.ConnectAddress)
+			logger.Tprintf("✓ Connected successfully via %s\n", config.ConnectAddress)
 		} else {
-			fmt.Printf("✓ Connected successfully\n")
+			logger.Tprintf("✓ Connected successfully\n")
 		}
 	}
-	fmt.Printf("  Banner: %s\n\n", client.GetBanner())
+	logger.Tprintf("  Banner: %s\n", client.GetBanner())
+	fmt.Println()
 
 	// Get TLS state for SMTPS connections
 	var tlsState = client.GetTLSState()
@@ -101,12 +103,12 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 	}
 
 	// Display capabilities
-	fmt.Println("Server Capabilities:")
+	logger.Tprintln("Server Capabilities:")
 	for cap, params := range caps {
 		if len(params) > 0 {
-			fmt.Printf("  • %s: %s\n", cap, strings.Join(params, ", "))
+			logger.Tprintf("  • %s: %s\n", cap, strings.Join(params, ", "))
 		} else {
-			fmt.Printf("  • %s\n", cap)
+			logger.Tprintf("  • %s\n", cap)
 		}
 	}
 	fmt.Println()
@@ -114,7 +116,7 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 	// Detect Exchange
 	exchangeInfo := exchange.DetectExchange(client.GetBanner(), caps)
 	if exchangeInfo.IsExchange {
-		fmt.Print(exchange.FormatExchangeInfo(exchangeInfo, caps))
+		logger.Tprintf("%s", exchange.FormatExchangeInfo(exchangeInfo, caps))
 	}
 
 	// Log to CSV
@@ -133,9 +135,9 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 	}
 
 	if config.SMTPS {
-		fmt.Println("✓ SMTPS connectivity test completed successfully")
+		logger.Tprintln("✓ SMTPS connectivity test completed successfully")
 	} else {
-		fmt.Println("✓ Connectivity test completed successfully")
+		logger.Tprintln("✓ Connectivity test completed successfully")
 	}
 	logger.LogInfo(slogLogger, "testconnect completed successfully")
 

@@ -16,7 +16,8 @@ import (
 // testConnect performs an HTTP/TLS probe against the EWS endpoint.
 // Credentials are not required — HTTP 401/403 confirms the server is running.
 func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
-	fmt.Printf("Testing EWS connectivity to https://%s:%d%s...\n\n", config.Host, config.Port, config.EWSPath)
+	logger.Tprintf("Testing EWS connectivity to https://%s:%d%s...\n", config.Host, config.Port, config.EWSPath)
+	fmt.Println()
 
 	if shouldWrite, _ := csvLogger.ShouldWriteHeader(); shouldWrite {
 		if err := csvLogger.WriteHeader([]string{
@@ -53,12 +54,12 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 	statusCode := resp.StatusCode
 
 	// Any HTTP response (including 401/403) means the server is alive.
-	fmt.Printf("✓ EWS endpoint responded: HTTP %s\n", httpStatus)
+	logger.Tprintf("✓ EWS endpoint responded: HTTP %s\n", httpStatus)
 	switch statusCode {
 	case http.StatusUnauthorized:
-		fmt.Println("  (401 Unauthorized — server is alive, credentials required for further operations)")
+		logger.Tprintln("  (401 Unauthorized — server is alive, credentials required for further operations)")
 	case http.StatusForbidden:
-		fmt.Println("  (403 Forbidden — server is alive, check permissions)")
+		logger.Tprintln("  (403 Forbidden — server is alive, check permissions)")
 	}
 
 	// Display TLS information
@@ -71,26 +72,29 @@ func testConnect(ctx context.Context, config *Config, csvLogger logger.Logger, s
 		cipherSuite = tlsCipherName(state.CipherSuite)
 		certs = state.PeerCertificates
 
-		fmt.Printf("\nTLS Connection:\n")
-		fmt.Printf("  Protocol:     %s\n", tlsVersion)
-		fmt.Printf("  Cipher Suite: %s\n", cipherSuite)
+		fmt.Println()
+		logger.Tprintf("TLS Connection:\n")
+		logger.Tprintf("  Protocol:     %s\n", tlsVersion)
+		logger.Tprintf("  Cipher Suite: %s\n", cipherSuite)
 
 		if len(certs) > 0 {
 			cert := certs[0]
-			fmt.Printf("\nServer Certificate:\n")
-			fmt.Printf("  Subject:    %s\n", cert.Subject.CommonName)
-			fmt.Printf("  Issuer:     %s\n", cert.Issuer.CommonName)
-			fmt.Printf("  Valid From: %s\n", cert.NotBefore.Format("2006-01-02"))
-			fmt.Printf("  Valid To:   %s\n", cert.NotAfter.Format("2006-01-02"))
+			fmt.Println()
+			logger.Tprintf("Server Certificate:\n")
+			logger.Tprintf("  Subject:    %s\n", cert.Subject.CommonName)
+			logger.Tprintf("  Issuer:     %s\n", cert.Issuer.CommonName)
+			logger.Tprintf("  Valid From: %s\n", cert.NotBefore.Format("2006-01-02"))
+			logger.Tprintf("  Valid To:   %s\n", cert.NotAfter.Format("2006-01-02"))
 			if len(cert.DNSNames) > 0 {
-				fmt.Printf("  SANs:       %s\n", strings.Join(cert.DNSNames, ", "))
+				logger.Tprintf("  SANs:       %s\n", strings.Join(cert.DNSNames, ", "))
 			}
 		}
 		fmt.Println()
 	}
 
-	fmt.Printf("  Response time: %d ms\n\n", elapsed)
-	fmt.Println("✓ EWS connectivity test completed")
+	logger.Tprintf("  Response time: %d ms\n", elapsed)
+	fmt.Println()
+	logger.Tprintln("✓ EWS connectivity test completed")
 
 	logger.LogInfo(slogLogger, "testconnect completed",
 		"http_status", httpStatus, "elapsed_ms", elapsed)

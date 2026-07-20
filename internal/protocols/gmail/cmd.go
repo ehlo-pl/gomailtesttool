@@ -142,6 +142,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: GMAILINLINEATTACHMENTS)")
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: GMAILHEADER — comma-separated)")
 	cmd.Flags().String("priority", "normal", "Email priority: high, normal, low (env: GMAILPRIORITY)")
+	cmd.Flags().Bool("save-to-sent", false, "Save a copy in Sent Mail (Gmail API always saves to Sent Mail automatically; this flag is recorded for consistency) (env: GMAILSAVETOSENT)")
 	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
 	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd
