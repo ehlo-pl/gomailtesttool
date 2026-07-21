@@ -351,7 +351,7 @@ gomailtest msgraph getevents \
 
 ### Delegated mode *(deprecated)*
 
-> **Deprecated.** Delegated mode and its flags (`--delegated`, `--authflow`, `--redirecturl`, `--scope`) are deprecated and hidden from interactive help. They remain functional for backward compatibility.
+> **Deprecated.** Delegated mode and its flags (`--delegated`, `--authflow`, `--redirecturl`, `--scope`) are deprecated and hidden from interactive help. They remain functional for backward compatibility. for such tests uer i.e. [github.com/ziembor/msgraph-js-sandbox](https://github.com/ziembor/msgraph-js-sandbox)
 
 The application acts **on behalf of a signed-in user** via an interactive sign-in.
 This requires **delegated permissions** consented by the user (or an admin);
