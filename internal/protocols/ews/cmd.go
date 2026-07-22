@@ -35,6 +35,7 @@ Environment variables use the EWS prefix (e.g. EWSHOST, EWSUSERNAME, EWSPASSWORD
 		newListFoldersCmd(v),
 		newListMailCmd(v),
 		newSendMailCmd(v),
+		newDraftCmd(v),
 		newExportMessagesCmd(v),
 		newGetEventsCmd(v),
 		newSendInviteCmd(v),
@@ -490,6 +491,56 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (To/Cc/Subject/bodies) mapped to EWS CreateItem; any other extension is used as the HTML body (env: EWSTEMPLATE)")
 	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: EWSTEMPLATEVARS)")
 	cmd.Flags().Bool("save-to-sent", false, "Save a copy in the Sent Items folder via SendAndSaveCopy (env: EWSSAVETOSENT)")
+	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
+	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
+	return cmd
+}
+
+func newDraftCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "draft",
+		Short: "Create an email and save it as a draft via EWS (does not send)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if bt := cmd.Flags().Lookup("body-template"); bt != nil && bt.Changed {
+				if cmd.Flags().Lookup("template").Changed {
+					return fmt.Errorf("cannot use both --template and --body-template")
+				}
+				_ = cmd.Flags().Set("template", bt.Value.String())
+			}
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+			config := ConfigFromViper(v)
+			config.Action = ActionSaveDraft
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionSaveDraft, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+			if err := resolveTemplate(config, slogger); err != nil {
+				return fmt.Errorf("template failed: %w", err)
+			}
+			return sendMail(ctx, config, csvLogger, slogger)
+		},
+	}
+	cmd.Flags().String("to", "", "Comma-separated TO recipients (env: EWSTO)")
+	cmd.Flags().String("cc", "", "Comma-separated CC recipients (env: EWSCC)")
+	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: EWSSUBJECT)")
+	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: EWSBODY)")
+	cmd.Flags().String("bodyhtml", "", "HTML body content (overrides --body if set) (env: EWSBODYHTML)")
+	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: EWSATTACHMENTS)")
+	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: EWSINLINEATTACHMENTS)")
+	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (To/Cc/Subject/bodies) mapped to EWS CreateItem; any other extension is used as the HTML body (env: EWSTEMPLATE)")
+	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: EWSTEMPLATEVARS)")
 	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
 	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd

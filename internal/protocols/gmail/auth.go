@@ -28,6 +28,7 @@ import (
 // token exchange with unauthorized_client.
 const (
 	scopeGmailSend        = "https://www.googleapis.com/auth/gmail.send"
+	scopeGmailCompose     = "https://www.googleapis.com/auth/gmail.compose"
 	scopeGmailReadonly    = "https://www.googleapis.com/auth/gmail.readonly"
 	scopeCalendarReadonly = "https://www.googleapis.com/auth/calendar.readonly"
 	scopeCalendarEvents   = "https://www.googleapis.com/auth/calendar.events"
@@ -42,6 +43,9 @@ func effectiveScopes(config *Config) []string {
 	switch config.Action {
 	case ActionSendMail:
 		return []string{scopeGmailSend}
+	case ActionSaveDraft:
+		// Draft creation requires gmail.compose; gmail.send alone returns 403.
+		return []string{scopeGmailCompose}
 	case ActionGetInbox, ActionExportMessages:
 		return []string{scopeGmailReadonly}
 	case ActionGetEvents, ActionGetSchedule, ActionFindTimeSlot:

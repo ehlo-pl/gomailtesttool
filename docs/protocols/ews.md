@@ -236,6 +236,18 @@ gomailtest ews sendmail --host mail.example.com \
 - `--template-vars key=value` (repeatable) supplies variables referenced as
   `{{.key}}` in the template.
 
+### draft — Save an Email as a Draft (does not send)
+
+Creates an email via EWS `CreateItem` with `MessageDisposition="SaveOnly"` and
+stores it in the mailbox's **Drafts** folder without sending it. Accepts the same
+flags as `sendmail` except `--save-to-sent` (a draft is never sent).
+
+```powershell
+gomailtest ews draft --host mail.example.com \
+    --username "CORP\user" --password "secret" \
+    --to recipient@example.com --subject "Test" --body "plain text"
+```
+
 ### exportmessages — Search and Export Messages as .eml
 
 Searches the Inbox by `--messageid` and/or `--subject` (substring match) via

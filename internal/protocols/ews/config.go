@@ -87,6 +87,7 @@ const (
 	ActionListFolders    = "listfolders"
 	ActionListMail       = "listmail"
 	ActionSendMail       = "sendmail"
+	ActionSaveDraft      = "draft"
 	ActionExportMessages = "exportmessages"
 	ActionFindTimeSlot   = "findtimeslot"
 	ActionGetEvents      = "getevents"
@@ -310,7 +311,7 @@ func parseStringSlice(s string) []string {
 func validateConfiguration(config *Config) error {
 	validActions := []string{
 		ActionTestConnect, ActionTestAuth, ActionGetFolder, ActionAutodiscover,
-		ActionListFolders, ActionListMail, ActionSendMail, ActionExportMessages,
+		ActionListFolders, ActionListMail, ActionSendMail, ActionSaveDraft, ActionExportMessages,
 		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot,
 	}
 	valid := false
@@ -361,7 +362,7 @@ func validateConfiguration(config *Config) error {
 	// Action-specific validation
 	switch config.Action {
 	case ActionTestAuth, ActionGetFolder, ActionListFolders, ActionListMail,
-		ActionSendMail, ActionExportMessages,
+		ActionSendMail, ActionSaveDraft, ActionExportMessages,
 		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot:
 		if config.Username == "" {
 			return fmt.Errorf("%s requires --username", config.Action)
@@ -383,7 +384,7 @@ func validateConfiguration(config *Config) error {
 		}
 	}
 
-	if config.Action == ActionSendMail {
+	if config.Action == ActionSendMail || config.Action == ActionSaveDraft {
 		// Validate --template/--template-vars. An .eml template is parsed
 		// and its recognised fields mapped onto EWS CreateItem, so
 		// recipients may come from its To/Cc headers instead of --to.
@@ -407,7 +408,7 @@ func validateConfiguration(config *Config) error {
 			emlTemplate = tmpl.IsEML(config.Template)
 		}
 		if len(config.To) == 0 && !emlTemplate {
-			return fmt.Errorf("sendmail requires at least one recipient (--to)")
+			return fmt.Errorf("%s requires at least one recipient (--to)", config.Action)
 		}
 	}
 

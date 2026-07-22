@@ -37,6 +37,7 @@ OAuth2 access token), or --oauth (interactive loopback flow).`,
 
 	cmd.AddCommand(
 		newSendMailCmd(v),
+		newDraftCmd(v),
 		newGetInboxCmd(v),
 		newListFoldersCmd(v),
 		newListMailCmd(v),
@@ -143,6 +144,64 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: GMAILHEADER — comma-separated)")
 	cmd.Flags().String("priority", "normal", "Email priority: high, normal, low (env: GMAILPRIORITY)")
 	cmd.Flags().Bool("save-to-sent", false, "Save a copy in Sent Mail (Gmail API always saves to Sent Mail automatically; this flag is recorded for consistency) (env: GMAILSAVETOSENT)")
+	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
+	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
+	return cmd
+}
+
+func newDraftCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "draft",
+		Short: "Create an email and save it as a draft via the Gmail API (does not send)",
+		Long: `Create an email and save it in the mailbox's Drafts without sending it.
+
+Requires the gmail.compose scope (the send-only gmail.send scope is not
+sufficient to create a draft).`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if bt := cmd.Flags().Lookup("body-template"); bt != nil && bt.Changed {
+				if cmd.Flags().Lookup("template").Changed {
+					return fmt.Errorf("cannot use both --template and --body-template")
+				}
+				_ = cmd.Flags().Set("template", bt.Value.String())
+			}
+			config, ctx, cancel, slogger, csvLogger, err := setup(cmd, v, ActionSaveDraft)
+			if err != nil {
+				return err
+			}
+			defer cancel()
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			if err := resolveTemplate(config); err != nil {
+				return fmt.Errorf("template failed: %w", err)
+			}
+
+			// Default To to the mailbox if no recipients were specified.
+			// An .eml template carries its own recipients in the raw message.
+			if config.RawEML == nil && len(config.To) == 0 && len(config.Cc) == 0 && len(config.Bcc) == 0 {
+				config.To = stringSlice{config.Mailbox}
+			}
+
+			svc, err := newGmailService(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+			return SaveDraft(ctx, svc, config, csvLogger)
+		},
+	}
+	cmd.Flags().String("to", "", "Comma-separated TO recipients (env: GMAILTO)")
+	cmd.Flags().String("cc", "", "Comma-separated CC recipients (env: GMAILCC)")
+	cmd.Flags().String("bcc", "", "Comma-separated BCC recipients (env: GMAILBCC)")
+	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: GMAILSUBJECT)")
+	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: GMAILBODY)")
+	cmd.Flags().String("bodyhtml", "", "HTML body content (env: GMAILBODYHTML)")
+	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file is saved as the complete RFC 822 message; any other extension is used as the HTML body (env: GMAILTEMPLATE)")
+	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: GMAILTEMPLATEVARS)")
+	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: GMAILATTACHMENTS)")
+	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: GMAILINLINEATTACHMENTS)")
+	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: GMAILHEADER — comma-separated)")
+	cmd.Flags().String("priority", "normal", "Email priority: high, normal, low (env: GMAILPRIORITY)")
 	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
 	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd

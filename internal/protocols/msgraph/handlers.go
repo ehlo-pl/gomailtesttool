@@ -163,9 +163,11 @@ func resolveTemplate(config *Config) error {
 	return nil
 }
 
-// SendEmail sends an email via the Microsoft Graph API.
-// Returns a non-nil error if the send fails; logging to CSV and console occurs regardless.
-func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, senderMailbox string, to, cc, bcc []string, subject, textContent, htmlContent string, attachmentPaths []string, config *Config, logger logger.Logger) error {
+// buildMessage assembles a Graph Message (subject, importance, body, recipients,
+// attachments, custom headers) shared by the send and draft paths. Attachment and
+// header errors are logged and skipped rather than aborting, matching the tool's
+// lenient send behaviour.
+func buildMessage(to, cc, bcc []string, subject, textContent, htmlContent string, attachmentPaths []string, config *Config) models.Messageable {
 	message := models.NewMessage()
 
 	// Set Subject
@@ -233,6 +235,14 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 		}
 	}
 
+	return message
+}
+
+// SendEmail sends an email via the Microsoft Graph API.
+// Returns a non-nil error if the send fails; logging to CSV and console occurs regardless.
+func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, senderMailbox string, to, cc, bcc []string, subject, textContent, htmlContent string, attachmentPaths []string, config *Config, logger logger.Logger) error {
+	message := buildMessage(to, cc, bcc, subject, textContent, htmlContent, attachmentPaths, config)
+
 	requestBody := users.NewItemSendMailPostRequestBody()
 	requestBody.SetMessage(message)
 	saveToSentItems := config.SaveToSent
@@ -278,6 +288,60 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 			bodyType = "HTML"
 		}
 		_ = logger.WriteRow([]string{ActionSendMail, status, senderMailbox, toStr, ccStr, bccStr, subject, bodyType, fmt.Sprintf("%d", attachmentCount)})
+	}
+
+	return returnErr
+}
+
+// SaveDraft builds the same message as SendEmail but POSTs it to
+// /users/{id}/messages, which stores it in the mailbox's Drafts folder without
+// sending. Requires the Mail.ReadWrite permission (Mail.Send alone is not enough).
+// Returns a non-nil error if the request fails; logging to CSV and console occurs regardless.
+func SaveDraft(ctx context.Context, client *msgraphsdk.GraphServiceClient, senderMailbox string, to, cc, bcc []string, subject, textContent, htmlContent string, attachmentPaths []string, config *Config, logger logger.Logger) error {
+	message := buildMessage(to, cc, bcc, subject, textContent, htmlContent, attachmentPaths, config)
+
+	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/messages", senderMailbox)
+	logVerbose(config.VerboseMode, "Draft details - To: %v, CC: %v, BCC: %v", to, cc, bcc)
+	created, err := client.Users().ByUserId(senderMailbox).Messages().Post(ctx, message, nil)
+
+	status := StatusSuccess
+	attachmentCount := len(attachmentPaths) + len(config.InlineAttachmentFiles)
+	var returnErr error
+	if err != nil {
+		enrichedErr := enrichGraphAPIError(err, logger, "saveDraft")
+		log.Printf("Error saving draft: %v", enrichedErr)
+		status = fmt.Sprintf("%s: %v", StatusError, enrichedErr)
+		returnErr = enrichedErr
+	} else {
+		logVerbose(config.VerboseMode, "Draft saved successfully via Graph API")
+		fmt.Printf("Draft saved successfully in %s.\n", senderMailbox)
+		if created != nil && created.GetId() != nil {
+			fmt.Printf("Message ID: %s\n", *created.GetId())
+		}
+		fmt.Printf("To: %v\n", to)
+		fmt.Printf("Cc: %v\n", cc)
+		fmt.Printf("Bcc: %v\n", bcc)
+		fmt.Printf("Subject: %s\n", subject)
+		if htmlContent != "" {
+			fmt.Println("Body Type: HTML")
+		} else {
+			fmt.Println("Body Type: Text")
+		}
+		if attachmentCount > 0 {
+			fmt.Printf("Attachments: %d file(s)\n", attachmentCount)
+		}
+	}
+
+	// Write to CSV
+	if logger != nil {
+		toStr := strings.Join(to, "; ")
+		ccStr := strings.Join(cc, "; ")
+		bccStr := strings.Join(bcc, "; ")
+		bodyType := "Text"
+		if htmlContent != "" {
+			bodyType = "HTML"
+		}
+		_ = logger.WriteRow([]string{ActionSaveDraft, status, senderMailbox, toStr, ccStr, bccStr, subject, bodyType, fmt.Sprintf("%d", attachmentCount)})
 	}
 
 	return returnErr

@@ -96,6 +96,7 @@ func NewConfig() *Config {
 // Action constants
 const (
 	ActionSendMail          = "sendmail"
+	ActionSaveDraft         = "draft"
 	ActionGetInbox          = "getinbox"
 	ActionListFolders       = "listfolders"
 	ActionListMail          = "listmail"
