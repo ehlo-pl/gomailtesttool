@@ -28,15 +28,16 @@ const (
 	StatusError   = "Error"
 )
 
-// SendEmail builds an RFC 5322 message, base64url-encodes it, and sends it via
-// the Gmail API as the impersonated user ("me"). An .eml --template bypasses
-// the message builder: the rendered EML is sent verbatim.
-func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
+// buildRawMessage builds the RFC 5322 message and returns it base64url-encoded
+// for the Gmail API's Raw field. An .eml --template bypasses the message builder:
+// the rendered EML (config.RawEML) is used verbatim. Shared by the send and
+// draft paths.
+func buildRawMessage(config *Config) (string, error) {
 	raw := config.RawEML
 	if raw == nil {
 		customHeaders, err := email.ParseHeaders(config.Headers)
 		if err != nil {
-			return fmt.Errorf("invalid headers: %w", err)
+			return "", fmt.Errorf("invalid headers: %w", err)
 		}
 
 		onSkip := func(path string, loadErr error) {
@@ -44,11 +45,11 @@ func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv l
 		}
 		attachments, err := email.LoadAttachments(config.AttachmentFiles, onSkip)
 		if err != nil {
-			return fmt.Errorf("attachments: %w", err)
+			return "", fmt.Errorf("attachments: %w", err)
 		}
 		inline, err := email.LoadInlineAttachments(config.InlineAttachmentFiles, onSkip)
 		if err != nil {
-			return fmt.Errorf("inline attachments: %w", err)
+			return "", fmt.Errorf("inline attachments: %w", err)
 		}
 
 		// Unlike SMTP, Gmail derives recipients from the message headers, so Bcc
@@ -69,20 +70,32 @@ func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv l
 			HostID:           hostFromEmail(config.Mailbox),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to build message: %w", err)
+			return "", fmt.Errorf("failed to build message: %w", err)
 		}
+	}
+
+	// Gmail requires the message base64url-encoded into Raw; the SDK does not
+	// encode it for you (standard base64 silently fails).
+	return base64.URLEncoding.EncodeToString(raw), nil
+}
+
+// SendEmail builds an RFC 5322 message, base64url-encodes it, and sends it via
+// the Gmail API as the impersonated user ("me"). An .eml --template bypasses
+// the message builder: the rendered EML is sent verbatim.
+func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
+	encoded, err := buildRawMessage(config)
+	if err != nil {
+		return err
 	}
 
 	if !config.SaveToSent {
 		logVerbose(config.VerboseMode, "Gmail API always saves sent messages to Sent Mail; --save-to-sent has no effect")
 	}
 
-	// Gmail requires the message base64url-encoded into Raw; the SDK does not
-	// encode it for you (standard base64 silently fails).
-	gmsg := &gmailapi.Message{Raw: base64.URLEncoding.EncodeToString(raw)}
+	gmsg := &gmailapi.Message{Raw: encoded}
 
 	var sent *gmailapi.Message
-	err := retryGmail(ctx, config, func() error {
+	err = retryGmail(ctx, config, func() error {
 		var apiErr error
 		sent, apiErr = svc.Users.Messages.Send("me", gmsg).Context(ctx).Do()
 		return apiErr
@@ -109,6 +122,48 @@ func SendEmail(ctx context.Context, svc *gmailapi.Service, config *Config, csv l
 	}
 
 	writeCSV(csv, []string{ActionSendMail, status, config.Mailbox, strings.Join(config.To, "; "), config.Subject})
+	return returnErr
+}
+
+// SaveDraft builds the same RFC 5322 message as SendEmail but stores it via the
+// Gmail API Drafts.Create endpoint instead of sending it. Requires the
+// gmail.compose scope (gmail.send alone returns 403 on draft creation).
+func SaveDraft(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
+	encoded, err := buildRawMessage(config)
+	if err != nil {
+		return err
+	}
+
+	gmsg := &gmailapi.Message{Raw: encoded}
+
+	var draft *gmailapi.Draft
+	err = retryGmail(ctx, config, func() error {
+		var apiErr error
+		draft, apiErr = svc.Users.Drafts.Create("me", &gmailapi.Draft{Message: gmsg}).Context(ctx).Do()
+		return apiErr
+	})
+
+	status := StatusSuccess
+	var returnErr error
+	if err != nil {
+		enriched := enrichGmailAPIError(err, "draft")
+		log.Printf("Error saving draft: %v", enriched)
+		status = fmt.Sprintf("%s: %v", StatusError, enriched)
+		returnErr = enriched
+	} else {
+		fmt.Printf("Draft saved successfully for %s.\n", config.Mailbox)
+		fmt.Printf("To: %s\n", strings.Join(config.To, ", "))
+		if len(config.Cc) > 0 {
+			fmt.Printf("Cc: %s\n", strings.Join(config.Cc, ", "))
+		}
+		if len(config.Bcc) > 0 {
+			fmt.Printf("Bcc: %s\n", strings.Join(config.Bcc, ", "))
+		}
+		fmt.Printf("Subject: %s\n", config.Subject)
+		fmt.Printf("Draft ID: %s\n", draft.Id)
+	}
+
+	writeCSV(csv, []string{ActionSaveDraft, status, config.Mailbox, strings.Join(config.To, "; "), config.Subject})
 	return returnErr
 }
 

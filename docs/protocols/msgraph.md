@@ -97,6 +97,19 @@ extension is rendered and used as the HTML body. Mutually exclusive with
 `--body`/`--bodyHTML`; `--template-vars key=value`
 (repeatable) supplies variables referenced as `{{.key}}`.
 
+### draft — Save an Email as a Draft (does not send)
+
+Builds the same message as `sendmail` but POSTs it to `/users/{mailbox}/messages`,
+which stores it in the mailbox's **Drafts** folder without sending. Accepts the
+same flags as `sendmail` except `--save-to-sent` (a draft is never sent).
+
+```powershell
+gomailtest msgraph draft --to "recipient@example.com" --subject "Test" --body "draft body"
+```
+
+> **Note:** Draft creation requires the **`Mail.ReadWrite`** application permission.
+> The send-only `Mail.Send` permission is not sufficient.
+
 ### sendinvite — Create Calendar Invitations
 
 ```powershell
@@ -476,6 +489,7 @@ For `searchandexport` and `exportmessages`, a successful-but-empty result is als
 | Action | Permission |
 |--------|-----------|
 | sendmail | `Mail.Send` |
+| draft | `Mail.ReadWrite` |
 | getevents, sendinvite | `Calendars.ReadWrite` |
 | getinbox, exportinbox, searchandexport, exportmessages | `Mail.Read` |
 | getschedule | `Calendars.Read` |

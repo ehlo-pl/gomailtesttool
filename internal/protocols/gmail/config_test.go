@@ -261,6 +261,7 @@ func TestEffectiveScopes(t *testing.T) {
 		want   string
 	}{
 		{ActionSendMail, scopeGmailSend},
+		{ActionSaveDraft, scopeGmailCompose},
 		{ActionGetInbox, scopeGmailReadonly},
 		{ActionExportMessages, scopeGmailReadonly},
 		{ActionGetEvents, scopeCalendarReadonly},

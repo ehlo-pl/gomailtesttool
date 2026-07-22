@@ -67,6 +67,7 @@ Scopes default **per action** (least privilege):
 | Action | Default scope |
 |--------|---------------|
 | `sendmail` | `gmail.send` |
+| `draft` | `gmail.compose` |
 | `getinbox`, `listmail`, `listfolders`, `exportmessages` | `gmail.readonly` |
 | `getevents`, `getschedule` | `calendar.readonly` |
 | `sendinvite` | `calendar.events` |
@@ -116,6 +117,22 @@ gomailtest gmail sendmail --credentials sa.json --mailbox user@corp.com \
   mode. Any other extension is rendered and used as the HTML body.
 - `--template-vars key=value` (repeatable) supplies variables referenced as
   `{{.key}}` in the template.
+
+### draft — Save an email as a draft (does not send)
+
+Builds the same message as `sendmail` but stores it via the Gmail API
+`Drafts.Create` endpoint instead of sending it. Accepts the same flags as
+`sendmail` except `--save-to-sent` (a draft is never sent), including `.eml`
+`--template` (saved verbatim as the draft).
+
+```powershell
+gomailtest gmail draft --credentials sa.json --mailbox user@corp.com \
+    --to "a@corp.com" --subject "Test" --body "draft body"
+```
+
+Draft creation uses the **`gmail.compose`** scope; the send-only `gmail.send`
+scope returns 403. When authenticating with a service account, `gmail.compose`
+must be included in the domain-wide delegation grant in the Admin Console.
 
 ### listmail — List recent messages by label
 ```powershell

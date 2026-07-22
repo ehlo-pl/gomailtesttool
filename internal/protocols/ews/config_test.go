@@ -200,6 +200,21 @@ func TestValidateConfiguration(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "draft with recipient",
+			mutate: func(c *Config) {
+				c.Action = ActionSaveDraft
+				c.To = []string{"a@example.com"}
+			},
+			wantErr: false,
+		},
+		{
+			name: "draft requires recipient",
+			mutate: func(c *Config) {
+				c.Action = ActionSaveDraft
+			},
+			wantErr: true,
+		},
+		{
 			name: "sendinvite requires to/start/end",
 			mutate: func(c *Config) {
 				c.Action = ActionSendInvite

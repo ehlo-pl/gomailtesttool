@@ -36,6 +36,7 @@ Delegated permissions (deprecated): see docs/protocols/msgraph.md.`,
 	cmd.AddCommand(
 		newGetEventsCmd(v),
 		newSendMailCmd(v),
+		newDraftCmd(v),
 		newSendInviteCmd(v),
 		newGetInboxCmd(v),
 		newListFoldersCmd(v),
@@ -171,6 +172,85 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: MSGRAPHHEADER — comma-separated; avoid commas in header values)")
 	cmd.Flags().String("priority", "normal", "Email priority/importance: high, normal, low (env: MSGRAPHPRIORITY)")
 	cmd.Flags().Bool("save-to-sent", false, "Save a copy in the Sent Items folder (Graph API saveToSentItems) (env: MSGRAPHSAVETOSENT)")
+	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
+	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
+	return cmd
+}
+
+func newDraftCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "draft",
+		Short: "Create an email and save it as a draft via Microsoft Graph (does not send)",
+		Long: `Create an email and save it in the mailbox's Drafts folder without sending it.
+
+Requires the application to have the Mail.ReadWrite permission (Mail.Send alone
+is not sufficient to create a draft).`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if bt := cmd.Flags().Lookup("body-template"); bt != nil && bt.Changed {
+				if cmd.Flags().Lookup("template").Changed {
+					return fmt.Errorf("cannot use both --template and --body-template")
+				}
+				_ = cmd.Flags().Set("template", bt.Value.String())
+			}
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionSaveDraft
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("msgraphtool", ActionSaveDraft, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			if config.ProxyURL != "" {
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
+			}
+
+			if err := resolveTemplate(config); err != nil {
+				return fmt.Errorf("template failed: %w", err)
+			}
+
+			client, err := NewGraphServiceClient(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+
+			// Default To to mailbox if no recipients specified
+			if len(config.To) == 0 && len(config.Cc) == 0 && len(config.Bcc) == 0 {
+				config.To = stringSlice{config.Mailbox}
+			}
+
+			return SaveDraft(ctx, client, config.Mailbox, config.To, config.Cc, config.Bcc, config.Subject, config.Body, config.BodyHTML, config.AttachmentFiles, config, csvLogger)
+		},
+	}
+	cmd.Flags().String("to", "", "Comma-separated TO recipients (env: MSGRAPHTO)")
+	cmd.Flags().String("cc", "", "Comma-separated CC recipients (env: MSGRAPHCC)")
+	cmd.Flags().String("bcc", "", "Comma-separated BCC recipients (env: MSGRAPHBCC)")
+	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: MSGRAPHSUBJECT)")
+	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: MSGRAPHBODY)")
+	cmd.Flags().String("bodyhtml", "", "HTML body content (env: MSGRAPHBODYHTML)")
+	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (From/To/Cc/Bcc/Subject/bodies) mapped to the Graph API; any other extension is used as the HTML body (env: MSGRAPHTEMPLATE)")
+	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: MSGRAPHTEMPLATEVARS)")
+	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: MSGRAPHATTACHMENTS)")
+	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: MSGRAPHINLINEATTACHMENTS)")
+	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: MSGRAPHHEADER — comma-separated; avoid commas in header values)")
+	cmd.Flags().String("priority", "normal", "Email priority/importance: high, normal, low (env: MSGRAPHPRIORITY)")
 	cmd.Flags().String("body-template", "", "Deprecated alias for --template (env: removed in v4.0.1)")
 	_ = cmd.Flags().MarkDeprecated("body-template", "use --template instead")
 	return cmd

@@ -102,9 +102,17 @@ func resolveTemplate(config *Config, slogLogger *slog.Logger) error {
 	return nil
 }
 
-// sendMail sends an email via EWS CreateItem with MessageDisposition="SendAndSaveCopy".
+// sendMail creates an email via EWS CreateItem. With config.Action ==
+// ActionSaveDraft it uses MessageDisposition="SaveOnly" to store the message in
+// the Drafts folder without sending; otherwise it sends (SendOnly, or
+// SendAndSaveCopy when --save-to-sent is set).
 func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
-	fmt.Printf("Sending mail via EWS at https://%s:%d%s...\n\n", config.Host, config.Port, config.EWSPath)
+	draft := config.Action == ActionSaveDraft
+	if draft {
+		fmt.Printf("Saving draft via EWS at https://%s:%d%s...\n\n", config.Host, config.Port, config.EWSPath)
+	} else {
+		fmt.Printf("Sending mail via EWS at https://%s:%d%s...\n\n", config.Host, config.Port, config.EWSPath)
+	}
 
 	if shouldWrite, _ := csvLogger.ShouldWriteHeader(); shouldWrite {
 		_ = csvLogger.WriteHeader([]string{
@@ -160,7 +168,10 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	}
 
 	tpl := createItemSOAPBodySendOnlyFmt
-	if config.SaveToSent {
+	switch {
+	case draft:
+		tpl = createItemSOAPBodySaveOnlyDraftFmt
+	case config.SaveToSent:
 		tpl = createItemSOAPBodySaveToSentFmt
 	}
 	soapBody := fmt.Sprintf(tpl,
@@ -198,12 +209,16 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		return errors.New(errMsg)
 	}
 
-	fmt.Printf("✓ Email sent successfully (response time: %d ms)\n", elapsed)
+	if draft {
+		fmt.Printf("✓ Draft saved successfully (response time: %d ms)\n", elapsed)
+	} else {
+		fmt.Printf("✓ Email sent successfully (response time: %d ms)\n", elapsed)
+	}
 	fmt.Printf("  To:      %s\n", toStr)
 	fmt.Printf("  Subject: %s\n", config.Subject)
 
 	writeRow("SUCCESS", elapsed, "")
-	logger.LogInfo(slogLogger, "sendmail completed", "to", toStr, "subject", config.Subject, "elapsed_ms", elapsed)
+	logger.LogInfo(slogLogger, config.Action+" completed", "to", toStr, "subject", config.Subject, "elapsed_ms", elapsed)
 	return nil
 }
 
@@ -276,6 +291,25 @@ const createItemSOAPBodySaveToSentFmt = `    <m:CreateItem MessageDisposition="S
 // MessageDisposition="SendOnly" — sends without saving a copy.
 // Args match createItemSOAPBodySaveToSentFmt.
 const createItemSOAPBodySendOnlyFmt = `    <m:CreateItem MessageDisposition="SendOnly">
+      <m:Items>
+        <t:Message>
+          <t:Subject>%s</t:Subject>
+          <t:Body BodyType="%s">%s</t:Body>
+%s          <t:ToRecipients>
+%s      </t:ToRecipients>
+          <t:CcRecipients>
+%s      </t:CcRecipients>
+        </t:Message>
+      </m:Items>
+    </m:CreateItem>`
+
+// createItemSOAPBodySaveOnlyDraftFmt is the SOAP body for CreateItem with
+// MessageDisposition="SaveOnly" — stores the message in the Drafts folder
+// without sending it. Args match createItemSOAPBodySaveToSentFmt.
+const createItemSOAPBodySaveOnlyDraftFmt = `    <m:CreateItem MessageDisposition="SaveOnly">
+      <m:SavedItemFolderId>
+        <t:DistinguishedFolderId Id="drafts"/>
+      </m:SavedItemFolderId>
       <m:Items>
         <t:Message>
           <t:Subject>%s</t:Subject>
