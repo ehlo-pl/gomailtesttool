@@ -465,7 +465,7 @@ func newListMailCmd(v *viper.Viper) *cobra.Command {
 func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "getschedule",
-		Short: "Check a recipient's availability for the next working day",
+		Short: "Check a recipient's availability over a time window (default: next 24 hours)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())
@@ -502,10 +502,12 @@ func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
 				return err
 			}
 
-			return checkAvailability(ctx, client, config.Mailbox, config.To[0], config, csvLogger)
+			return getSchedule(ctx, client, config.Mailbox, config.To[0], config, csvLogger)
 		},
 	}
 	cmd.Flags().String("to", "", "Recipient email address to check availability for (env: MSGRAPHTO)")
+	cmd.Flags().String("start", "", "Window start (RFC3339 or PowerShell sortable format); default: now (env: MSGRAPHSTART)")
+	cmd.Flags().String("end", "", "Window end; default: start + 24 hours (env: MSGRAPHEND)")
 	return cmd
 }
 

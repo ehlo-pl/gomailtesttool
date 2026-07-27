@@ -66,6 +66,8 @@ This document provides a comprehensive comparison of all protocols supported by 
 | List Messages | - | ✅ `listmail` | ✅ `listmail` | ✅ `listmail` | ✅ `listmail` | ✅ `listmail` |
 | Get Events | - | - | - | - | ✅ `getevents` | ✅ `getevents` |
 | Get Schedule | - | - | - | - | ✅ `getschedule` | ✅ `getschedule` |
+| Find Time Slot | - | - | - | - | ✅ `findtimeslot` | ✅ `findtimeslot` |
+| Free/Busy | - | - | - | - | ✅ `freebusy` | - |
 | Send Invite | - | - | - | - | ✅ `sendinvite` | ✅ `sendinvite` |
 | Export Messages (.eml) | - | ✅ `exportmessages` | ✅ `exportmessages` | ✅ `exportmessages` | ✅ `exportmessages` | ✅ `exportmessages` |
 | Get Folder | - | - | - | - | ✅ `getfolder` | - |

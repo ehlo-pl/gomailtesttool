@@ -6,7 +6,68 @@ package msgraph
 import (
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
+
+// newViperWithFlags builds a Viper instance wired to the msgraph persistent flags
+// exactly as a subcommand does at runtime (RegisterPersistentFlags + BindPFlags),
+// so tests can exercise ConfigFromViper's flag-default handling.
+func newViperWithFlags(t *testing.T) (*viper.Viper, *cobra.Command) {
+	t.Helper()
+	v := viper.New()
+	cmd := &cobra.Command{Use: "test"}
+	RegisterPersistentFlags(cmd)
+	if err := v.BindPFlags(cmd.PersistentFlags()); err != nil {
+		t.Fatalf("BindPFlags: %v", err)
+	}
+	return v, cmd
+}
+
+func TestConfigFromViper_AppModeNotDelegated(t *testing.T) {
+	t.Run("secret without authflow stays app mode", func(t *testing.T) {
+		v, cmd := newViperWithFlags(t)
+		_ = cmd.PersistentFlags().Set("tenantid", "00000000-0000-0000-0000-000000000001")
+		_ = cmd.PersistentFlags().Set("clientid", "00000000-0000-0000-0000-000000000002")
+		_ = cmd.PersistentFlags().Set("mailbox", "user@example.com")
+		_ = cmd.PersistentFlags().Set("secret", "app-secret")
+
+		cfg := ConfigFromViper(v)
+		if cfg.Delegated {
+			t.Fatalf("expected Delegated=false for app-only auth, got true (AuthFlow=%q)", cfg.AuthFlow)
+		}
+		if err := validateConfiguration(cfg); err != nil {
+			t.Fatalf("validateConfiguration() unexpected error = %v", err)
+		}
+	})
+
+	t.Run("explicit authflow devicecode is delegated", func(t *testing.T) {
+		v, cmd := newViperWithFlags(t)
+		_ = cmd.PersistentFlags().Set("tenantid", "00000000-0000-0000-0000-000000000001")
+		_ = cmd.PersistentFlags().Set("clientid", "00000000-0000-0000-0000-000000000002")
+		_ = cmd.PersistentFlags().Set("mailbox", "user@example.com")
+		_ = cmd.PersistentFlags().Set("authflow", "devicecode")
+
+		cfg := ConfigFromViper(v)
+		if !cfg.Delegated {
+			t.Fatal("expected Delegated=true when --authflow devicecode is set")
+		}
+	})
+
+	t.Run("explicit delegated flag is delegated", func(t *testing.T) {
+		v, cmd := newViperWithFlags(t)
+		_ = cmd.PersistentFlags().Set("tenantid", "00000000-0000-0000-0000-000000000001")
+		_ = cmd.PersistentFlags().Set("clientid", "00000000-0000-0000-0000-000000000002")
+		_ = cmd.PersistentFlags().Set("mailbox", "user@example.com")
+		_ = cmd.PersistentFlags().Set("delegated", "true")
+
+		cfg := ConfigFromViper(v)
+		if !cfg.Delegated {
+			t.Fatal("expected Delegated=true when --delegated is set")
+		}
+	})
+}
 
 // validConfigForPriorityTest returns a Config that passes every check in
 // validateConfiguration() except (possibly) the priority validation, so the

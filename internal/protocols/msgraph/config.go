@@ -136,7 +136,11 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.String("thumbprint", "", "Thumbprint of the certificate in the CurrentUser\\My store (env: MSGRAPHTHUMBPRINT)")
 	f.Bool("delegated", false, "Use delegated permissions auth flow (env: MSGRAPHDELEGATED)")
 	_ = f.MarkDeprecated("delegated", "delegated mode flags are deprecated; see docs/protocols/msgraph.md")
-	f.String("authflow", AuthFlowDeviceCode, "Delegated auth flow: devicecode, browser (env: MSGRAPHAUTHFLOW)")
+	// Default is empty (not AuthFlowDeviceCode): a non-empty default would make
+	// ConfigFromViper infer delegated mode for every invocation, breaking app-only
+	// auth. An empty AuthFlow is treated as device code once delegated mode is
+	// explicitly requested (see validateAuthConfiguration and getDelegatedCredential).
+	f.String("authflow", "", "Delegated auth flow: devicecode, browser (env: MSGRAPHAUTHFLOW)")
 	_ = f.MarkDeprecated("authflow", "delegated mode flags are deprecated; see docs/protocols/msgraph.md")
 	f.String("redirecturl", "", "Redirect URL for browser auth flow (env: MSGRAPHREDIRECTURL)")
 	_ = f.MarkDeprecated("redirecturl", "delegated mode flags are deprecated; see docs/protocols/msgraph.md")
