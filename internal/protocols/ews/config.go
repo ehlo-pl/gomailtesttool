@@ -59,6 +59,10 @@ type Config struct {
 	// Meeting slot search (findtimeslot)
 	Duration int // slot length in minutes
 
+	// Free/busy test (freebusy)
+	Timezone string // IANA timezone name for interpreting/displaying times (default: UTC)
+	Interval int    // merged free/busy slot interval in minutes (default: 30)
+
 	// TLS configuration
 	SkipVerify bool
 	TLSVersion string // 1.2, 1.3
@@ -93,6 +97,7 @@ const (
 	ActionGetEvents      = "getevents"
 	ActionSendInvite     = "sendinvite"
 	ActionGetSchedule    = "getschedule"
+	ActionFreeBusy       = "freebusy"
 )
 
 // NewConfig creates a new Config with default values.
@@ -108,6 +113,8 @@ func NewConfig() *Config {
 		VerboseMode:      false,
 		LogLevel:         "INFO",
 		LogFormat:        "csv",
+		Timezone:         "UTC",
+		Interval:         30,
 	}
 }
 
@@ -178,6 +185,8 @@ func BindEnvs(v *viper.Viper) {
 		"exportdir":        "EWSEXPORTDIR",
 		"count":            "EWSCOUNT",
 		"duration":         "EWSDURATION",
+		"timezone":         "EWSTIMEZONE",
+		"interval":         "EWSINTERVAL",
 		"proxy":            "EWSPROXY",
 		"ipv4":             "EWSIPV4",
 		"ipv6":             "EWSIPV6",
@@ -252,6 +261,16 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		duration = 30
 	}
 
+	timezone := v.GetString("timezone")
+	if timezone == "" {
+		timezone = defaults.Timezone
+	}
+
+	interval := v.GetInt("interval")
+	if interval <= 0 {
+		interval = defaults.Interval
+	}
+
 	return &Config{
 		Host:             v.GetString("host"),
 		Port:             port,
@@ -281,6 +300,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		ExportDir:        v.GetString("exportdir"),
 		Count:            count,
 		Duration:         duration,
+		Timezone:         timezone,
+		Interval:         interval,
 		SkipVerify:       v.GetBool("skipverify"),
 		TLSVersion:       tlsVersion,
 		ProxyURL:         v.GetString("proxy"),
@@ -312,7 +333,7 @@ func validateConfiguration(config *Config) error {
 	validActions := []string{
 		ActionTestConnect, ActionTestAuth, ActionGetFolder, ActionAutodiscover,
 		ActionListFolders, ActionListMail, ActionSendMail, ActionSaveDraft, ActionExportMessages,
-		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot,
+		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot, ActionFreeBusy,
 	}
 	valid := false
 	for _, a := range validActions {
@@ -363,7 +384,7 @@ func validateConfiguration(config *Config) error {
 	switch config.Action {
 	case ActionTestAuth, ActionGetFolder, ActionListFolders, ActionListMail,
 		ActionSendMail, ActionSaveDraft, ActionExportMessages,
-		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot:
+		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot, ActionFreeBusy:
 		if config.Username == "" {
 			return fmt.Errorf("%s requires --username", config.Action)
 		}
@@ -439,6 +460,35 @@ func validateConfiguration(config *Config) error {
 	if config.Action == ActionFindTimeSlot {
 		if config.Duration < 5 || config.Duration > 480 {
 			return fmt.Errorf("invalid --duration: %d (must be 5-480 minutes)", config.Duration)
+		}
+	}
+
+	if config.Action == ActionFreeBusy {
+		if config.Mailbox == "" {
+			return fmt.Errorf("freebusy requires --mailbox (target mailbox SMTP address)")
+		}
+		if config.StartTime == "" {
+			return fmt.Errorf("freebusy requires --start")
+		}
+		if config.EndTime == "" {
+			return fmt.Errorf("freebusy requires --end")
+		}
+		start, err := parseFlexibleTime(config.StartTime)
+		if err != nil {
+			return fmt.Errorf("invalid --start: %w", err)
+		}
+		end, err := parseFlexibleTime(config.EndTime)
+		if err != nil {
+			return fmt.Errorf("invalid --end: %w", err)
+		}
+		if !end.After(start) {
+			return fmt.Errorf("freebusy --end must be after --start")
+		}
+		if _, err := time.LoadLocation(config.Timezone); err != nil {
+			return fmt.Errorf("invalid --timezone %q: %w", config.Timezone, err)
+		}
+		if config.Interval < 5 || config.Interval > 60 {
+			return fmt.Errorf("invalid --interval: %d (must be 5-60 minutes)", config.Interval)
 		}
 	}
 

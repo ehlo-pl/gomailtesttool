@@ -289,6 +289,114 @@ func TestValidateConfiguration(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "freebusy requires mailbox",
+			mutate: func(c *Config) {
+				c.Action = ActionFreeBusy
+				c.Mailbox = ""
+				c.StartTime = "2026-08-01T08:00:00Z"
+				c.EndTime = "2026-08-01T17:00:00Z"
+				c.Timezone = "UTC"
+				c.Interval = 30
+			},
+			wantErr: true,
+		},
+		{
+			name: "freebusy requires start",
+			mutate: func(c *Config) {
+				c.Action = ActionFreeBusy
+				c.Mailbox = "target@example.com"
+				c.StartTime = ""
+				c.EndTime = "2026-08-01T17:00:00Z"
+				c.Timezone = "UTC"
+				c.Interval = 30
+			},
+			wantErr: true,
+		},
+		{
+			name: "freebusy requires end",
+			mutate: func(c *Config) {
+				c.Action = ActionFreeBusy
+				c.Mailbox = "target@example.com"
+				c.StartTime = "2026-08-01T08:00:00Z"
+				c.EndTime = ""
+				c.Timezone = "UTC"
+				c.Interval = 30
+			},
+			wantErr: true,
+		},
+		{
+			name: "freebusy start must be before end",
+			mutate: func(c *Config) {
+				c.Action = ActionFreeBusy
+				c.Mailbox = "target@example.com"
+				c.StartTime = "2026-08-01T17:00:00Z"
+				c.EndTime = "2026-08-01T08:00:00Z"
+				c.Timezone = "UTC"
+				c.Interval = 30
+			},
+			wantErr: true,
+		},
+		{
+			name: "freebusy rejects invalid timezone",
+			mutate: func(c *Config) {
+				c.Action = ActionFreeBusy
+				c.Mailbox = "target@example.com"
+				c.StartTime = "2026-08-01T08:00:00Z"
+				c.EndTime = "2026-08-01T17:00:00Z"
+				c.Timezone = "NotARealZone"
+				c.Interval = 30
+			},
+			wantErr: true,
+		},
+		{
+			name: "freebusy rejects interval below minimum",
+			mutate: func(c *Config) {
+				c.Action = ActionFreeBusy
+				c.Mailbox = "target@example.com"
+				c.StartTime = "2026-08-01T08:00:00Z"
+				c.EndTime = "2026-08-01T17:00:00Z"
+				c.Timezone = "UTC"
+				c.Interval = 4
+			},
+			wantErr: true,
+		},
+		{
+			name: "freebusy rejects interval above maximum",
+			mutate: func(c *Config) {
+				c.Action = ActionFreeBusy
+				c.Mailbox = "target@example.com"
+				c.StartTime = "2026-08-01T08:00:00Z"
+				c.EndTime = "2026-08-01T17:00:00Z"
+				c.Timezone = "UTC"
+				c.Interval = 61
+			},
+			wantErr: true,
+		},
+		{
+			name: "freebusy valid with all required fields",
+			mutate: func(c *Config) {
+				c.Action = ActionFreeBusy
+				c.Mailbox = "target@example.com"
+				c.StartTime = "2026-08-01T08:00:00Z"
+				c.EndTime = "2026-08-01T17:00:00Z"
+				c.Timezone = "UTC"
+				c.Interval = 30
+			},
+			wantErr: false,
+		},
+		{
+			name: "freebusy valid with named timezone",
+			mutate: func(c *Config) {
+				c.Action = ActionFreeBusy
+				c.Mailbox = "target@example.com"
+				c.StartTime = "2026-08-01T08:00:00Z"
+				c.EndTime = "2026-08-01T17:00:00Z"
+				c.Timezone = "Europe/Warsaw"
+				c.Interval = 15
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
