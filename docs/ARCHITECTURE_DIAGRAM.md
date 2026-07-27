@@ -164,6 +164,7 @@ gomailtesttool/
 │   │   │   ├── getevents.go
 │   │   │   ├── getschedule.go
 │   │   │   ├── findtimeslot.go
+│   │   │   ├── freebusy.go
 │   │   │   ├── exportmessages.go
 │   │   │   └── utils.go
 │   │   │
@@ -295,6 +296,7 @@ gomailtest
 │   ├── getevents
 │   ├── getschedule
 │   ├── findtimeslot
+│   ├── freebusy
 │   └── exportmessages
 ├── msgraph
 │   ├── testconnect
@@ -615,7 +617,7 @@ internal/common/
   ├── timeslot/      — findtimeslot availability analysis (shared by EWS/msgraph/gmail)
   ├── tls/           — TLS certificate display, validation, cipher strength reporting
   ├── validation/    — email, GUID, RFC3339, proxy URL, path, OData injection prevention
-  └── version/       — single const Version = "4.0.1"
+  └── version/       — single const Version = "4.1.0"
 ```
 
 ## devtools Subcommand

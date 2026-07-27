@@ -16,9 +16,9 @@ gomailtest <protocol> <action> [flags]
 | `imap` | `testconnect`, `testauth`, `teststarttls`, `listfolders`, `listmail`, `exportmessages` | IMAP mailbox access |
 | `pop3` | `testconnect`, `testauth`, `teststarttls`, `listmail`, `exportmessages` | POP3 mailbox access |
 | `jmap` | `testconnect`, `testauth`, `listfolders`, `listmail`, `sendmail`, `exportmessages` | JMAP (RFC 8620) servers |
-| `ews` | `testconnect`, `testauth`, `getfolder`, `autodiscover`, `listfolders`, `listmail`, `sendmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule` | On-premises Exchange via EWS (Exchange 2007–2019) |
-| `msgraph` | `testconnect`, `testauth`,  `sendmail`,  `listfolders`, `listmail`, `getschedule`, `getevents`, `sendinvite`, `exportmessages`, `exportbearertoken` | Exchange Online via Microsoft Graph API |
-| `gmail` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`,  `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
+| `ews` | `testconnect`, `testauth`, `getfolder`, `autodiscover`, `listfolders`, `listmail`, `sendmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `freebusy` | On-premises Exchange via EWS (Exchange 2007–2019) |
+| `msgraph` | `testconnect`, `testauth`,  `sendmail`,  `listfolders`, `listmail`, `getschedule`, `getevents`, `sendinvite`, `findtimeslot`, `exportmessages`, `exportbearertoken` | Exchange Online via Microsoft Graph API |
+| `gmail` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`,  `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
 
 See tables bellow for the full action × protocol matrix, including deprecated aliases (`getinbox`, `exportinbox`, `searchandexport`, `getmailboxes`).
 
@@ -38,6 +38,7 @@ Quick reference for all CLI actions available across supported mail/calendar pro
 | `sendinvite`        | —    | —    | —    | —    | ✓   | ✓       | ✓     |
 | `getschedule`       | —    | —    | —    | —    | ✓   | ✓       | ✓     |
 | `findtimeslot`      | —    | —    | —    | —    | ✓   | ✓       | ✓     |
+| `freebusy`          | —    | —    | —    | —    | ✓   | —       | —     |
 | `exportbearertoken` | —    | —    | —    | —    | —   | ✓       | ✓     |
 | `getfolder`         | —    | —    | —    | —    | ✓   | —       | —     |
 | `autodiscover`      | —    | —    | —    | —    | ✓   | —       | —     |
@@ -68,6 +69,10 @@ Searches a **specific other user's** calendar (`--to`, required) for free meetin
 Defaults: 30-minute slots (`--duration`), window = now → +5 working days (`--start`/`--end`), first 3 slots (`--count`), constrained to working hours 08:00–17:00 UTC, Monday–Friday.
 
 JMAP is not supported: JMAP (RFC 8620) has no availability/free-busy API, and the JMAP Calendars extension is still a draft without server support.
+
+## freebusy (EWS only)
+
+An EWS-only Free/Busy smoke test: queries `GetUserAvailability` for one or more mailboxes and returns a deterministic **PASS/FAIL** result with per-mailbox event counts and a status breakdown. Requires `--mailbox`, `--start`, and `--end`; additional mailboxes go in `--to` (comma-separated). Times are interpreted in `--timezone` (default UTC) and merged at `--interval` minutes (5–60, default 30). Useful for verifying a service account can read free/busy data and diagnosing permission errors (`ErrorCalendarNoFreeBusyAccess`). See [docs/protocols/ews.md](docs/protocols/ews.md#freebusy--freebusy-availability-test) for full documentation.
 
 ## Authentication methods
 

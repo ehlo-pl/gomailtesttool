@@ -138,8 +138,15 @@ gomailtest msgraph listmail --folder inbox --count 20
 
 ### getschedule — Check Recipient Availability
 
+Retrieves a recipient's merged availability view over a time window (default: the next 24 hours) via the Graph `getSchedule` API. Output is a digit-per-hour availability string with a legend (`0=Free 1=Tentative 2=Busy 3=Out of Office 4=Working Elsewhere`), matching the EWS `getschedule` format. Honors `--start`/`--end`.
+
 ```powershell
+# Default window: now → +24 hours
 gomailtest msgraph getschedule --to "colleague@example.com"
+
+# Explicit window
+gomailtest msgraph getschedule --to "colleague@example.com" \
+    --start 2026-07-28T08:00:00Z --end 2026-07-28T18:00:00Z
 ```
 
 ### findtimeslot — Search Free Meeting Slots
@@ -463,7 +470,7 @@ Operations are logged to `%TEMP%\_msgraphtool_{action}_{date}.csv`.
 | `sendmail` | Timestamp, Action, Status, Mailbox, To, CC, BCC, Subject, Body Type, Attachments |
 | `sendinvite` | Timestamp, Action, Status, Mailbox, Subject, Start Time, End Time, Event ID |
 | `getinbox` | Timestamp, Action, Status, Mailbox, Subject, From, To, Received DateTime |
-| `getschedule` | Timestamp, Action, Status, Mailbox, Recipient, Check DateTime, Availability |
+| `getschedule` | Timestamp, Action, Status, Mailbox, Recipient, Window Start, Availability |
 | `exportinbox` | Timestamp, Action, Status, Mailbox, Detail, Export Dir |
 | `searchandexport` | Timestamp, Action, Status, Mailbox, Detail, Message ID |
 | `exportmessages` | Timestamp, Action, Status, Mailbox, Detail, Message ID, Filename |

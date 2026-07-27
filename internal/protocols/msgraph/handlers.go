@@ -561,33 +561,43 @@ func listMailInFolder(ctx context.Context, client *msgraphsdk.GraphServiceClient
 	return nil
 }
 
-// checkAvailability checks the recipient's availability for the next working day at 12:00 UTC.
-func checkAvailability(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, recipient string, config *Config, logger logger.Logger) error {
-	// Calculate next working day
-	now := time.Now().UTC()
-	nextWorkingDay := addWorkingDays(now, 1)
+// getSchedule retrieves a recipient's merged availability view over a time
+// window (default: the next 24 hours) via the Graph getSchedule API. It honors
+// --start/--end and mirrors the EWS getschedule output: a digit-per-interval
+// availability string with a legend.
+func getSchedule(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, recipient string, config *Config, logger logger.Logger) error {
+	// Resolve the time window: now → +24h by default, overridable via --start/--end.
+	windowStart := time.Now().UTC()
+	if config.StartTime != "" {
+		t, err := parseFlexibleTime(config.StartTime)
+		if err != nil {
+			return fmt.Errorf("invalid start time: %w", err)
+		}
+		windowStart = t.UTC()
+	}
+	windowEnd := windowStart.Add(24 * time.Hour)
+	if config.EndTime != "" {
+		t, err := parseFlexibleTime(config.EndTime)
+		if err != nil {
+			return fmt.Errorf("invalid end time: %w", err)
+		}
+		windowEnd = t.UTC()
+	}
+	if !windowEnd.After(windowStart) {
+		return fmt.Errorf("end time must be after start time")
+	}
+	windowStartStr := windowStart.Format(time.RFC3339)
+	windowEndStr := windowEnd.Format(time.RFC3339)
 
-	// Set time to 12:00 UTC (noon)
-	checkDateTime := time.Date(
-		nextWorkingDay.Year(),
-		nextWorkingDay.Month(),
-		nextWorkingDay.Day(),
-		12, 0, 0, 0,
-		time.UTC,
-	)
-
-	// End time is 1 hour later (13:00 UTC)
-	endDateTime := checkDateTime.Add(1 * time.Hour)
-
-	logVerbose(config.VerboseMode, "Checking availability for %s on %s (12:00-13:00 UTC)", recipient, checkDateTime.Format("2006-01-02"))
+	logVerbose(config.VerboseMode, "Checking availability for %s between %s and %s", recipient, windowStartStr, windowEndStr)
 
 	// Create DateTimeTimeZone objects for Graph API
 	startTimeZone := models.NewDateTimeTimeZone()
-	startTimeZone.SetDateTime(pointerTo(checkDateTime.Format(time.RFC3339)))
+	startTimeZone.SetDateTime(pointerTo(windowStartStr))
 	startTimeZone.SetTimeZone(pointerTo("UTC"))
 
 	endTimeZone := models.NewDateTimeTimeZone()
-	endTimeZone.SetDateTime(pointerTo(endDateTime.Format(time.RFC3339)))
+	endTimeZone.SetDateTime(pointerTo(windowEndStr))
 	endTimeZone.SetTimeZone(pointerTo("UTC"))
 
 	// Create request body
@@ -595,7 +605,7 @@ func checkAvailability(ctx context.Context, client *msgraphsdk.GraphServiceClien
 	requestBody.SetSchedules([]string{recipient})
 	requestBody.SetStartTime(startTimeZone)
 	requestBody.SetEndTime(endTimeZone)
-	interval := int32(60) // 60-minute intervals
+	interval := int32(60) // 60-minute intervals (one digit per hour)
 	requestBody.SetAvailabilityViewInterval(&interval)
 
 	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/calendar/getSchedule", mailbox)
@@ -612,8 +622,8 @@ func checkAvailability(ctx context.Context, client *msgraphsdk.GraphServiceClien
 
 	if err != nil {
 		// Enrich error with rate limit and service error details
-		enrichedErr := enrichGraphAPIError(err, logger, "checkAvailability")
-		csvRow := []string{ActionGetSchedule, fmt.Sprintf("Error: %v", enrichedErr), mailbox, recipient, checkDateTime.Format(time.RFC3339), "N/A"}
+		enrichedErr := enrichGraphAPIError(err, logger, "getSchedule")
+		csvRow := []string{ActionGetSchedule, fmt.Sprintf("Error: %v", enrichedErr), mailbox, recipient, windowStartStr, "N/A"}
 		if logger != nil {
 			_ = logger.WriteRow(csvRow)
 		}
@@ -625,7 +635,7 @@ func checkAvailability(ctx context.Context, client *msgraphsdk.GraphServiceClien
 	// Parse availability view
 	if len(scheduleInfo) == 0 {
 		errMsg := "no schedule information returned"
-		csvRow := []string{ActionGetSchedule, fmt.Sprintf("Error: %s", errMsg), mailbox, recipient, checkDateTime.Format(time.RFC3339), "N/A"}
+		csvRow := []string{ActionGetSchedule, fmt.Sprintf("Error: %s", errMsg), mailbox, recipient, windowStartStr, "N/A"}
 		if logger != nil {
 			_ = logger.WriteRow(csvRow)
 		}
@@ -641,15 +651,15 @@ func checkAvailability(ctx context.Context, client *msgraphsdk.GraphServiceClien
 
 	if availabilityView == "" {
 		errMsg := "empty availability view returned"
-		csvRow := []string{ActionGetSchedule, fmt.Sprintf("Error: %s", errMsg), mailbox, recipient, checkDateTime.Format(time.RFC3339), "N/A"}
+		csvRow := []string{ActionGetSchedule, fmt.Sprintf("Error: %s", errMsg), mailbox, recipient, windowStartStr, "N/A"}
 		if logger != nil {
 			_ = logger.WriteRow(csvRow)
 		}
 		return fmt.Errorf("empty availability view returned")
 	}
 
-	// Interpret availability
-	status := interpretAvailability(availabilityView)
+	// Interpret the first interval's status.
+	firstSlot := interpretAvailability(availabilityView)
 
 	if config.OutputFormat == "json" {
 		printJSON(formatScheduleOutput(scheduleInfo))
@@ -659,17 +669,18 @@ func checkAvailability(ctx context.Context, client *msgraphsdk.GraphServiceClien
 		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 		fmt.Printf("Organizer:     %s\n", mailbox)
 		fmt.Printf("Recipient:     %s\n", recipient)
-		fmt.Printf("Check Date:    %s\n", checkDateTime.Format("2006-01-02"))
-		fmt.Printf("Check Time:    12:00-13:00 UTC\n")
-		fmt.Printf("Status:        %s\n", status)
+		fmt.Printf("Window:        %s — %s (UTC)\n", windowStartStr, windowEndStr)
+		fmt.Printf("Merged view:   %s (one digit per hour)\n", availabilityView)
+		fmt.Printf("First slot:    %s\n", firstSlot)
+		fmt.Printf("Legend:        0=Free 1=Tentative 2=Busy 3=Out of Office 4=Working Elsewhere\n")
 		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 	}
 
-	logVerbose(config.VerboseMode, "Availability view: %s → %s", availabilityView, status)
+	logVerbose(config.VerboseMode, "Availability view: %s → %s", availabilityView, firstSlot)
 
 	// Log to CSV
 	if logger != nil {
-		csvRow := []string{ActionGetSchedule, StatusSuccess, mailbox, recipient, checkDateTime.Format(time.RFC3339), availabilityView}
+		csvRow := []string{ActionGetSchedule, StatusSuccess, mailbox, recipient, windowStartStr, availabilityView}
 		_ = logger.WriteRow(csvRow)
 	}
 
@@ -1372,28 +1383,6 @@ func parseFlexibleTime(timeStr string) (time.Time, error) {
 	}
 
 	return time.Time{}, fmt.Errorf("invalid time format (expected RFC3339 like '2026-01-15T14:00:00Z' or PowerShell sortable like '2026-01-15T14:00:00')")
-}
-
-// addWorkingDays adds a specified number of working days (Monday-Friday) to the given time.
-func addWorkingDays(t time.Time, days int) time.Time {
-	if days <= 0 {
-		return t
-	}
-
-	result := t
-	daysAdded := 0
-
-	for daysAdded < days {
-		result = result.Add(24 * time.Hour)
-
-		// Check if this is a working day (Monday=1, Friday=5)
-		weekday := result.Weekday()
-		if weekday != time.Saturday && weekday != time.Sunday {
-			daysAdded++
-		}
-	}
-
-	return result
 }
 
 // Output helper functions
