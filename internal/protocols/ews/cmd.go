@@ -41,6 +41,7 @@ Environment variables use the EWS prefix (e.g. EWSHOST, EWSUSERNAME, EWSPASSWORD
 		newSendInviteCmd(v),
 		newGetScheduleCmd(v),
 		newFindTimeSlotCmd(v),
+		newFreeBusyCmd(v),
 	)
 
 	return cmd
@@ -245,6 +246,63 @@ to working hours (08:00-17:00 UTC, Monday-Friday).`,
 	cmd.Flags().String("start", "", "Window start (RFC3339 or PowerShell sortable format); default: now (env: EWSSTART)")
 	cmd.Flags().String("end", "", "Window end; default: start + 5 working days (env: EWSEND)")
 	cmd.Flags().Int("count", 3, "Maximum number of slots to return (env: EWSCOUNT)")
+	return cmd
+}
+
+func newFreeBusyCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "freebusy",
+		Short: "Test EWS Free/Busy availability for one or more mailboxes",
+		Long: `Authenticate to the EWS server and retrieve Free/Busy availability data
+via GetUserAvailability. Returns a deterministic PASS/FAIL result with per-mailbox
+event counts and status summary.
+
+Requires --mailbox (primary target), --start, and --end. Additional mailboxes
+can be included via --to (comma-separated). Times are interpreted and displayed
+in the specified --timezone (default: UTC).`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionFreeBusy
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionFreeBusy, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
+
+			if err := freeBusy(ctx, config, csvLogger, slogger); err != nil {
+				logger.LogError(slogger, "Action failed", "error", err)
+				return err
+			}
+
+			logger.LogInfo(slogger, "Action completed successfully")
+			return nil
+		},
+	}
+	cmd.Flags().String("mailbox", "", "Primary target mailbox SMTP address for Free/Busy query (required) (env: EWSMAILBOX)")
+	cmd.Flags().String("to", "", "Additional mailboxes to query (comma-separated) (env: EWSTO)")
+	cmd.Flags().String("start", "", "Window start time (RFC3339 or PowerShell sortable format) (required) (env: EWSSTART)")
+	cmd.Flags().String("end", "", "Window end time (RFC3339 or PowerShell sortable format) (required) (env: EWSEND)")
+	cmd.Flags().String("timezone", "UTC", "IANA timezone name for display (e.g. Europe/Warsaw, America/New_York) (env: EWSTIMEZONE)")
+	cmd.Flags().Int("interval", 30, "Merged free/busy slot interval in minutes (5-60, default: 30) (env: EWSINTERVAL)")
 	return cmd
 }
 

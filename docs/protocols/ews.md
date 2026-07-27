@@ -27,6 +27,12 @@ gomailtest ews getfolder --host mail.example.com \
 # Run Autodiscover for a mailbox
 gomailtest ews autodiscover --host mail.example.com \
     --username user@example.com
+
+# Test Free/Busy availability for a mailbox
+gomailtest ews freebusy --host mail.example.com \
+    --username "CORP\serviceaccount" --password "secret" \
+    --mailbox target@example.com \
+    --start "2026-08-01T08:00:00Z" --end "2026-08-01T17:00:00Z"
 ```
 
 ## Actions
@@ -204,6 +210,74 @@ gomailtest ews findtimeslot --host mail.example.com \
     --start "2026-08-01T08:00:00Z" --end "2026-08-10T17:00:00Z"
 ```
 
+### freebusy — Free/Busy Availability Test
+
+Tests EWS Free/Busy availability for one or more mailboxes via `GetUserAvailability`. Returns a deterministic **PASS/FAIL** result with per-mailbox event counts, status breakdown, and actionable diagnostics. All parameters (`--mailbox`, `--start`, `--end`) are required.
+
+Use this action to:
+- Verify a service account can query free/busy data for target mailboxes
+- Confirm calendar availability is accessible before scheduling workflows
+- Diagnose permission or mailbox issues (`ErrorCalendarNoFreeBusyAccess`, etc.)
+
+```powershell
+# Basic free/busy test — required: --mailbox, --start, --end
+gomailtest ews freebusy --host mail.example.com \
+    --username "CORP\serviceaccount" --password "secret" \
+    --mailbox target@example.com \
+    --start "2026-08-01T08:00:00Z" --end "2026-08-01T17:00:00Z"
+
+# With explicit timezone for display
+gomailtest ews freebusy --host mail.example.com \
+    --username "CORP\serviceaccount" --password "secret" \
+    --mailbox target@example.com \
+    --start "2026-08-01T08:00:00Z" --end "2026-08-01T17:00:00Z" \
+    --timezone "Europe/Warsaw"
+
+# Multiple mailboxes in one request (primary --mailbox + extra --to)
+gomailtest ews freebusy --host mail.example.com \
+    --username "CORP\serviceaccount" --password "secret" \
+    --mailbox alice@example.com \
+    --to "bob@example.com,carol@example.com" \
+    --start "2026-08-01T08:00:00Z" --end "2026-08-01T17:00:00Z"
+
+# Custom slot interval (5-60 minutes, default: 30)
+gomailtest ews freebusy --host mail.example.com \
+    --username "CORP\serviceaccount" --password "secret" \
+    --mailbox target@example.com \
+    --start "2026-08-01T08:00:00Z" --end "2026-08-01T17:00:00Z" \
+    --interval 15
+```
+
+**Sample PASS output:**
+```
+Testing EWS Free/Busy for 1 mailbox(es) via https://mail.example.com:443/EWS/Exchange.asmx
+  Time window: 2026-08-01T08:00:00Z — 2026-08-01T17:00:00Z (UTC)
+  Timezone:    UTC
+  Interval:    30 minutes
+
+✓ PASS  target@example.com (3 event(s), response time: 187 ms)
+  Events: 3 total  Busy:2  Tentative:1
+  Busy  2026-08-01 09:00 UTC — 10:00 UTC
+  Busy  2026-08-01 13:00 UTC — 14:00 UTC
+  Tentative  2026-08-01 15:00 UTC — 16:00 UTC
+```
+
+**Sample FAIL output (no free/busy access):**
+```
+✗ FAIL  target@example.com — EWS error ErrorCalendarNoFreeBusyAccess: The caller does not have access to free/busy data.
+```
+
+**Troubleshooting `freebusy` failures:**
+
+| Error | Cause | Resolution |
+|-------|-------|------------|
+| `ErrorCalendarNoFreeBusyAccess` | Service account lacks permission to view mailbox free/busy | Grant `AvailabilityAddressSpace` or delegate/impersonation rights |
+| `ErrorMailboxNotFound` / `ErrorNameResolutionNoResults` | Target mailbox does not exist or SMTP address is wrong | Verify `--mailbox` address; use `ews autodiscover` to confirm |
+| `HTTP 401 Unauthorized` | Wrong credentials or expired token | Re-authenticate; check `--username`/`--password`/`--accesstoken` |
+| `HTTP 503 / EWS throttling` | Request rate limit hit | Reduce request frequency; consider `--timeout` increase |
+| `freebusy --end must be after --start` | Invalid time range | Ensure `--start` is before `--end` |
+| `invalid --timezone` | Unknown IANA timezone name | Use a valid IANA name like `UTC`, `Europe/London`, `America/New_York` |
+
 ### sendmail — Send an Email
 
 Sends an email via EWS `CreateItem` with `MessageDisposition="SendAndSaveCopy"`
@@ -289,8 +363,8 @@ gomailtest ews exportmessages --host mail.example.com \
 | `--accesstoken` | | OAuth2 Bearer token |
 | `--authmethod` | `auto` | Auth method: `NTLM`, `Basic`, `Bearer`, `auto` |
 | `--domain` | | AD domain for NTLM (optional; can be embedded in username) |
-| `--mailbox` | | Target mailbox SMTP address for impersonation |
-| `--to` / `--cc` | | Comma-separated recipients (sendmail, sendinvite/getschedule/findtimeslot use `--to` as a single recipient) |
+| `--mailbox` | | Target mailbox SMTP address for impersonation (most actions); **required** primary Free/Busy mailbox for `freebusy` |
+| `--to` / `--cc` | | Comma-separated recipients (sendmail, sendinvite/getschedule/findtimeslot use `--to` as a single recipient; freebusy uses `--to` for optional additional mailboxes) |
 | `--subject` | `Automated Tool Notification` (empty for exportmessages) | Email subject (sendmail); subject substring to search for (exportmessages) |
 | `--body` | test message | Email body text (sendmail) |
 | `--bodyhtml` | | HTML body content, overrides `--body` (sendmail) |
@@ -299,6 +373,8 @@ gomailtest ews exportmessages --host mail.example.com \
 | `--messageid` | | Internet Message-ID to search for (exportmessages) |
 | `--exportdir` | OS temp dir | Directory for the export folder (exportmessages) |
 | `--count` | action-specific: `10` (listmail, getevents), `3` (findtimeslot), `25` (exportmessages) | Maximum number of results to return |
+| `--timezone` | `UTC` | IANA timezone name for display/interpretation of Free/Busy times (freebusy) |
+| `--interval` | `30` | Merged free/busy slot interval in minutes (5-60, freebusy) |
 | `--skipverify` | `false` | Skip TLS certificate verification (self-signed certs) |
 | `--tlsversion` | `1.2` | Minimum TLS version: `1.2`, `1.3` |
 | `--proxy` | | HTTP/HTTPS or SOCKS5 proxy URL |
@@ -324,8 +400,8 @@ All flags can be set via environment variables using the `EWS` prefix:
 | `EWSACCESSTOKEN` | `--accesstoken` | OAuth2 Bearer token |
 | `EWSAUTHMETHOD` | `--authmethod` | Auth method |
 | `EWSDOMAIN` | `--domain` | AD domain for NTLM |
-| `EWSMAILBOX` | `--mailbox` | Impersonation mailbox |
-| `EWSTO` | `--to` | Recipient(s) (sendmail: comma-separated; other actions: single recipient) |
+| `EWSMAILBOX` | `--mailbox` | Impersonation mailbox (most actions); required primary Free/Busy mailbox (freebusy) |
+| `EWSTO` | `--to` | Recipient(s) (sendmail: comma-separated; other actions: single recipient; freebusy: optional extra mailboxes) |
 | `EWSCC` | `--cc` | Comma-separated CC recipients (sendmail) |
 | `EWSSUBJECT` | `--subject` | Email subject (sendmail); subject substring to search for (exportmessages) |
 | `EWSBODY` | `--body` | Email body text (sendmail) |
@@ -335,6 +411,8 @@ All flags can be set via environment variables using the `EWS` prefix:
 | `EWSMESSAGEID` | `--messageid` | Internet Message-ID to search for (exportmessages) |
 | `EWSEXPORTDIR` | `--exportdir` | Export directory (exportmessages) |
 | `EWSCOUNT` | `--count` | Maximum number of results (listmail, getevents, findtimeslot, exportmessages) |
+| `EWSTIMEZONE` | `--timezone` | IANA timezone name for Free/Busy display (freebusy, default: UTC) |
+| `EWSINTERVAL` | `--interval` | Merged free/busy slot interval in minutes (freebusy, default: 30) |
 | `EWSSKIPVERIFY` | `--skipverify` | Skip TLS verification |
 | `EWSTLSVERSION` | `--tlsversion` | Minimum TLS version |
 | `EWSPROXY` | `--proxy` | Proxy URL |
@@ -383,6 +461,10 @@ _ewstool_autodiscover_20260427.csv
 | `connection refused` | Wrong host/port or firewall | Verify `--host` and `--port`; check firewall rules |
 | `NTLM: authentication failed` | Wrong credentials or domain | Verify `DOMAIN\user` format or use `--domain` flag |
 | `autodiscover requires --username (email address)` | Non-email username passed | Pass a valid email address to `--username` |
+| `ErrorCalendarNoFreeBusyAccess` (freebusy) | Service account lacks permission to view free/busy | Grant `AvailabilityAddressSpace` or delegate/impersonation rights |
+| `ErrorMailboxNotFound` (freebusy) | Target mailbox does not exist or address is wrong | Verify `--mailbox` address; use `autodiscover` to confirm |
+| `freebusy --end must be after --start` | Invalid time range supplied | Ensure `--start` is earlier than `--end` |
+| `invalid --timezone` (freebusy) | Unknown IANA timezone name | Use a valid name: `UTC`, `Europe/London`, `America/New_York` |
 
 ## Related Documentation
 

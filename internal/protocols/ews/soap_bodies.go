@@ -218,6 +218,40 @@ const getUserAvailabilityDetailedSOAPBodyFmt = `    <m:GetUserAvailabilityReques
       </t:FreeBusyViewOptions>
     </m:GetUserAvailabilityRequest>`
 
+// getFreeBusySOAPBodyFmt requests the FreeBusy view for one or more mailboxes over
+// a time window (UTC). The mailbox data array is built dynamically.
+// Args: XML mailbox data blocks (from buildMailboxDataXML), window start (xs:dateTime),
+// window end (xs:dateTime), interval in minutes.
+const getFreeBusySOAPBodyFmt = `    <m:GetUserAvailabilityRequest>
+      <t:TimeZone>
+        <t:Bias>0</t:Bias>
+        <t:StandardTime>
+          <t:Bias>0</t:Bias>
+          <t:Time>00:00:00</t:Time>
+          <t:DayOrder>1</t:DayOrder>
+          <t:Month>1</t:Month>
+          <t:DayOfWeek>Sunday</t:DayOfWeek>
+        </t:StandardTime>
+        <t:DaylightTime>
+          <t:Bias>0</t:Bias>
+          <t:Time>00:00:00</t:Time>
+          <t:DayOrder>1</t:DayOrder>
+          <t:Month>7</t:Month>
+          <t:DayOfWeek>Sunday</t:DayOfWeek>
+        </t:DaylightTime>
+      </t:TimeZone>
+      <m:MailboxDataArray>
+%s      </m:MailboxDataArray>
+      <t:FreeBusyViewOptions>
+        <t:TimeWindow>
+          <t:StartTime>%s</t:StartTime>
+          <t:EndTime>%s</t:EndTime>
+        </t:TimeWindow>
+        <t:MergedFreeBusyIntervalInMinutes>%d</t:MergedFreeBusyIntervalInMinutes>
+        <t:RequestedView>FreeBusy</t:RequestedView>
+      </t:FreeBusyViewOptions>
+    </m:GetUserAvailabilityRequest>`
+
 // getItemMIMESOAPBodyFmt fetches raw MIME content for a single item by ID.
 // Arg 1: XML-escaped ItemId.
 const getItemMIMESOAPBodyFmt = `    <m:GetItem>
