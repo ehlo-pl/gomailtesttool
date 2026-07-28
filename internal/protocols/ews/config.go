@@ -63,6 +63,13 @@ type Config struct {
 	Timezone string // IANA timezone name for interpreting/displaying times (default: UTC)
 	Interval int    // merged free/busy slot interval in minutes (default: 30)
 
+	// Meeting response (respondmeeting)
+	ItemID              string // EWS ItemId of the meeting request or calendar item
+	ChangeKey           string // Optional EWS ChangeKey for optimistic concurrency
+	MeetingResponse     string // accept, decline, or tentative
+	Comment             string // Optional comment included in the response
+	SendMeetingResponse bool   // Whether to send the response to the organizer (default: true)
+
 	// TLS configuration
 	SkipVerify bool
 	TLSVersion string // 1.2, 1.3
@@ -98,23 +105,25 @@ const (
 	ActionSendInvite     = "sendinvite"
 	ActionGetSchedule    = "getschedule"
 	ActionFreeBusy       = "freebusy"
+	ActionRespondMeeting = "respondmeeting"
 )
 
 // NewConfig creates a new Config with default values.
 func NewConfig() *Config {
 	return &Config{
-		Port:             443,
-		EWSPath:          "/EWS/Exchange.asmx",
-		AutodiscoverPath: "/autodiscover/autodiscover.svc",
-		Timeout:          30 * time.Second,
-		AuthMethod:       "auto",
-		SkipVerify:       false,
-		TLSVersion:       "1.2",
-		VerboseMode:      false,
-		LogLevel:         "INFO",
-		LogFormat:        "csv",
-		Timezone:         "UTC",
-		Interval:         30,
+		Port:                443,
+		EWSPath:             "/EWS/Exchange.asmx",
+		AutodiscoverPath:    "/autodiscover/autodiscover.svc",
+		Timeout:             30 * time.Second,
+		AuthMethod:          "auto",
+		SkipVerify:          false,
+		TLSVersion:          "1.2",
+		VerboseMode:         false,
+		LogLevel:            "INFO",
+		LogFormat:           "csv",
+		Timezone:            "UTC",
+		Interval:            30,
+		SendMeetingResponse: true,
 	}
 }
 
@@ -185,12 +194,17 @@ func BindEnvs(v *viper.Viper) {
 		"exportdir":        "EWSEXPORTDIR",
 		"count":            "EWSCOUNT",
 		"duration":         "EWSDURATION",
-		"timezone":         "EWSTIMEZONE",
-		"interval":         "EWSINTERVAL",
-		"proxy":            "EWSPROXY",
-		"ipv4":             "EWSIPV4",
-		"ipv6":             "EWSIPV6",
-		"logformat":        "EWSLOGFORMAT",
+		"timezone":      "EWSTIMEZONE",
+		"interval":      "EWSINTERVAL",
+		"proxy":         "EWSPROXY",
+		"ipv4":          "EWSIPV4",
+		"ipv6":          "EWSIPV6",
+		"logformat":     "EWSLOGFORMAT",
+		"item-id":       "EWSITEMID",
+		"change-key":    "EWSCHANGEKEY",
+		"response":      "EWSRESPONSE",
+		"comment":       "EWSCOMMENT",
+		"send-response": "EWSSENDRESPONSE",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -300,9 +314,14 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		ExportDir:        v.GetString("exportdir"),
 		Count:            count,
 		Duration:         duration,
-		Timezone:         timezone,
-		Interval:         interval,
-		SkipVerify:       v.GetBool("skipverify"),
+		Timezone:            timezone,
+		Interval:            interval,
+		ItemID:              v.GetString("item-id"),
+		ChangeKey:           v.GetString("change-key"),
+		MeetingResponse:     strings.ToLower(v.GetString("response")),
+		Comment:             v.GetString("comment"),
+		SendMeetingResponse: v.GetBool("send-response"),
+		SkipVerify:          v.GetBool("skipverify"),
 		TLSVersion:       tlsVersion,
 		ProxyURL:         v.GetString("proxy"),
 		IPv4Only:         v.GetBool("ipv4"),
@@ -334,6 +353,7 @@ func validateConfiguration(config *Config) error {
 		ActionTestConnect, ActionTestAuth, ActionGetFolder, ActionAutodiscover,
 		ActionListFolders, ActionListMail, ActionSendMail, ActionSaveDraft, ActionExportMessages,
 		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot, ActionFreeBusy,
+		ActionRespondMeeting,
 	}
 	valid := false
 	for _, a := range validActions {
@@ -384,7 +404,8 @@ func validateConfiguration(config *Config) error {
 	switch config.Action {
 	case ActionTestAuth, ActionGetFolder, ActionListFolders, ActionListMail,
 		ActionSendMail, ActionSaveDraft, ActionExportMessages,
-		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot, ActionFreeBusy:
+		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot, ActionFreeBusy,
+		ActionRespondMeeting:
 		if config.Username == "" {
 			return fmt.Errorf("%s requires --username", config.Action)
 		}
@@ -489,6 +510,17 @@ func validateConfiguration(config *Config) error {
 		}
 		if config.Interval < 5 || config.Interval > 60 {
 			return fmt.Errorf("invalid --interval: %d (must be 5-60 minutes)", config.Interval)
+		}
+	}
+
+	if config.Action == ActionRespondMeeting {
+		if config.ItemID == "" {
+			return fmt.Errorf("respondmeeting requires --item-id (EWS ItemId of the meeting request)")
+		}
+		switch config.MeetingResponse {
+		case "accept", "decline", "tentative":
+		default:
+			return fmt.Errorf("respondmeeting --response must be one of: accept, decline, tentative (got %q)", config.MeetingResponse)
 		}
 	}
 
