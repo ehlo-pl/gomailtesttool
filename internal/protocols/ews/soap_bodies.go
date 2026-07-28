@@ -252,6 +252,22 @@ const getFreeBusySOAPBodyFmt = `    <m:GetUserAvailabilityRequest>
       </t:FreeBusyViewOptions>
     </m:GetUserAvailabilityRequest>`
 
+// respondMeetingSOAPBodyFmt responds to a meeting request via CreateItem with
+// AcceptItem, DeclineItem, or TentativelyAcceptItem.
+// Args: message disposition (SendAndSaveCopy|SaveOnly),
+//
+//	response element name (AcceptItem|DeclineItem|TentativelyAcceptItem),
+//	pre-built ReferenceItemId XML element (includes optional ChangeKey attr),
+//	optional body XML block (empty or "\n          <t:Body...>...</t:Body>"),
+//	response element name (repeated for closing tag).
+const respondMeetingSOAPBodyFmt = `    <m:CreateItem MessageDisposition="%s">
+      <m:Items>
+        <t:%s>
+          %s%s
+        </t:%s>
+      </m:Items>
+    </m:CreateItem>`
+
 // getItemMIMESOAPBodyFmt fetches raw MIME content for a single item by ID.
 // Arg 1: XML-escaped ItemId.
 const getItemMIMESOAPBodyFmt = `    <m:GetItem>

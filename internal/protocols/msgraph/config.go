@@ -56,6 +56,12 @@ type Config struct {
 	EndTime       string // End time in RFC3339 format
 	Timezone      string // Event timezone name Graph interprets start/end in (default: UTC)
 
+	// Meeting response configuration (respondmeeting)
+	EventID             string // Graph event ID to respond to
+	MeetingResponse     string // accept, decline, or tentative
+	Comment             string // Optional comment included in the response
+	SendMeetingResponse bool   // Whether to send the response to the organizer (default: true)
+
 	// Folder selection (listmail)
 	Folder string // Well-known or custom folder name for listmail (default: inbox)
 
@@ -82,20 +88,21 @@ type Config struct {
 // NewConfig creates a new Config with sensible default values.
 func NewConfig() *Config {
 	return &Config{
-		Subject:       "Automated Tool Notification",
-		Body:          "It's a test message, please ignore",
-		Priority:      "normal",
-		InviteSubject: "System Sync",
-		Timezone:      "UTC",
-		Action:        ActionGetInbox,
-		Count:         3,
-		VerboseMode:   false,
-		LogLevel:      "INFO",
-		OutputFormat:  "text",
-		LogFormat:     "csv",
-		ShowVersion:   false,
-		MaxRetries:    3,
-		RetryDelay:    2000 * time.Millisecond,
+		Subject:             "Automated Tool Notification",
+		Body:                "It's a test message, please ignore",
+		Priority:            "normal",
+		InviteSubject:       "System Sync",
+		Timezone:            "UTC",
+		Action:              ActionGetInbox,
+		Count:               3,
+		VerboseMode:         false,
+		LogLevel:            "INFO",
+		OutputFormat:        "text",
+		LogFormat:           "csv",
+		ShowVersion:         false,
+		MaxRetries:          3,
+		RetryDelay:          2000 * time.Millisecond,
+		SendMeetingResponse: true,
 	}
 }
 
@@ -105,6 +112,7 @@ const (
 	ActionSendMail          = "sendmail"
 	ActionSaveDraft         = "draft"
 	ActionSendInvite        = "sendinvite"
+	ActionRespondMeeting    = "respondmeeting"
 	ActionGetInbox          = "getinbox"
 	ActionListFolders       = "listfolders"
 	ActionListMail          = "listmail"
@@ -205,9 +213,13 @@ func BindEnvs(v *viper.Viper) {
 		"loglevel":           "MSGRAPHLOGLEVEL",
 		"output":             "MSGRAPHOUTPUT",
 		"logformat":          "MSGRAPHLOGFORMAT",
-		"count":              "MSGRAPHCOUNT",
-		"header":             "MSGRAPHHEADER",
-		"save-to-sent":       "MSGRAPHSAVETOSENT",
+		"count":                "MSGRAPHCOUNT",
+		"header":               "MSGRAPHHEADER",
+		"save-to-sent":         "MSGRAPHSAVETOSENT",
+		"event-id":     "MSGRAPHEVENTID",
+		"response":     "MSGRAPHRESPONSE",
+		"comment":      "MSGRAPHCOMMENT",
+		"send-response": "MSGRAPHSENDRESPONSE",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -303,6 +315,10 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
 		Timezone:              v.GetString("timezone"),
+		EventID:               v.GetString("event-id"),
+		MeetingResponse:       strings.ToLower(v.GetString("response")),
+		Comment:               v.GetString("comment"),
+		SendMeetingResponse:   v.GetBool("send-response"),
 		Folder:                v.GetString("folder"),
 		MessageID:             v.GetString("messageid"),
 		ExportDir:             v.GetString("exportdir"),
@@ -456,6 +472,18 @@ func validateConfiguration(config *Config) error {
 		// SECURITY: Validate Message-ID format to prevent OData injection attacks
 		if err := validateMessageID(config.MessageID); err != nil {
 			return fmt.Errorf("invalid message ID: %w", err)
+		}
+	}
+
+	// Validate respondmeeting-specific requirements
+	if config.Action == ActionRespondMeeting {
+		if config.EventID == "" {
+			return fmt.Errorf("respondmeeting action requires --event-id parameter")
+		}
+		switch config.MeetingResponse {
+		case "accept", "decline", "tentative":
+		default:
+			return fmt.Errorf("respondmeeting --response must be one of: accept, decline, tentative (got %q)", config.MeetingResponse)
 		}
 	}
 

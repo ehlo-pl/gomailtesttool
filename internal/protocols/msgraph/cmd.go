@@ -38,6 +38,7 @@ Delegated permissions (deprecated): see docs/protocols/msgraph.md.`,
 		newSendMailCmd(v),
 		newDraftCmd(v),
 		newSendInviteCmd(v),
+		newRespondMeetingCmd(v),
 		newGetInboxCmd(v),
 		newListFoldersCmd(v),
 		newListMailCmd(v),
@@ -817,6 +818,63 @@ Issuer indicates a TLS-intercepting proxy). Use --proxy to route through a proxy
 			return testConnect(ctx, config, csvLogger, slogger)
 		},
 	}
+}
+
+func newRespondMeetingCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "respondmeeting",
+		Short: "Accept, decline, or tentatively accept a calendar meeting request",
+		Long: `Respond to a meeting request in the mailbox calendar via the Microsoft Graph API.
+
+The --event-id can be obtained from the 'getevents' action. The response is sent
+to the meeting organizer by default; use --send-response=false to save the response
+locally without notifying the organizer.
+
+Required application permission: Calendars.ReadWrite`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionRespondMeeting
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("msgraphtool", ActionRespondMeeting, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			if config.ProxyURL != "" {
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
+			}
+
+			client, err := NewGraphServiceClient(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+
+			return respondMeeting(ctx, client, config.Mailbox, config.EventID, config.MeetingResponse, config.Comment, config.SendMeetingResponse, config, csvLogger)
+		},
+	}
+	cmd.Flags().String("event-id", "", "Graph event ID to respond to (from 'getevents') (env: MSGRAPHEVENTID)")
+	cmd.Flags().String("response", "", "Meeting response: accept, decline, or tentative (env: MSGRAPHRESPONSE)")
+	cmd.Flags().String("comment", "", "Optional comment to include in the response (env: MSGRAPHCOMMENT)")
+	cmd.Flags().Bool("send-response", true, "Send the response to the meeting organizer; false saves locally only (env: MSGRAPHSENDRESPONSE)")
+	return cmd
 }
 
 func newTestAuthCmd(v *viper.Viper) *cobra.Command {

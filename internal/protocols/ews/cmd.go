@@ -39,6 +39,7 @@ Environment variables use the EWS prefix (e.g. EWSHOST, EWSUSERNAME, EWSPASSWORD
 		newExportMessagesCmd(v),
 		newGetEventsCmd(v),
 		newSendInviteCmd(v),
+		newRespondMeetingCmd(v),
 		newGetScheduleCmd(v),
 		newFindTimeSlotCmd(v),
 		newFreeBusyCmd(v),
@@ -144,6 +145,59 @@ SendMeetingInvitations="SendToAllAndSaveCopy", inviting the --to attendees.`,
 	cmd.Flags().String("body", "It's a test meeting, please ignore", "Meeting body text (env: EWSBODY)")
 	cmd.Flags().String("start", "", "Meeting start time (RFC3339 or PowerShell sortable format) (env: EWSSTART)")
 	cmd.Flags().String("end", "", "Meeting end time (RFC3339 or PowerShell sortable format) (env: EWSEND)")
+	return cmd
+}
+
+func newRespondMeetingCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "respondmeeting",
+		Short: "Accept, decline, or tentatively accept a meeting request via EWS",
+		Long: `Respond to a meeting request by sending an AcceptItem, DeclineItem, or
+TentativelyAcceptItem via EWS CreateItem. The --item-id can be obtained from
+the 'getevents' action. The response is sent to the organizer by default;
+use --send-response=false to save locally without sending.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionRespondMeeting
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w\n\nRun '%s --help' for usage", err, cmd.CommandPath())
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("ewstool", ActionRespondMeeting, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			logger.LogInfo(slogger, "EWS Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
+
+			if err := respondMeeting(ctx, config, csvLogger, slogger); err != nil {
+				logger.LogError(slogger, "Action failed", "error", err)
+				return err
+			}
+
+			logger.LogInfo(slogger, "Action completed successfully")
+			return nil
+		},
+	}
+	cmd.Flags().String("item-id", "", "EWS ItemId of the meeting request or calendar item (from 'getevents') (env: EWSITEMID)")
+	cmd.Flags().String("change-key", "", "Optional EWS ChangeKey for optimistic concurrency (env: EWSCHANGEKEY)")
+	cmd.Flags().String("response", "", "Meeting response: accept, decline, or tentative (env: EWSRESPONSE)")
+	cmd.Flags().String("comment", "", "Optional comment to include in the response (env: EWSCOMMENT)")
+	cmd.Flags().Bool("send-response", true, "Send the response to the meeting organizer; false saves locally only (env: EWSSENDRESPONSE)")
 	return cmd
 }
 

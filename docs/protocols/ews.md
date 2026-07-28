@@ -210,6 +210,44 @@ gomailtest ews findtimeslot --host mail.example.com \
     --start "2026-08-01T08:00:00Z" --end "2026-08-10T17:00:00Z"
 ```
 
+### respondmeeting — Respond to Meeting Requests
+
+Responds to a meeting request by sending an `AcceptItem`, `DeclineItem`, or
+`TentativelyAcceptItem` via EWS `CreateItem`. The `--item-id` is the EWS
+`ItemId` of the meeting request (obtainable from `getevents`).
+
+> **Note:** EWS meeting responses operate on the ItemId of the calendar item
+> or meeting request. On most Exchange versions, using the `CalendarItem`
+> ItemId from `getevents` is sufficient; if Exchange returns
+> `ErrorCalendarCannotUseIdForOccurrenceId`, try supplying the `ChangeKey`
+> via `--change-key`.
+
+By default the response is sent to the organizer (`--send-response=true`).
+Set `--send-response=false` to save locally without sending.
+
+```powershell
+# Accept a meeting request
+gomailtest ews respondmeeting --host mail.example.com \
+    --username "CORP\serviceaccount" --password "secret" \
+    --item-id "AAMkAGI2THVSAAA=" \
+    --response accept
+
+# Decline with a comment
+gomailtest ews respondmeeting --host mail.example.com \
+    --username "CORP\serviceaccount" --password "secret" \
+    --item-id "AAMkAGI2THVSAAA=" \
+    --response decline \
+    --comment "Conflict with another meeting"
+
+# Tentative, include ChangeKey for Exchange concurrency control
+gomailtest ews respondmeeting --host mail.example.com \
+    --username "CORP\serviceaccount" --password "secret" \
+    --item-id "AAMkAGI2THVSAAA=" \
+    --change-key "FwAAAA==" \
+    --response tentative \
+    --send-response=false
+```
+
 ### freebusy — Free/Busy Availability Test
 
 Tests EWS Free/Busy availability for one or more mailboxes via `GetUserAvailability`. Returns a deterministic **PASS/FAIL** result with per-mailbox event counts, status breakdown, and actionable diagnostics. All parameters (`--mailbox`, `--start`, `--end`) are required.
@@ -417,6 +455,11 @@ All flags can be set via environment variables using the `EWS` prefix:
 | `EWSTLSVERSION` | `--tlsversion` | Minimum TLS version |
 | `EWSPROXY` | `--proxy` | Proxy URL |
 | `EWSLOGFORMAT` | `--logformat` | Log format |
+| `EWSITEMID` | `--item-id` | EWS ItemId for meeting response (respondmeeting) |
+| `EWSCHANGEKEY` | `--change-key` | Optional EWS ChangeKey (respondmeeting) |
+| `EWSRESPONSE` | `--response` | Meeting response: accept, decline, tentative (respondmeeting) |
+| `EWSCOMMENT` | `--comment` | Optional comment in meeting response (respondmeeting) |
+| `EWSSENDRESPONSE` | `--send-response` | Send response to organizer; default `true` (respondmeeting) |
 
 ```powershell
 # Set credentials via environment variables

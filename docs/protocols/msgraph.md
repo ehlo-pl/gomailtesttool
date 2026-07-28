@@ -148,6 +148,34 @@ gomailtest msgraph sendinvite \
     --end "2026-02-02T00:00:00Z"
 ```
 
+### respondmeeting — Respond to Meeting Requests
+
+Sends an accept, decline, or tentative response to a calendar event via
+`POST /users/{mailbox}/events/{eventId}/{accept|decline|tentativelyAccept}`.
+The event ID is obtained from the `getevents` action.
+
+By default the response is sent to the meeting organizer (`--send-response=true`).
+Set `--send-response=false` to save the response locally without notifying the organizer.
+
+```powershell
+# Accept a meeting request
+gomailtest msgraph respondmeeting \
+    --event-id "AAMkAGI2THVSAAA=" \
+    --response accept
+
+# Decline with a comment
+gomailtest msgraph respondmeeting \
+    --event-id "AAMkAGI2THVSAAA=" \
+    --response decline \
+    --comment "Conflict with another meeting"
+
+# Tentative, save locally without sending
+gomailtest msgraph respondmeeting \
+    --event-id "AAMkAGI2THVSAAA=" \
+    --response tentative \
+    --send-response=false
+```
+
 ### getinbox — Retrieve Inbox Messages (deprecated)
 
 Deprecated: use `listmail --folder inbox`. Still works and delegates to the
@@ -491,6 +519,7 @@ Operations are logged to `%TEMP%\_msgraphtool_{action}_{date}.csv`.
 | `getevents` | Timestamp, Action, Status, Mailbox, Event Subject, Event ID |
 | `sendmail` | Timestamp, Action, Status, Mailbox, To, CC, BCC, Subject, Body Type, Attachments |
 | `sendinvite` | Timestamp, Action, Status, Mailbox, Subject, Start Time, End Time, Event ID |
+| `respondmeeting` | Timestamp, Action, Status, Mailbox, Event ID, Response |
 | `getinbox` | Timestamp, Action, Status, Mailbox, Subject, From, To, Received DateTime |
 | `getschedule` | Timestamp, Action, Status, Mailbox, Recipient, Window Start, Availability |
 | `exportinbox` | Timestamp, Action, Status, Mailbox, Detail, Export Dir |
@@ -519,7 +548,7 @@ For `searchandexport` and `exportmessages`, a successful-but-empty result is als
 |--------|-----------|
 | sendmail | `Mail.Send` |
 | draft | `Mail.ReadWrite` |
-| getevents, sendinvite | `Calendars.ReadWrite` |
+| getevents, sendinvite, respondmeeting | `Calendars.ReadWrite` |
 | getinbox, exportinbox, searchandexport, exportmessages | `Mail.Read` |
 | getschedule | `Calendars.Read` |
 | testconnect | None (unauthenticated network probe) |
