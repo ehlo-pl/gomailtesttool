@@ -54,6 +54,7 @@ type Config struct {
 	InviteSubject string // Subject of calendar meeting invitation
 	StartTime     string // Start time in RFC3339 format (e.g., 2026-01-15T14:00:00Z)
 	EndTime       string // End time in RFC3339 format
+	Timezone      string // Event timezone name Graph interprets start/end in (default: UTC)
 
 	// Folder selection (listmail)
 	Folder string // Well-known or custom folder name for listmail (default: inbox)
@@ -85,6 +86,7 @@ func NewConfig() *Config {
 		Body:          "It's a test message, please ignore",
 		Priority:      "normal",
 		InviteSubject: "System Sync",
+		Timezone:      "UTC",
 		Action:        ActionGetInbox,
 		Count:         3,
 		VerboseMode:   false,
@@ -192,6 +194,7 @@ func BindEnvs(v *viper.Viper) {
 		"inline-attachments": "MSGRAPHINLINEATTACHMENTS",
 		"start":              "MSGRAPHSTART",
 		"end":                "MSGRAPHEND",
+		"timezone":           "MSGRAPHTIMEZONE",
 		"duration":           "MSGRAPHDURATION",
 		"folder":             "MSGRAPHFOLDER",
 		"messageid":          "MSGRAPHMESSAGEID",
@@ -299,6 +302,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		InviteSubject:         v.GetString("invite-subject"),
 		StartTime:             v.GetString("start"),
 		EndTime:               v.GetString("end"),
+		Timezone:              v.GetString("timezone"),
 		Folder:                v.GetString("folder"),
 		MessageID:             v.GetString("messageid"),
 		ExportDir:             v.GetString("exportdir"),

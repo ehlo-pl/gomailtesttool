@@ -112,15 +112,36 @@ gomailtest msgraph draft --to "recipient@example.com" --subject "Test" --body "d
 
 ### sendinvite — Create Calendar Invitations
 
+Creates a calendar event via `POST /users/{mailbox}/events`. When attendees are
+supplied, Graph sends meeting invitations to them automatically.
+
+Attendee mapping (Graph events support only required/optional/resource):
+
+| Flag | Attendee type | Notes |
+| --- | --- | --- |
+| `--to` | required | Expected to attend |
+| `--cc` | optional | Optional attendees |
+| `--bcc` | optional (informational) | For information only. Calendar events **cannot hide attendees**, so BCC recipients are visible to everyone. |
+
+`--timezone` sets the timezone Graph interprets `--start`/`--end` in (default
+`UTC`). The start/end wall-clock values are sent as-is and labeled with this
+timezone — they are not converted. Accepts names like `UTC` or
+`Pacific Standard Time`. All recipient lists are comma-separated.
+
 ```powershell
 gomailtest msgraph sendinvite --subject "Team Meeting"
 
+# Real invitation with attendees and a specific timezone
 gomailtest msgraph sendinvite \
     --subject "Project Review" \
-    --start "2026-01-15T14:00:00Z" \
-    --end "2026-01-15T15:00:00Z"
+    --start "2026-01-15T14:00:00" \
+    --end "2026-01-15T15:00:00" \
+    --timezone "Pacific Standard Time" \
+    --to "lead@example.com,dev@example.com" \
+    --cc "manager@example.com" \
+    --bcc "auditor@example.com"
 
-# All-day event
+# All-day event (UTC)
 gomailtest msgraph sendinvite \
     --subject "Conference Day" \
     --start "2026-02-01T00:00:00Z" \
@@ -312,6 +333,7 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--priority` | Email priority/importance: `high`, `normal`, `low` (maps to the Graph `importance` field) | `MSGRAPHPRIORITY` |
 | `--start` | Start time (RFC3339) | `MSGRAPHSTART` |
 | `--end` | End time (RFC3339) | `MSGRAPHEND` |
+| `--timezone` | Event timezone Graph interprets `--start`/`--end` in (`sendinvite`; default `UTC`) | `MSGRAPHTIMEZONE` |
 | `--messageid` | Internet Message ID | `MSGRAPHMESSAGEID` |
 | `--exportdir` | Directory under which to create the dated export folder (used by `exportinbox`, `searchandexport`, `exportmessages`) | `MSGRAPHEXPORTDIR` |
 
