@@ -376,20 +376,41 @@ func createInvite(ctx context.Context, client *msgraphsdk.GraphServiceClient, ma
 		}
 	}
 
+	// Timezone Graph interprets the start/end wall-clock values in. The
+	// dateTime is emitted WITHOUT an offset so the numbers are taken as-is in
+	// this zone ("relabel, don't convert"). Defaults to UTC for back-compat.
+	timezone := config.Timezone
+	if timezone == "" {
+		timezone = "UTC"
+	}
+	const graphWallClock = "2006-01-02T15:04:05"
+
 	// Set start time
 	startDateTime := models.NewDateTimeTimeZone()
-	startTimeFormatted := startTime.Format(time.RFC3339)
+	startTimeFormatted := startTime.Format(graphWallClock)
 	startDateTime.SetDateTime(&startTimeFormatted)
-	timezone := "UTC"
 	startDateTime.SetTimeZone(&timezone)
 	event.SetStart(startDateTime)
 
 	// Set end time
 	endDateTime := models.NewDateTimeTimeZone()
-	endTimeFormatted := endTime.Format(time.RFC3339)
+	endTimeFormatted := endTime.Format(graphWallClock)
 	endDateTime.SetDateTime(&endTimeFormatted)
 	endDateTime.SetTimeZone(&timezone)
 	event.SetEnd(endDateTime)
+
+	// Attendees. Graph events only support required/optional/resource, and
+	// cannot hide attendees, so --bcc is mapped to optional (informational).
+	var attendees []models.Attendeeable
+	attendees = append(attendees, createAttendees(config.To, models.REQUIRED_ATTENDEETYPE)...)
+	attendees = append(attendees, createAttendees(config.Cc, models.OPTIONAL_ATTENDEETYPE)...)
+	attendees = append(attendees, createAttendees(config.Bcc, models.OPTIONAL_ATTENDEETYPE)...)
+	if len(attendees) > 0 {
+		event.SetAttendees(attendees)
+	}
+	if len(config.Bcc) > 0 {
+		fmt.Println("Note: --bcc recipients are added as informational (optional) attendees and ARE visible; calendar invites cannot hide attendees.")
+	}
 
 	// Create the event
 	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/events", mailbox)
@@ -411,8 +432,17 @@ func createInvite(ctx context.Context, client *msgraphsdk.GraphServiceClient, ma
 		logVerbose(config.VerboseMode, "Event ID: %s", eventID)
 		fmt.Printf("Calendar invitation created in mailbox: %s\n", mailbox)
 		fmt.Printf("Subject: %s\n", subject)
-		fmt.Printf("Start: %s\n", startTime.Format("2006-01-02 15:04:05 MST"))
-		fmt.Printf("End: %s\n", endTime.Format("2006-01-02 15:04:05 MST"))
+		if len(config.To) > 0 {
+			fmt.Printf("To (required): %s\n", strings.Join(config.To, ", "))
+		}
+		if len(config.Cc) > 0 {
+			fmt.Printf("Cc (optional): %s\n", strings.Join(config.Cc, ", "))
+		}
+		if len(config.Bcc) > 0 {
+			fmt.Printf("Bcc (informational): %s\n", strings.Join(config.Bcc, ", "))
+		}
+		fmt.Printf("Start: %s %s\n", startTime.Format(graphWallClock), timezone)
+		fmt.Printf("End: %s %s\n", endTime.Format(graphWallClock), timezone)
 		fmt.Printf("Event ID: %s\n", eventID)
 	}
 
@@ -1362,6 +1392,23 @@ func createRecipients(emails []string) []models.Recipientable {
 		recipients[i] = recipient
 	}
 	return recipients
+}
+
+// createAttendees builds Graph event attendees of the given type from email addresses.
+func createAttendees(emails []string, attendeeType models.AttendeeType) []models.Attendeeable {
+	attendees := make([]models.Attendeeable, len(emails))
+	for i, email := range emails {
+		attendee := models.NewAttendee()
+		emailAddress := models.NewEmailAddress()
+		// Need a new variable for the address pointer
+		address := email
+		emailAddress.SetAddress(&address)
+		attendee.SetEmailAddress(emailAddress)
+		attendeeType := attendeeType
+		attendee.SetTypeEscaped(&attendeeType)
+		attendees[i] = attendee
+	}
+	return attendees
 }
 
 // parseFlexibleTime parses a time string accepting multiple formats

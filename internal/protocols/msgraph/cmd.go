@@ -313,6 +313,10 @@ func newSendInviteCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("invite-subject", "", "Deprecated: use --subject instead (env: MSGRAPHINVITESUBJECT)")
 	cmd.Flags().String("start", "", "Start time (RFC3339 or PowerShell sortable format) (env: MSGRAPHSTART)")
 	cmd.Flags().String("end", "", "End time (RFC3339 or PowerShell sortable format) (env: MSGRAPHEND)")
+	cmd.Flags().String("to", "", "Comma-separated required attendees (env: MSGRAPHTO)")
+	cmd.Flags().String("cc", "", "Comma-separated optional attendees (env: MSGRAPHCC)")
+	cmd.Flags().String("bcc", "", "Comma-separated informational attendees; visible, cannot be hidden (env: MSGRAPHBCC)")
+	cmd.Flags().String("timezone", "UTC", "Event timezone name, e.g. UTC or 'Pacific Standard Time' (env: MSGRAPHTIMEZONE)")
 	return cmd
 }
 
