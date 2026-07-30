@@ -137,7 +137,7 @@ jobs:
     - name: Create ZIP archive (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        Compress-Archive -Path bin\gomailtest${{ matrix.ext }},bin\gomailtest-exchange${{ matrix.ext }},bin\gomailtest-gmail${{ matrix.ext }},README.md,TOOLS.md,LICENSE -DestinationPath $env:ZIP_NAME
+        Compress-Archive -Path bin\gomailtest${{ matrix.ext }},bin\gomailtest-exchange${{ matrix.ext }},bin\gomailtest-gmail${{ matrix.ext }},README.md,LICENSE -DestinationPath $env:ZIP_NAME
         Write-Host "Created ZIP archive: $env:ZIP_NAME"
         Get-Item $env:ZIP_NAME | Select-Object Name, Length
 
