@@ -186,3 +186,77 @@ func TestInt32Ptr(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildExportMessagesQueryDesc verifies that the query description helper
+// produces human-readable Graph API URLs that aid debugging (e.g. when
+// Graph returns ErrorInvalidIdMalformed, the logged URL reveals the exact
+// path/filter/orderby that was sent).
+func TestBuildExportMessagesQueryDesc(t *testing.T) {
+	selectFields := []string{"id", "subject"}
+	tests := []struct {
+		name         string
+		mailbox      string
+		folder       string
+		filter       string
+		orderBy      []string
+		count        int
+		selectFields []string
+		wantContains []string
+	}{
+		{
+			name:         "folder with filter (subject search)",
+			mailbox:      "user@organisation.eu",
+			folder:       "senditems",
+			filter:       "contains(subject,'users')",
+			orderBy:      nil,
+			count:        25,
+			selectFields: selectFields,
+			wantContains: []string{
+				"GET /users/user@organisation.eu/mailFolders/senditems/messages",
+				"$top=25",
+				"$filter=contains(subject,'users')",
+				"$select=id,subject",
+			},
+		},
+		{
+			name:         "no folder, no filter (whole-mailbox export with orderby)",
+			mailbox:      "user@example.com",
+			folder:       "",
+			filter:       "",
+			orderBy:      []string{"receivedDateTime DESC"},
+			count:        10,
+			selectFields: selectFields,
+			wantContains: []string{
+				"GET /users/user@example.com/messages",
+				"$top=10",
+				"$orderby=receivedDateTime DESC",
+				"$select=id,subject",
+			},
+		},
+		{
+			name:         "no folder, message-ID filter",
+			mailbox:      "user@example.com",
+			folder:       "",
+			filter:       "internetMessageId eq '<test@example.com>'",
+			orderBy:      nil,
+			count:        5,
+			selectFields: selectFields,
+			wantContains: []string{
+				"GET /users/user@example.com/messages",
+				"$top=5",
+				"$filter=internetMessageId eq '<test@example.com>'",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildExportMessagesQueryDesc(tt.mailbox, tt.folder, tt.filter, tt.orderBy, tt.count, tt.selectFields)
+			for _, want := range tt.wantContains {
+				if !strings.Contains(got, want) {
+					t.Errorf("buildExportMessagesQueryDesc() = %q, want it to contain %q", got, want)
+				}
+			}
+		})
+	}
+}
