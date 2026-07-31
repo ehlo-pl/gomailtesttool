@@ -144,7 +144,7 @@ jobs:
     - name: Create ZIP archive (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        zip $ZIP_NAME bin/gomailtest bin/gomailtest-exchange bin/gomailtest-gmail README.md TOOLS.md LICENSE
+        zip $ZIP_NAME bin/gomailtest bin/gomailtest-exchange bin/gomailtest-gmail README.md LICENSE
         echo "Created ZIP archive: $ZIP_NAME"
         ls -lh $ZIP_NAME
 
@@ -172,7 +172,6 @@ jobs:
 
           Plus documentation:
           - **README.md** - Main documentation
-          - **TOOLS.md** - Protocol-specific tool guides
           - **LICENSE** - MIT License
 
           ### Installation
