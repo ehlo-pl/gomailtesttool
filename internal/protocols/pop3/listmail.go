@@ -15,7 +15,7 @@ func listMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	fmt.Printf("Listing messages on %s:%d...\n", config.Host, config.Port)
 
 	// CSV columns for listmail
-	columns := []string{"Action", "Status", "Server", "Port", "Total_Messages", "Total_Size", "Message_Number", "Message_Size", "UIDL", "Error"}
+	columns := []string{"Action", "Status", "Server", "Port", "Total_Messages", "Total_Size", "Message_Number", "Subject", "From", "To", "Date", "MessageID", "UIDL", "Error"}
 	if shouldWrite, _ := csvLogger.ShouldWriteHeader(); shouldWrite {
 		if err := csvLogger.WriteHeader(columns); err != nil {
 			logger.LogError(slogLogger, "Failed to write CSV header", "error", err)
@@ -162,9 +162,7 @@ func listMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		displayCount = config.MaxMessages
 	}
 
-	fmt.Printf("\nMessages (showing %d of %d):\n", displayCount, len(messages))
-	fmt.Println("  Num    Size       UIDL")
-	fmt.Println("  ---    ----       ----")
+	fmt.Printf("\nMessages (showing %d of %d):\n\n", displayCount, len(messages))
 
 	for i := 0; i < displayCount; i++ {
 		msg := messages[i]
@@ -173,13 +171,24 @@ func listMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 			uidl = uidlMap[msg.Number]
 		}
 
-		fmt.Printf("  %3d    %8d   %s\n", msg.Number, msg.Size, uidl)
+		// Fetch message headers via TOP to extract envelope fields.
+		subject, from, to, date, messageID := "", "", "", "", ""
+		if headerBytes, topErr := client.Top(ctx, msg.Number, 0); topErr == nil {
+			subject = extractHeader(headerBytes, "Subject")
+			from = extractHeader(headerBytes, "From")
+			to = extractHeader(headerBytes, "To")
+			date = extractHeader(headerBytes, "Date")
+			messageID = extractHeader(headerBytes, "Message-ID")
+		}
+
+		fmt.Printf("%d. Subject: %s\n   From: %s\n   To: %s\n   Date: %s\n   Message-ID: %s\n   UIDL: %s\n\n",
+			i+1, subject, from, to, date, messageID, uidl)
 
 		// Log each message to CSV
 		if logErr := csvLogger.WriteRow([]string{
 			config.Action, "SUCCESS", config.Host, fmt.Sprintf("%d", config.Port),
 			fmt.Sprintf("%d", count), fmt.Sprintf("%d", size),
-			fmt.Sprintf("%d", msg.Number), fmt.Sprintf("%d", msg.Size), uidl, "",
+			fmt.Sprintf("%d", msg.Number), subject, from, to, date, messageID, uidl, "",
 		}); logErr != nil {
 			logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 		}
@@ -194,6 +203,38 @@ func listMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		"total_messages", count,
 		"total_size", size)
 
-	fmt.Println("\n✓ List mail completed")
+	fmt.Println("✓ List mail completed")
 	return nil
+}
+
+// extractHeader extracts the value of the first occurrence of a header field
+// from raw message bytes returned by TOP. It handles folded (multi-line) header
+// values by joining continuation lines.
+func extractHeader(raw []byte, name string) string {
+	lines := strings.Split(string(raw), "\n")
+	lowerName := strings.ToLower(name) + ":"
+	var value strings.Builder
+	collecting := false
+	for _, line := range lines {
+		if line == "" || line == "\r" {
+			// Blank line marks end of headers.
+			break
+		}
+		if collecting {
+			// Continuation line starts with whitespace.
+			if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
+				value.WriteString(" ")
+				value.WriteString(strings.TrimRight(strings.TrimLeft(line, " \t"), "\r"))
+				continue
+			}
+			// New header – stop collecting.
+			break
+		}
+		if strings.HasPrefix(strings.ToLower(line), lowerName) {
+			v := strings.TrimLeft(line[len(lowerName):], " \t")
+			value.WriteString(strings.TrimRight(v, "\r"))
+			collecting = true
+		}
+	}
+	return value.String()
 }

@@ -527,7 +527,7 @@ func listMailInFolder(ctx context.Context, client *msgraphsdk.GraphServiceClient
 		QueryParameters: &users.ItemMailFoldersItemMessagesRequestBuilderGetQueryParameters{
 			Top:     Int32Ptr(int32(count)),
 			Orderby: []string{"receivedDateTime DESC"},
-			Select:  []string{"subject", "receivedDateTime", "from", "toRecipients"},
+			Select:  []string{"subject", "receivedDateTime", "from", "toRecipients", "internetMessageId"},
 		},
 	}
 
@@ -561,30 +561,44 @@ func listMailInFolder(ctx context.Context, client *msgraphsdk.GraphServiceClient
 			if msg.GetFrom() != nil && msg.GetFrom().GetEmailAddress() != nil && msg.GetFrom().GetEmailAddress().GetAddress() != nil {
 				sender = *msg.GetFrom().GetEmailAddress().GetAddress()
 			}
+			recipient := "N/A"
+			if recipients := msg.GetToRecipients(); len(recipients) > 0 {
+				if recipients[0].GetEmailAddress() != nil && recipients[0].GetEmailAddress().GetAddress() != nil {
+					recipient = *recipients[0].GetEmailAddress().GetAddress()
+				}
+			}
 			subject := derefOr(msg.GetSubject(), "N/A")
 			receivedDate := "N/A"
 			if msg.GetReceivedDateTime() != nil {
 				receivedDate = msg.GetReceivedDateTime().Format("2006-01-02 15:04:05")
 			}
-			fmt.Printf("%d. Subject: %s\n   From: %s\n   Received: %s\n\n", i+1, subject, sender, receivedDate)
+			internetMessageID := derefOr(msg.GetInternetMessageId(), "N/A")
+			fmt.Printf("%d. Subject: %s\n   From: %s\n   To: %s\n   Received: %s\n   Message-ID: %s\n\n", i+1, subject, sender, recipient, receivedDate, internetMessageID)
 		}
 	}
 
 	if csvLogger != nil {
 		if messageCount == 0 {
-			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, "No messages found", "N/A", "N/A"})
+			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, "No messages found", "N/A", "N/A", "N/A", "N/A"})
 		}
 		for _, msg := range messages {
 			sender := "N/A"
 			if msg.GetFrom() != nil && msg.GetFrom().GetEmailAddress() != nil && msg.GetFrom().GetEmailAddress().GetAddress() != nil {
 				sender = *msg.GetFrom().GetEmailAddress().GetAddress()
 			}
+			recipient := "N/A"
+			if recipients := msg.GetToRecipients(); len(recipients) > 0 {
+				if recipients[0].GetEmailAddress() != nil && recipients[0].GetEmailAddress().GetAddress() != nil {
+					recipient = *recipients[0].GetEmailAddress().GetAddress()
+				}
+			}
 			subject := derefOr(msg.GetSubject(), "N/A")
 			receivedDate := "N/A"
 			if msg.GetReceivedDateTime() != nil {
 				receivedDate = msg.GetReceivedDateTime().Format("2006-01-02 15:04:05")
 			}
-			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, subject, sender, receivedDate})
+			internetMessageID := derefOr(msg.GetInternetMessageId(), "N/A")
+			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, subject, sender, recipient, receivedDate, internetMessageID})
 		}
 	}
 

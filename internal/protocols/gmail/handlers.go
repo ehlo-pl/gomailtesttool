@@ -263,15 +263,17 @@ func listMailByLabel(ctx context.Context, svc *gmailapi.Service, config *Config,
 		} else {
 			fmt.Printf("No messages found in label %q.\n", label)
 		}
-		writeCSV(csv, []string{ActionListMail, StatusSuccess, config.Mailbox, label, "No messages found", "N/A"})
+		writeCSV(csv, []string{ActionListMail, StatusSuccess, config.Mailbox, label, "No messages found", "N/A", "N/A", "N/A", "N/A", "N/A"})
 		return nil
 	}
 
 	type summary struct {
-		ID      string `json:"id"`
-		Subject string `json:"subject"`
-		From    string `json:"from"`
-		Date    string `json:"date"`
+		ID        string `json:"id"`
+		Subject   string `json:"subject"`
+		From      string `json:"from"`
+		To        string `json:"to"`
+		Date      string `json:"date"`
+		MessageID string `json:"messageId"`
 	}
 	var summaries []summary
 	for _, m := range listRes.Messages {
@@ -279,7 +281,7 @@ func listMailByLabel(ctx context.Context, svc *gmailapi.Service, config *Config,
 		gErr := retryGmail(ctx, config, func() error {
 			var apiErr error
 			full, apiErr = svc.Users.Messages.Get("me", m.Id).Format("metadata").
-				MetadataHeaders("Subject", "From", "Date").Context(ctx).Do()
+				MetadataHeaders("Subject", "From", "To", "Date", "Message-ID").Context(ctx).Do()
 			return apiErr
 		})
 		if gErr != nil {
@@ -287,10 +289,12 @@ func listMailByLabel(ctx context.Context, svc *gmailapi.Service, config *Config,
 			continue
 		}
 		summaries = append(summaries, summary{
-			ID:      m.Id,
-			Subject: headerValue(full, "Subject"),
-			From:    headerValue(full, "From"),
-			Date:    headerValue(full, "Date"),
+			ID:        m.Id,
+			Subject:   headerValue(full, "Subject"),
+			From:      headerValue(full, "From"),
+			To:        headerValue(full, "To"),
+			Date:      headerValue(full, "Date"),
+			MessageID: headerValue(full, "Message-ID"),
 		})
 	}
 
@@ -299,11 +303,11 @@ func listMailByLabel(ctx context.Context, svc *gmailapi.Service, config *Config,
 	} else {
 		fmt.Printf("Messages in label %q for %s (%d):\n\n", label, config.Mailbox, len(summaries))
 		for i, s := range summaries {
-			fmt.Printf("%d. %s\n   From: %s\n   Date: %s\n\n", i+1, s.Subject, s.From, s.Date)
+			fmt.Printf("%d. %s\n   From: %s\n   To: %s\n   Date: %s\n   Message-ID: %s\n\n", i+1, s.Subject, s.From, s.To, s.Date, s.MessageID)
 		}
 	}
 	for _, s := range summaries {
-		writeCSV(csv, []string{ActionListMail, StatusSuccess, config.Mailbox, label, s.Subject, s.ID})
+		writeCSV(csv, []string{ActionListMail, StatusSuccess, config.Mailbox, label, s.Subject, s.From, s.To, s.Date, s.MessageID, s.ID})
 	}
 	return nil
 }

@@ -13,7 +13,7 @@ import (
 func listMail(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
 	fmt.Printf("Listing messages from %s inbox...\n\n", config.Host)
 
-	columns := []string{"Action", "Status", "Server", "Subject", "From", "ReceivedAt", "Preview", "Error"}
+	columns := []string{"Action", "Status", "Server", "Subject", "From", "To", "ReceivedAt", "MessageID", "Preview", "Error"}
 	if shouldWrite, _ := csvLogger.ShouldWriteHeader(); shouldWrite {
 		if err := csvLogger.WriteHeader(columns); err != nil {
 			logger.LogError(slogLogger, "Failed to write CSV header", "error", err)
@@ -24,20 +24,20 @@ func listMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 
 	if _, err := client.Discover(ctx); err != nil {
 		logger.LogError(slogLogger, "JMAP discovery failed", "error", err)
-		_ = csvLogger.WriteRow([]string{config.Action, "FAILURE", config.Host, "", "", "", "", err.Error()})
+		_ = csvLogger.WriteRow([]string{config.Action, "FAILURE", config.Host, "", "", "", "", "", "", err.Error()})
 		return fmt.Errorf("JMAP discovery failed: %w", err)
 	}
 
 	emails, err := client.QueryInboxEmails(ctx, uint32(config.Count))
 	if err != nil {
 		logger.LogError(slogLogger, "Failed to query inbox emails", "error", err)
-		_ = csvLogger.WriteRow([]string{config.Action, "FAILURE", config.Host, "", "", "", "", err.Error()})
+		_ = csvLogger.WriteRow([]string{config.Action, "FAILURE", config.Host, "", "", "", "", "", "", err.Error()})
 		return fmt.Errorf("failed to list mail: %w", err)
 	}
 
 	if len(emails) == 0 {
 		fmt.Println("No messages found in inbox.")
-		_ = csvLogger.WriteRow([]string{config.Action, "SUCCESS", config.Host, "No messages found", "", "", "", ""})
+		_ = csvLogger.WriteRow([]string{config.Action, "SUCCESS", config.Host, "No messages found", "", "", "", "", ""})
 		return nil
 	}
 
@@ -51,21 +51,33 @@ func listMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 				from = email.From[0].Email
 			}
 		}
+		to := "N/A"
+		if len(email.To) > 0 {
+			if email.To[0].Name != "" {
+				to = fmt.Sprintf("%s <%s>", email.To[0].Name, email.To[0].Email)
+			} else {
+				to = email.To[0].Email
+			}
+		}
 		subject := email.Subject
 		if subject == "" {
 			subject = "(no subject)"
+		}
+		messageID := "N/A"
+		if len(email.MessageId) > 0 {
+			messageID = email.MessageId[0]
 		}
 		preview := strings.TrimSpace(email.Preview)
 		if len(preview) > 80 {
 			preview = preview[:77] + "..."
 		}
 
-		fmt.Printf("%d. %s\n   From: %s\n   Received: %s\n   Preview: %s\n\n",
-			i+1, subject, from, email.ReceivedAt, preview)
+		fmt.Printf("%d. %s\n   From: %s\n   To: %s\n   Received: %s\n   Message-ID: %s\n   Preview: %s\n\n",
+			i+1, subject, from, to, email.ReceivedAt, messageID, preview)
 
 		_ = csvLogger.WriteRow([]string{
 			config.Action, "SUCCESS", config.Host,
-			subject, from, email.ReceivedAt, preview, "",
+			subject, from, to, email.ReceivedAt, messageID, preview, "",
 		})
 	}
 
