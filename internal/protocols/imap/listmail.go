@@ -15,7 +15,7 @@ import (
 func listMail(ctx context.Context, config *Config, csvLogger logger.Logger, slogLogger *slog.Logger) error {
 	fmt.Printf("Listing messages in %s on %s:%d...\n", config.Mailbox, config.Host, config.Port)
 
-	columns := []string{"Action", "Status", "Server", "Port", "Mailbox", "UID", "Subject", "From", "Date", "Error"}
+	columns := []string{"Action", "Status", "Server", "Port", "Mailbox", "UID", "Subject", "From", "To", "Date", "MessageID", "Error"}
 	if shouldWrite, _ := csvLogger.ShouldWriteHeader(); shouldWrite {
 		if err := csvLogger.WriteHeader(columns); err != nil {
 			logger.LogError(slogLogger, "Failed to write CSV header", "error", err)
@@ -83,7 +83,7 @@ func listMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 
 	fmt.Printf("\nNewest %d messages in %s:\n\n", len(messages), config.Mailbox)
 	for i, msg := range messages {
-		fmt.Printf("%d. Subject: %s\n   From: %s\n   Date: %s\n   UID: %d\n\n", i+1, msg.Subject, msg.From, msg.Date, msg.UID)
+		fmt.Printf("%d. Subject: %s\n   From: %s\n   To: %s\n   Date: %s\n   Message-ID: %s\n   UID: %d\n\n", i+1, msg.Subject, msg.From, msg.To, msg.Date, msg.MessageID, msg.UID)
 		writeListMailRow(csvLogger, slogLogger, config, true, msg, "")
 	}
 
@@ -104,7 +104,7 @@ func writeListMailRow(csvLogger logger.Logger, slogLogger *slog.Logger, config *
 	}
 	if logErr := csvLogger.WriteRow([]string{
 		ActionListMail, status, config.Host, fmt.Sprintf("%d", config.Port),
-		config.Mailbox, uid, msg.Subject, msg.From, msg.Date, errStr,
+		config.Mailbox, uid, msg.Subject, msg.From, msg.To, msg.Date, msg.MessageID, errStr,
 	}); logErr != nil {
 		logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)
 	}
