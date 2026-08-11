@@ -13,5 +13,4 @@
 
 | Tool | Language | Supported Protocols | Focus / Best Use Case | Link |
 | :--- | :--- | :--- | :--- | :--- |
-
 | ***grafana/smtprelay*** | Go | SMTP | simple SMTP relay by Grafana | [github](https://github.com/grafana/smtprelay) |
