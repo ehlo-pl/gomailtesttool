@@ -527,7 +527,7 @@ func listMailInFolder(ctx context.Context, client *msgraphsdk.GraphServiceClient
 		QueryParameters: &users.ItemMailFoldersItemMessagesRequestBuilderGetQueryParameters{
 			Top:     Int32Ptr(int32(count)),
 			Orderby: []string{"receivedDateTime DESC"},
-			Select:  []string{"subject", "receivedDateTime", "from", "toRecipients"},
+			Select:  []string{"subject", "receivedDateTime", "from", "toRecipients", "internetMessageId"},
 		},
 	}
 
@@ -561,30 +561,44 @@ func listMailInFolder(ctx context.Context, client *msgraphsdk.GraphServiceClient
 			if msg.GetFrom() != nil && msg.GetFrom().GetEmailAddress() != nil && msg.GetFrom().GetEmailAddress().GetAddress() != nil {
 				sender = *msg.GetFrom().GetEmailAddress().GetAddress()
 			}
+			recipient := "N/A"
+			if recipients := msg.GetToRecipients(); len(recipients) > 0 {
+				if recipients[0].GetEmailAddress() != nil && recipients[0].GetEmailAddress().GetAddress() != nil {
+					recipient = *recipients[0].GetEmailAddress().GetAddress()
+				}
+			}
 			subject := derefOr(msg.GetSubject(), "N/A")
 			receivedDate := "N/A"
 			if msg.GetReceivedDateTime() != nil {
 				receivedDate = msg.GetReceivedDateTime().Format("2006-01-02 15:04:05")
 			}
-			fmt.Printf("%d. Subject: %s\n   From: %s\n   Received: %s\n\n", i+1, subject, sender, receivedDate)
+			internetMessageID := derefOr(msg.GetInternetMessageId(), "N/A")
+			fmt.Printf("%d. Subject: %s\n   From: %s\n   To: %s\n   Received: %s\n   Message-ID: %s\n\n", i+1, subject, sender, recipient, receivedDate, internetMessageID)
 		}
 	}
 
 	if csvLogger != nil {
 		if messageCount == 0 {
-			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, "No messages found", "N/A", "N/A"})
+			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, "No messages found", "N/A", "N/A", "N/A", "N/A"})
 		}
 		for _, msg := range messages {
 			sender := "N/A"
 			if msg.GetFrom() != nil && msg.GetFrom().GetEmailAddress() != nil && msg.GetFrom().GetEmailAddress().GetAddress() != nil {
 				sender = *msg.GetFrom().GetEmailAddress().GetAddress()
 			}
+			recipient := "N/A"
+			if recipients := msg.GetToRecipients(); len(recipients) > 0 {
+				if recipients[0].GetEmailAddress() != nil && recipients[0].GetEmailAddress().GetAddress() != nil {
+					recipient = *recipients[0].GetEmailAddress().GetAddress()
+				}
+			}
 			subject := derefOr(msg.GetSubject(), "N/A")
 			receivedDate := "N/A"
 			if msg.GetReceivedDateTime() != nil {
 				receivedDate = msg.GetReceivedDateTime().Format("2006-01-02 15:04:05")
 			}
-			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, subject, sender, receivedDate})
+			internetMessageID := derefOr(msg.GetInternetMessageId(), "N/A")
+			_ = csvLogger.WriteRow([]string{ActionListMail, StatusSuccess, mailbox, folder, subject, sender, recipient, receivedDate, internetMessageID})
 		}
 	}
 
@@ -964,14 +978,17 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 	// Even though validateMessageID() blocks quotes, we escape as an additional safeguard
 	escapedMessageID := strings.ReplaceAll(messageID, "'", "''")
 	filter := fmt.Sprintf("internetMessageId eq '%s'", escapedMessageID)
+	selectFields := []string{"id", "internetMessageId", "subject", "receivedDateTime", "from", "toRecipients", "ccRecipients", "bccRecipients", "body", "hasAttachments"}
 	requestConfig := &users.ItemMessagesRequestBuilderGetRequestConfiguration{
 		QueryParameters: &users.ItemMessagesRequestBuilderGetQueryParameters{
 			Filter: &filter,
-			Select: []string{"id", "internetMessageId", "subject", "receivedDateTime", "from", "toRecipients", "ccRecipients", "bccRecipients", "body", "hasAttachments"},
+			Select: selectFields,
 		},
 	}
 
-	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/messages?$filter=%s", mailbox, filter)
+	queryDesc := fmt.Sprintf("GET /users/%s/messages?$filter=%s&$select=%s", mailbox, filter, strings.Join(selectFields, ","))
+
+	logVerbose(config.VerboseMode, "Calling Graph API: %s", queryDesc)
 
 	// Execute API call with retry logic; empty results are also retried
 	// because Graph is eventually consistent for just-delivered messages.
@@ -984,6 +1001,7 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 	})
 
 	if err != nil {
+		log.Printf("[DEBUG] Graph API query attempted: %s", queryDesc)
 		enrichedErr := enrichGraphAPIError(err, logger, "searchAndExport")
 		return fmt.Errorf("error searching message for %s: %w", mailbox, enrichedErr)
 	}
@@ -1066,7 +1084,11 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 	}
 	selectFields := []string{"id", "internetMessageId", "subject", "receivedDateTime", "from", "toRecipients", "ccRecipients", "bccRecipients", "hasAttachments"}
 
-	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/%s?$filter=%s&$top=%d", mailbox, folderPathSegment(folder), filter, count)
+	// Build the query description once so it can be reused for verbose
+	// pre-call logging and for the debug log emitted on error.
+	queryDesc := buildExportMessagesQueryDesc(mailbox, folder, filter, orderBy, count, selectFields)
+
+	logVerbose(config.VerboseMode, "Calling Graph API: %s", queryDesc)
 
 	// Execute API call with retry logic; empty results are also retried
 	// because Graph is eventually consistent for just-delivered messages.
@@ -1102,6 +1124,7 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 	})
 
 	if err != nil {
+		log.Printf("[DEBUG] Graph API query attempted: %s", queryDesc)
 		enrichedErr := enrichGraphAPIError(err, logger, "exportMessages")
 		return fmt.Errorf("error searching messages for %s: %w", mailbox, enrichedErr)
 	}
@@ -1172,6 +1195,25 @@ func folderPathSegment(folder string) string {
 		return "messages"
 	}
 	return fmt.Sprintf("mailFolders/%s/messages", folder)
+}
+
+// buildExportMessagesQueryDesc constructs a human-readable description of the
+// Graph API query issued by exportMessages. It is used for verbose pre-call
+// logging and for the debug log emitted when the call fails, so that operators
+// can inspect the exact request that triggered an error (e.g. ErrorInvalidIdMalformed).
+func buildExportMessagesQueryDesc(mailbox, folder, filter string, orderBy []string, count int, selectFields []string) string {
+	path := fmt.Sprintf("GET /users/%s/%s", mailbox, folderPathSegment(folder))
+	params := fmt.Sprintf("$top=%d", count)
+	if filter != "" {
+		params += fmt.Sprintf("&$filter=%s", filter)
+	}
+	if len(orderBy) > 0 {
+		params += fmt.Sprintf("&$orderby=%s", strings.Join(orderBy, ","))
+	}
+	if len(selectFields) > 0 {
+		params += fmt.Sprintf("&$select=%s", strings.Join(selectFields, ","))
+	}
+	return path + "?" + params
 }
 
 // exportMessageToEML fetches a message's raw RFC822/MIME content via the

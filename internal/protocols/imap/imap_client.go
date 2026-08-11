@@ -265,10 +265,12 @@ func (c *IMAPClient) SelectMailbox(ctx context.Context, mailbox string) error {
 
 // MessageSummary holds envelope information for a listed message.
 type MessageSummary struct {
-	UID     uint32
-	Subject string
-	From    string
-	Date    string
+	UID       uint32
+	Subject   string
+	From      string
+	To        string
+	Date      string
+	MessageID string
 }
 
 // ListMessages fetches envelope data for the newest count messages of the
@@ -310,9 +312,13 @@ func (c *IMAPClient) ListMessages(ctx context.Context, count int) ([]MessageSumm
 			if len(env.From) > 0 {
 				summary.From = env.From[0].Addr()
 			}
+			if len(env.To) > 0 {
+				summary.To = env.To[0].Addr()
+			}
 			if !env.Date.IsZero() {
 				summary.Date = env.Date.Format("2006-01-02 15:04:05")
 			}
+			summary.MessageID = env.MessageID
 		}
 		result = append(result, summary)
 	}
