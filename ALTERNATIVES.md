@@ -8,7 +8,7 @@
 | **Himalaya** | Rust | SMTP, IMAP, JMAP, Maildir, Notmuch, MS Graph | Modern CLI email client engine; ideal for pipeline automation and state validation using its native JSON output. | [GitHub](https://github.com/pimalaya/himalaya) |
 | **SWAKS** | Perl | SMTP, ESMTP, LMTP | The "Swiss Army Knife for SMTP"; the gold standard for step-by-step raw transaction and routing debugging. | [Website](https://jetmore.org/john/code/swaks/) / [GitHub](https://github.com/jetmore/swaks) |
 | ***tluyben/go-smtp-cli*** | Go | SMTP | Go implementation of Perl smtp-cli | [github](https://github.com/tluyben/go-smtp-cli/) |
-| **EvotecIT/Mailozaurr** | powershell | universal powershell module to manage mails | [github](https://github.com/EvotecIT/Mailozaurr) |
+| **EvotecIT/Mailozaurr** | powershell | SMTP, Graph, POP3, IMAP | universal powershell module to manage mails | [github](https://github.com/EvotecIT/Mailozaurr) |
 
 ## Mail tools for relay mail traffic
 
