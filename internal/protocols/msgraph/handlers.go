@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+	abstractions "github.com/microsoft/kiota-abstractions-go"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/users"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
@@ -248,9 +250,21 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 	saveToSentItems := config.SaveToSent
 	requestBody.SetSaveToSentItems(&saveToSentItems)
 
+	var sentMessageID string
+	responseOption := abstractions.NewRequestHandlerOption()
+	responseOption.SetResponseHandler(func(response interface{}, _ abstractions.ErrorMappings) (interface{}, error) {
+		if httpResponse, ok := response.(*http.Response); ok && httpResponse != nil {
+			sentMessageID = extractSendMailMessageID(httpResponse.Header)
+		}
+		return nil, nil
+	})
+	requestConfig := &users.ItemSendMailRequestBuilderPostRequestConfiguration{
+		Options: []abstractions.RequestOption{responseOption},
+	}
+
 	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/sendMail", senderMailbox)
 	logVerbose(config.VerboseMode, "Email details - To: %v, CC: %v, BCC: %v", to, cc, bcc)
-	err := client.Users().ByUserId(senderMailbox).SendMail().Post(ctx, requestBody, nil)
+	err := client.Users().ByUserId(senderMailbox).SendMail().Post(ctx, requestBody, requestConfig)
 
 	status := StatusSuccess
 	attachmentCount := len(attachmentPaths) + len(config.InlineAttachmentFiles)
@@ -268,6 +282,9 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 		fmt.Printf("Cc: %v\n", cc)
 		fmt.Printf("Bcc: %v\n", bcc)
 		fmt.Printf("Subject: %s\n", subject)
+		if sentMessageID != "" {
+			fmt.Printf("Message ID: %s\n", sentMessageID)
+		}
 		if htmlContent != "" {
 			fmt.Println("Body Type: HTML")
 		} else {
@@ -291,6 +308,21 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 	}
 
 	return returnErr
+}
+
+func extractSendMailMessageID(headers http.Header) string {
+	if headers == nil {
+		return ""
+	}
+
+	headerCandidates := []string{"Message-ID", "Message-Id", "Internet-Message-ID", "Internet-Message-Id"}
+	for _, key := range headerCandidates {
+		if value := strings.TrimSpace(headers.Get(key)); value != "" {
+			return value
+		}
+	}
+
+	return ""
 }
 
 // SaveDraft builds the same message as SendEmail but POSTs it to
