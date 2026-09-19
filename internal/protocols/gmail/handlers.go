@@ -321,6 +321,11 @@ func exportMessages(ctx context.Context, svc *gmailapi.Service, config *Config, 
 		query = buildSearchQuery(config.MessageID, config.Subject)
 	}
 
+	type exportResult struct {
+		ID       string `json:"id"`
+		FilePath string `json:"filePath"`
+	}
+
 	var listRes *gmailapi.ListMessagesResponse
 	err := retryGmail(ctx, config, func() error {
 		var apiErr error
@@ -350,6 +355,7 @@ func exportMessages(ctx context.Context, svc *gmailapi.Service, config *Config, 
 	}
 
 	success := 0
+	results := make([]exportResult, 0, len(listRes.Messages))
 	for _, m := range listRes.Messages {
 		filePath, exportErr := exportMessageToEML(ctx, svc, config, m.Id, dir)
 		if exportErr != nil {
@@ -358,13 +364,16 @@ func exportMessages(ctx context.Context, svc *gmailapi.Service, config *Config, 
 			continue
 		}
 		success++
+		results = append(results, exportResult{ID: m.Id, FilePath: filePath})
 		if config.OutputFormat != "json" {
 			fmt.Printf("Successfully exported message %s -> %s\n", m.Id, filePath)
 		}
 		writeCSV(csv, []string{ActionExportMessages, StatusSuccess, config.Mailbox, "Exported successfully", m.Id, filePath})
 	}
 
-	if config.OutputFormat != "json" {
+	if config.OutputFormat == "json" {
+		printJSON(results)
+	} else {
 		fmt.Printf("Successfully exported %d/%d messages.\n", success, len(listRes.Messages))
 	}
 	return nil

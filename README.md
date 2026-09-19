@@ -215,6 +215,16 @@ gomailtest gmail getevents  --credentials sa.json --mailbox user@corp.com --coun
 
 See [docs/protocols/gmail.md](docs/protocols/gmail.md) for full documentation.
 
+## End-to-End Testing Loop
+
+To validate a real delivery path, use `gomailtest` in two stages:
+
+1. send through `smtp sendmail` or `msgraph sendmail`
+2. collect the delivered message from Gmail with `gmail exportmessages --output json`
+3. POST that JSON to your own dashboard or web page backend
+
+See [docs/INTEGRATION_TESTS.md](docs/INTEGRATION_TESTS.md#end-to-end-loop-send-via-smtp-or-ms-graph-verify-with-gmail) for a complete example.
+
 ## SMTPS vs STARTTLS
 
 | Method | Port | Flag | Description |
