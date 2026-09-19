@@ -217,7 +217,7 @@ See [docs/protocols/gmail.md](docs/protocols/gmail.md) for full documentation.
 
 ## End-to-End Testing Loop
 
-To validate a real delivery path, use `gomailtest` in two stages:
+To validate a real delivery path, use `gomailtest` in three steps:
 
 1. send through `smtp sendmail` or `msgraph sendmail`
 2. collect the delivered message from Gmail with `gmail exportmessages --output json`
