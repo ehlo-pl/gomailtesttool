@@ -20,7 +20,7 @@ gomailtest <protocol> <action> [flags]
 | `msgraph` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `exportbearertoken` | Exchange Online via Microsoft Graph API |
 | `gmail` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
 
-See tables bellow for the full action × protocol matrix, including deprecated aliases (`getinbox`, `exportinbox`, `searchandexport`, `getmailboxes`).
+See tables below for the full action × protocol matrix, including deprecated aliases (`getinbox`, `exportinbox`, `searchandexport`, `getmailboxes`).
 
 Run `gomailtest <protocol> --help` for flags and environment variables.
 Quick reference for all CLI actions available across supported mail/calendar protocols.
