@@ -12,13 +12,13 @@ gomailtest <protocol> <action> [flags]
 
 | Protocol | Actions | Use case |
 |----------|---------|----------|
-| `smtp` | `testconnect`, `teststarttls`, `testauth`, `sendmail` | On-premises SMTP / Exchange relay |
+| `smtp` | `testconnect`, `testauth`, `teststarttls`, `sendmail` | On-premises SMTP / Exchange relay |
 | `imap` | `testconnect`, `testauth`, `teststarttls`, `listfolders`, `listmail`, `exportmessages` | IMAP mailbox access |
 | `pop3` | `testconnect`, `testauth`, `teststarttls`, `listmail`, `exportmessages` | POP3 mailbox access |
 | `jmap` | `testconnect`, `testauth`, `listfolders`, `listmail`, `sendmail`, `exportmessages` | JMAP (RFC 8620) servers |
-| `ews` | `testconnect`, `testauth`, `getfolder`, `autodiscover`, `listfolders`, `listmail`, `sendmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `freebusy` | On-premises Exchange via EWS (Exchange 2007–2019) |
-| `msgraph` | `testconnect`, `testauth`,  `sendmail`,  `listfolders`, `listmail`, `getschedule`, `getevents`, `sendinvite`, `findtimeslot`, `exportmessages`, `exportbearertoken` | Exchange Online via Microsoft Graph API |
-| `gmail` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`,  `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
+| `ews` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `freebusy`, `getfolder`, `autodiscover` | On-premises Exchange via EWS (Exchange 2007–2019) |
+| `msgraph` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `exportbearertoken` | Exchange Online via Microsoft Graph API |
+| `gmail` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
 
 See tables bellow for the full action × protocol matrix, including deprecated aliases (`getinbox`, `exportinbox`, `searchandexport`, `getmailboxes`).
 
