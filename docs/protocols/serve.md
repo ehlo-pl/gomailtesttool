@@ -320,6 +320,7 @@ For Claude Code you can register the same command with `claude mcp add gomailtes
 
 ## Related Documentation
 
+- [docs/INTEGRATION_TESTS.md](../INTEGRATION_TESTS.md) — end-to-end loops such as send via SMTP/MS Graph and verify delivery with Gmail
 - [docs/protocols/smtp.md](smtp.md) — SMTP CLI usage and flags
 - [docs/protocols/msgraph.md](msgraph.md) — Microsoft Graph CLI usage and flags
 - [SECURITY.md](../../SECURITY.md) — Security policy

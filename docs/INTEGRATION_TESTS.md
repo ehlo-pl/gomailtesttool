@@ -194,6 +194,80 @@ gomailtest msgraph searchandexport --messageid "<does-not-exist-123@example.com>
 
 Set `--maxretries 0` to restore single-attempt behavior (no consistency wait).
 
+## End-to-End Loop: Send via SMTP or MS Graph, verify with Gmail
+
+`gomailtesttool` already has the pieces needed for a delivery-verification loop:
+
+1. **Send** the test message via `smtp sendmail` or `msgraph sendmail`
+2. **Tag** the message with a unique subject (or Message-ID) so it can be found reliably
+3. **Collect** the delivered message from Gmail with `gmail exportmessages`
+4. **Publish** the structured result to your own web page or webhook
+
+This keeps the sender side and the receiver side separate, which is useful when
+you want to validate real end-to-end delivery across different providers.
+
+**Recommended shape of the loop**
+
+- Generate a unique subject such as `Loop-Test-20260919-101000`
+- Send through the system under test (`smtp` or `msgraph`)
+- Poll Gmail with `gmail exportmessages --subject ... --output json`
+- Forward the JSON result to your own HTTP endpoint, dashboard backend, or static-page generator
+
+### Example: SMTP → Gmail → webhook
+
+```powershell
+$subject = "Loop-Test $(Get-Date -Format 'yyyyMMdd-HHmmss')"
+
+gomailtest smtp sendmail `
+    --host smtp.example.com --port 587 --starttls `
+    --username sender@example.com --password "secret" `
+    --from sender@example.com --to workspace-user@corp.com `
+    --subject $subject --body "SMTP to Gmail verification"
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+$json = gomailtest gmail exportmessages `
+    --credentials sa.json --mailbox workspace-user@corp.com `
+    --subject $subject --count 1 --output json
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+Invoke-RestMethod -Method POST `
+    -Uri "https://example.test/mail-loop-results" `
+    -ContentType "application/json" `
+    -Body $json
+```
+
+### Example: MS Graph → Gmail → webhook
+
+```powershell
+$subject = "Loop-Test $(Get-Date -Format 'yyyyMMdd-HHmmss')"
+
+gomailtest msgraph sendmail --to workspace-user@corp.com --subject $subject --body "Graph to Gmail verification"
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+$json = gomailtest gmail exportmessages `
+    --credentials sa.json --mailbox workspace-user@corp.com `
+    --subject $subject --count 1 --output json `
+    --maxretries 5 --retrydelay 1000
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+Invoke-RestMethod -Method POST `
+    -Uri "https://example.test/mail-loop-results" `
+    -ContentType "application/json" `
+    -Body $json
+```
+
+### Notes for web-page integration
+
+- `serve` mode is the **send-side API**; it does not host a results UI.
+- For result pages, treat `gomailtest gmail ... --output json` as the collector and
+  post that JSON to your own web application.
+- `gmail exportmessages --output json` now returns the exported Gmail message IDs
+  and local `.eml` file paths, which is convenient for dashboards that want both
+  a pass/fail signal and an artifact link.
+- Use a unique subject per run to avoid matching stale inbox traffic.
+- With Microsoft Graph, keep `--maxretries` / `--retrydelay` enabled because send
+  completion and inbox visibility may not become consistent at the same time.
+
 **Unit tests with the race detector:**
 
 The retry logic itself is covered by unit tests in
