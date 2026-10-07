@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
+	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
@@ -46,6 +47,8 @@ type Config struct {
 	Priority          string   // Email priority: high, normal, low (normal adds no extra headers)
 	Template          string   // Path to a message template: .eml (full RFC 822 message) or HTML body file
 	TemplateVars      []string // Template variables in "key=value" form, referenced as {{.key}}
+	MessageID         string   // Optional complete Message-ID value (without angle brackets)
+	MessageIDSuffix   string   // Optional domain to use after @ in the generated Message-ID
 
 	// Runtime state filled by resolveTemplate for an .eml --template (not flags)
 	RawMessage   []byte // Rendered EML message injected verbatim into DATA
@@ -191,6 +194,8 @@ func BindEnvs(v *viper.Viper) {
 		"verbose":           "SMTPVERBOSE",
 		"loglevel":          "SMTPLOGLEVEL",
 		"header":            "SMTPHEADER",
+		"messageid":         "SMTPMESSAGEID",
+		"messageidsuffix":   "SMTPMESSAGEIDSUFFIX",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -292,6 +297,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Priority:          priority,
 		Template:          v.GetString("template"),
 		TemplateVars:      v.GetStringSlice("template-vars"),
+		MessageID:         v.GetString("messageid"),
+		MessageIDSuffix:   v.GetString("messageidsuffix"),
 		StartTLS:          v.GetBool("starttls"),
 		SMTPS:             v.GetBool("smtps"),
 		NoStartTLS:        v.GetBool("no-starttls"),
@@ -452,6 +459,9 @@ func validateConfiguration(config *Config) error {
 		}
 
 	case ActionSendMail:
+		if _, err := mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, generateMessageID(config.Host)); err != nil {
+			return err
+		}
 		// Validate --template/--template-vars. An .eml template carries the
 		// complete message, so From/To/Subject may come from its headers
 		// instead of flags (resolved after rendering in resolveTemplate).

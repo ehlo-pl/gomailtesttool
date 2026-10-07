@@ -236,6 +236,8 @@ upgrades to TLS automatically, and logs the result (including TLS details) to CS
 	cmd.Flags().String("subject", "SMTP Test", "Email subject (env: SMTPSUBJECT)")
 	cmd.Flags().String("body", "This is a test message from smtptool", "Email body text (env: SMTPBODY)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content; combine with --body for multipart/alternative (env: SMTPBODYHTML)")
+	cmd.Flags().String("messageid", "", "Complete Message-ID value to use (env: SMTPMESSAGEID)")
+	cmd.Flags().String("messageidsuffix", "", "Domain suffix for the generated Message-ID (env: SMTPMESSAGEIDSUFFIX)")
 	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: SMTPATTACHMENTS)")
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: SMTPINLINEATTACHMENTS)")
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: SMTPHEADER — comma-separated; avoid commas in header values)")
