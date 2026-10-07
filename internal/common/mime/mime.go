@@ -14,11 +14,75 @@ import (
 	"io"
 	"mime/multipart"
 	"net/textproto"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 )
+
+var messageIDLocalPartPattern = regexp.MustCompile(`^[A-Za-z0-9.!#$%&'*+/=?^_` + "`" + `{|}~-]+$`)
+var messageIDDomainPattern = regexp.MustCompile(`^[A-Za-z0-9.-]+$`)
+
+// ResolveMessageID returns the selected Message-ID without surrounding angle
+// brackets. An explicit ID and suffix are mutually exclusive; otherwise the
+// suffix replaces the domain of defaultID.
+func ResolveMessageID(messageID, suffix, defaultID string) (string, error) {
+	if messageID != "" && suffix != "" {
+		return "", fmt.Errorf("--messageid and --messageidsuffix cannot be used together")
+	}
+
+	if messageID != "" {
+		value := strings.TrimSpace(messageID)
+		if strings.HasPrefix(value, "<") && strings.HasSuffix(value, ">") {
+			value = value[1 : len(value)-1]
+		}
+		if err := validateMessageIDValue(value); err != nil {
+			return "", fmt.Errorf("invalid --messageid: %w", err)
+		}
+		return value, nil
+	}
+
+	if suffix == "" {
+		return defaultID, nil
+	}
+	if err := validateMessageIDDomain(suffix); err != nil {
+		return "", fmt.Errorf("invalid --messageidsuffix: %w", err)
+	}
+	local, _, ok := strings.Cut(defaultID, "@")
+	if !ok || local == "" {
+		return "", fmt.Errorf("cannot apply --messageidsuffix to generated Message-ID %q", defaultID)
+	}
+	return local + "@" + suffix, nil
+}
+
+func validateMessageIDValue(value string) error {
+	if strings.Count(value, "@") != 1 {
+		return fmt.Errorf("must have the form local@domain")
+	}
+	local, domain, _ := strings.Cut(value, "@")
+	if local == "" || !messageIDLocalPartPattern.MatchString(local) ||
+		strings.HasPrefix(local, ".") || strings.HasSuffix(local, ".") || strings.Contains(local, "..") {
+		return fmt.Errorf("invalid local part")
+	}
+	if err := validateMessageIDDomain(domain); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateMessageIDDomain(domain string) error {
+	if domain == "" || !messageIDDomainPattern.MatchString(domain) ||
+		strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") || strings.Contains(domain, "..") {
+		return fmt.Errorf("domain must contain only letters, digits, dots, and hyphens")
+	}
+	for _, label := range strings.Split(domain, ".") {
+		if label == "" || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+			return fmt.Errorf("invalid domain label")
+		}
+	}
+	return nil
+}
 
 // Message describes an email to assemble into an RFC 5322 byte stream.
 type Message struct {

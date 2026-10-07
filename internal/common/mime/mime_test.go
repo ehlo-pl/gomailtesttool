@@ -355,6 +355,43 @@ func TestBuild_UsesSuppliedMessageID(t *testing.T) {
 	}
 }
 
+func TestResolveMessageID(t *testing.T) {
+	tests := []struct {
+		name      string
+		messageID string
+		suffix    string
+		defaultID string
+		want      string
+		wantError bool
+	}{
+		{name: "default", defaultID: "generated@host", want: "generated@host"},
+		{name: "explicit", messageID: "custom@example.com", defaultID: "generated@host", want: "custom@example.com"},
+		{name: "bracketed explicit", messageID: "<custom@example.com>", want: "custom@example.com"},
+		{name: "suffix replaces generated domain", suffix: "example.com", defaultID: "generated@host", want: "generated@example.com"},
+		{name: "explicit and suffix conflict", messageID: "custom@example.com", suffix: "example.com", wantError: true},
+		{name: "reject header injection", messageID: "custom@example.com\r\nX-Injected: yes", wantError: true},
+		{name: "reject suffix with at sign", suffix: "@example.com", defaultID: "generated@host", wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResolveMessageID(tt.messageID, tt.suffix, tt.defaultID)
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("ResolveMessageID() expected an error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ResolveMessageID() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("ResolveMessageID() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGenerateMessageID(t *testing.T) {
 	if got := GenerateMessageID("", "gomailtest"); !strings.Contains(got, "@gomailtest") || !strings.Contains(got, ".gomailtest") {
 		t.Errorf("GenerateMessageID(\"\",...) = %q, want default host and tool", got)
