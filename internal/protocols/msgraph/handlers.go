@@ -11,15 +11,16 @@ import (
 	"strings"
 	"time"
 
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	abstractions "github.com/microsoft/kiota-abstractions-go"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
-	"github.com/microsoftgraph/msgraph-sdk-go/users"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/timeslot"
+	abstractions "github.com/microsoft/kiota-abstractions-go"
+	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+	"github.com/microsoftgraph/msgraph-sdk-go/models"
+	"github.com/microsoftgraph/msgraph-sdk-go/users"
 )
 
 // Status constants
@@ -169,7 +170,7 @@ func resolveTemplate(config *Config) error {
 // attachments, custom headers) shared by the send and draft paths. Attachment and
 // header errors are logged and skipped rather than aborting, matching the tool's
 // lenient send behaviour.
-func buildMessage(to, cc, bcc []string, subject, textContent, htmlContent string, attachmentPaths []string, config *Config) models.Messageable {
+func buildMessage(to, cc, bcc []string, subject, textContent, htmlContent string, attachmentPaths []string, config *Config) (models.Messageable, error) {
 	message := models.NewMessage()
 
 	// Set Subject
@@ -237,13 +238,28 @@ func buildMessage(to, cc, bcc []string, subject, textContent, htmlContent string
 		}
 	}
 
-	return message
+	if config.MessageID != "" || config.MessageIDSuffix != "" {
+		messageID, err := mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, mimebuilder.GenerateMessageID("", "msgraphtool"))
+		if err != nil {
+			return nil, err
+		}
+		header := models.NewInternetMessageHeader()
+		name, value := "X-Message-ID", "<"+messageID+">"
+		header.SetName(&name)
+		header.SetValue(&value)
+		message.SetInternetMessageHeaders(append(message.GetInternetMessageHeaders(), header))
+	}
+
+	return message, nil
 }
 
 // SendEmail sends an email via the Microsoft Graph API.
 // Returns a non-nil error if the send fails; logging to CSV and console occurs regardless.
 func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, senderMailbox string, to, cc, bcc []string, subject, textContent, htmlContent string, attachmentPaths []string, config *Config, logger logger.Logger) error {
-	message := buildMessage(to, cc, bcc, subject, textContent, htmlContent, attachmentPaths, config)
+	message, err := buildMessage(to, cc, bcc, subject, textContent, htmlContent, attachmentPaths, config)
+	if err != nil {
+		return fmt.Errorf("invalid Message-ID: %w", err)
+	}
 
 	requestBody := users.NewItemSendMailPostRequestBody()
 	requestBody.SetMessage(message)
@@ -264,7 +280,7 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 
 	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/sendMail", senderMailbox)
 	logVerbose(config.VerboseMode, "Email details - To: %v, CC: %v, BCC: %v", to, cc, bcc)
-	err := client.Users().ByUserId(senderMailbox).SendMail().Post(ctx, requestBody, requestConfig)
+	err = client.Users().ByUserId(senderMailbox).SendMail().Post(ctx, requestBody, requestConfig)
 
 	status := StatusSuccess
 	attachmentCount := len(attachmentPaths) + len(config.InlineAttachmentFiles)
@@ -330,7 +346,10 @@ func extractSendMailMessageID(headers http.Header) string {
 // sending. Requires the Mail.ReadWrite permission (Mail.Send alone is not enough).
 // Returns a non-nil error if the request fails; logging to CSV and console occurs regardless.
 func SaveDraft(ctx context.Context, client *msgraphsdk.GraphServiceClient, senderMailbox string, to, cc, bcc []string, subject, textContent, htmlContent string, attachmentPaths []string, config *Config, logger logger.Logger) error {
-	message := buildMessage(to, cc, bcc, subject, textContent, htmlContent, attachmentPaths, config)
+	message, err := buildMessage(to, cc, bcc, subject, textContent, htmlContent, attachmentPaths, config)
+	if err != nil {
+		return fmt.Errorf("invalid Message-ID: %w", err)
+	}
 
 	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/messages", senderMailbox)
 	logVerbose(config.VerboseMode, "Draft details - To: %v, CC: %v, BCC: %v", to, cc, bcc)
@@ -1275,7 +1294,6 @@ func exportMessageToEML(ctx context.Context, client *msgraphsdk.GraphServiceClie
 	if message.GetInternetMessageId() != nil && *message.GetInternetMessageId() != "" {
 		name = *message.GetInternetMessageId()
 	}
-
 
 	filename := fmt.Sprintf("msg_%s.eml", export.SanitizeFilename(name))
 	filePath := filepath.Join(dir, filename)

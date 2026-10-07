@@ -8,6 +8,7 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/jmap/protocol"
 )
@@ -164,6 +165,41 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	if err != nil {
 		writeRow("FAILURE", err.Error())
 		return err
+	}
+
+	if config.MessageID != "" || config.MessageIDSuffix != "" {
+		messageID, resolveErr := mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, mimebuilder.GenerateMessageID(config.Host, "jmaptool"))
+		if resolveErr != nil {
+			writeRow("FAILURE", resolveErr.Error())
+			return resolveErr
+		}
+		rawMessage, buildErr := mimebuilder.Build(mimebuilder.Message{
+			From:        mailFrom,
+			To:          config.To,
+			Cc:          config.Cc,
+			Subject:     config.Subject,
+			TextBody:    config.Body,
+			HTMLBody:    config.BodyHTML,
+			Attachments: regularAtts,
+			Inline:      inlineAtts,
+			MessageID:   messageID,
+		})
+		if buildErr != nil {
+			writeRow("FAILURE", buildErr.Error())
+			return fmt.Errorf("failed to build RFC 5322 message: %w", buildErr)
+		}
+		if err := client.SendRawEmail(ctx, rawMessage, mailboxIds, mailFrom, append(toAddrs, append(ccAddrs, bccAddrs...)...)); err != nil {
+			logger.LogError(slogLogger, "Failed to send mail", "error", err)
+			writeRow("FAILURE", err.Error())
+			return fmt.Errorf("failed to send mail: %w", err)
+		}
+		fmt.Printf("✓ Email sent successfully\n")
+		fmt.Printf("  From:    %s\n", mailFrom)
+		fmt.Printf("  To:      %s\n", strings.Join(config.To, ", "))
+		fmt.Printf("  Subject: %s\n", config.Subject)
+		writeRow("SUCCESS", "")
+		logger.LogInfo(slogLogger, "sendmail completed", "to", strings.Join(config.To, ", "), "subject", config.Subject, "message_id", messageID)
+		return nil
 	}
 
 	var jmapAttachments []protocol.EmailAttachment

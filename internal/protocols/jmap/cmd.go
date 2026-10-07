@@ -251,6 +251,8 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("bcc", "", "Comma-separated BCC recipients (env: JMAPBCC)")
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: JMAPSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: JMAPBODY)")
+	cmd.Flags().String("messageid", "", "Complete Message-ID value to use in the imported RFC 5322 message (env: JMAPMESSAGEID)")
+	cmd.Flags().String("messageidsuffix", "", "Domain suffix for the generated Message-ID (env: JMAPMESSAGEIDSUFFIX)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: JMAPBODYHTML)")
 	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: JMAPATTACHMENTS)")
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: JMAPINLINEATTACHMENTS)")

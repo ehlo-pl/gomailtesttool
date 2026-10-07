@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -187,6 +188,22 @@ func TestNewEmailQueryRequest(t *testing.T) {
 	}
 	if req.MethodCalls[0].Name != MethodEmailQuery {
 		t.Errorf("MethodCalls[0].Name = %q, want %q", req.MethodCalls[0].Name, MethodEmailQuery)
+	}
+}
+
+func TestNewEmailImportAndSubmitRequest(t *testing.T) {
+	req := NewEmailImportAndSubmitRequest("account", "blob", map[Id]bool{"sent": true}, "from@example.com", []EmailAddress{{Email: "to@example.com"}})
+	if len(req.MethodCalls) != 2 || req.MethodCalls[0].Name != MethodEmailImport || req.MethodCalls[1].Name != MethodEmailSubmissionSet {
+		t.Fatalf("unexpected method calls: %+v", req.MethodCalls)
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	for _, want := range []string{`"blobId":"blob"`, `"path":"/created/imported/id"`, `"email":"to@example.com"`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("request %s missing %q", data, want)
+		}
 	}
 }
 
