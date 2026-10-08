@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
@@ -263,7 +264,7 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	fmt.Println("\nSending message...")
 	logger.LogDebug(slogLogger, "Sending email", "from", config.From, "to", config.To, "cc", config.Cc, "bcc", config.Bcc)
 
-	err = client.SendMail(config.From, envelopeRecipients, messageData)
+	serverResponse, err := client.SendMail(config.From, envelopeRecipients, messageData)
 	if err != nil {
 		logger.LogError(slogLogger, "Failed to send email", "error", err)
 		tlsData := formatTLSInfoForCSV(tlsState, client.GetHost())
@@ -283,6 +284,9 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	fmt.Println("✓ Message sent successfully")
 	if messageID != "" {
 		fmt.Printf("  Message-ID: <%s>\n", messageID)
+	}
+	if internetMessageID := extractInternetMessageID(serverResponse); internetMessageID != "" {
+		fmt.Printf("  InternetMessage-ID: %s\n", internetMessageID)
 	}
 
 	// Log to CSV
@@ -516,6 +520,12 @@ func collectEnvelopeRecipients(config *Config) []string {
 	recipients = append(recipients, config.Cc...)
 	recipients = append(recipients, config.Bcc...)
 	return recipients
+}
+
+var internetMessageIDPattern = regexp.MustCompile(`<[^<>\s@]+@[^<>\s@]+>`)
+
+func extractInternetMessageID(serverResponse string) string {
+	return internetMessageIDPattern.FindString(serverResponse)
 }
 
 // generateMessageID creates a unique message ID in the SMTP tool's historic

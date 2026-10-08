@@ -268,6 +268,36 @@ func TestGenerateMessageID(t *testing.T) {
 	}
 }
 
+func TestExtractInternetMessageID(t *testing.T) {
+	tests := []struct {
+		name     string
+		response string
+		want     string
+	}{
+		{
+			name:     "server response contains Internet Message-ID",
+			response: "2.0.0 OK <server-assigned@example.com> queued for delivery",
+			want:     "<server-assigned@example.com>",
+		},
+		{
+			name:     "server response contains no message ID",
+			response: "2.0.0 Ok: queued as 12345",
+		},
+		{
+			name:     "angle-bracket value is not an email message ID",
+			response: "2.0.0 OK <queued>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := extractInternetMessageID(tt.response); got != tt.want {
+				t.Errorf("extractInternetMessageID(%q) = %q, want %q", tt.response, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSendMail_AllowsNilCSVLogger(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
