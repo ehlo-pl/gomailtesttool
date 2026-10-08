@@ -1,7 +1,7 @@
 # Code Review Results - gomailtesttool
 
 **Scope:** Full codebase review of version 4.1.11 (178 Go files; 151 Markdown files), 2026-10-08. Focused on security-sensitive behavior and consistency between implementation, user documentation, and the security policy.
-**Method:** Traced credential and email-data handling through implementation and docs; checked export permissions, HTTP server transport/authentication, and stated threat model. Findings below are limited to behaviors verified in the current tree. No dependency advisory scan or live network penetration test was performed.
+**Method:** Traced credential and email-data handling through implementation, release workflow, and docs; checked export permissions, SMTP/HTTP transport security, shell interpolation, and stated threat model. Findings below are limited to behaviors verified in the current tree. No dependency advisory scan, live network test, or check of repository tag protections was performed.
 
 ## 1. Security findings
 
@@ -26,6 +26,20 @@
 - **Impact:** Users following the guide can expose the server’s authentication key through process listings, diagnostics, or process monitoring.
 - **Recommendation:** Use only `gomailtest serve` in the environment-based Quick Start and make `SERVE_API_KEY` the preferred documented configuration. If the flag remains documented, warn that it may be visible in process arguments.
 
+### 1.4 Major: SMTP authentication can proceed without TLS
+
+- **Location:** `internal/protocols/smtp/testauth.go:113-159,161-193`; `internal/protocols/smtp/sendmail.go:122-168,170-193`; `internal/protocols/smtp/smtp_client.go:323-329,543-554`.
+- **Issue:** On non-SMTPS connections, `testauth` and `sendmail` upgrade only when STARTTLS is advertised. If it is absent—including when an on-path attacker strips the EHLO capability—the code continues to select an advertised AUTH mechanism and authenticate. The custom PLAIN implementation explicitly bypasses the standard library’s TLS check and sends the username and password in a base64-encoded, reversible payload.
+- **Impact:** Passwords and bearer tokens can be exposed to a network observer when authentication occurs over plaintext SMTP. The same behavior is reachable with `--no-starttls`, but can also occur by default if STARTTLS is not advertised.
+- **Recommendation:** Refuse password/token authentication without an established TLS connection by default. If insecure SMTP authentication must remain available for diagnostics, require an explicit opt-in and warn clearly.
+
+### 1.5 Major: A pushed tag is interpolated into a shell command in the release workflow
+
+- **Location:** `.github/workflows/build.yml:4-6,10-11,55-59,107-109`.
+- **Issue:** The tag-triggered workflow expands `${{ github.ref_name }}` directly inside a Bash `run` command. Git accepts a tag such as `v1$(id)` (verified with `git check-ref-format`), and Bash evaluates the command substitution after Actions inserts the tag into the script. The workflow also grants `contents: write` at workflow scope.
+- **Impact:** A user able to push a matching tag can cause shell command execution on the release runner, potentially affecting release artifacts and the write-enabled workflow token. Repository tag protection rules were not available for this review, so the set of users able to trigger this is unknown.
+- **Recommendation:** Pass the tag through an environment variable and reference that variable in the script; shell does not recursively evaluate command substitutions in expanded variable values. Limit write permissions to the release job and only the required steps.
+
 ## 2. Documentation coherence findings
 
 ### 2.1 Medium: Security policy denies the network-service use case now documented as supported
@@ -41,17 +55,26 @@
 - **Issue:** The documented `GET /` response lists `/health`, SMTP, MS Graph, and EWS, but the actual response also includes `/mcp` with availability based on `EnableMCP`. Since MCP is enabled by default, the example does not match a default server response.
 - **Recommendation:** Add the `/mcp` entry to the example or label it as a shortened response.
 
+### 2.3 Minor: Build troubleshooting documents an outdated minimum Go version
+
+- **Location:** `docs/BUILD.md:213`; `go.mod:3`.
+- **Issue:** The troubleshooting section says Go 1.24 or later is sufficient, while the module declares Go 1.25. This misstates the module’s minimum toolchain requirement, especially for users with automatic toolchain downloads disabled.
+- **Recommendation:** Change the troubleshooting prerequisite to Go 1.25 or later.
+
 ## 3. Prioritized backlog
 
 Score = (Impact + Risk) × (6 − Effort), each 1–5.
 
 | # | Item | Impact | Risk | Effort | Score |
 |---|------|--------|------|--------|-------|
-| 1 | Remove secret-bearing CLI invocation from serve examples (1.3) | 3 | 4 | 1 | 35 |
-| 2 | Prefer owner-only permissions for exported mail and directories (1.1) | 4 | 4 | 2 | 32 |
-| 3 | Require/document TLS protection for remote serve deployments (1.2) | 4 | 4 | 2 | 32 |
-| 4 | Reconcile security policy with serve mode (2.1) | 3 | 3 | 1 | 30 |
-| 5 | Bring the `GET /` sample into sync with the response (2.2) | 1 | 1 | 1 | 10 |
+| 1 | Prevent shell evaluation of tag names in release workflow (1.5) | 5 | 5 | 2 | 40 |
+| 2 | Fail closed on SMTP credential auth without TLS (1.4) | 5 | 5 | 2 | 40 |
+| 3 | Remove secret-bearing CLI invocation from serve examples (1.3) | 3 | 4 | 1 | 35 |
+| 4 | Prefer owner-only permissions for exported mail and directories (1.1) | 4 | 4 | 2 | 32 |
+| 5 | Require/document TLS protection for remote serve deployments (1.2) | 4 | 4 | 2 | 32 |
+| 6 | Reconcile security policy with serve mode (2.1) | 3 | 3 | 1 | 30 |
+| 7 | Bring the `GET /` sample into sync with the response (2.2) | 1 | 1 | 1 | 10 |
+| 8 | Correct the Go version in build troubleshooting (2.3) | 1 | 1 | 1 | 10 |
 
 ## 4. Validation
 
@@ -60,4 +83,4 @@ Score = (Impact + Risk) × (6 − Effort), each 1–5.
 
 ## 5. Summary
 
-The most important verified risk is confidentiality: several protocols save exported mailbox messages with permissions that are readable by other local users under common Unix defaults, unlike JMAP/EWS. The HTTP/MCP service also provides no TLS itself, although documentation describes remote use; deployments need an explicitly documented TLS boundary. Finally, serve guidance should stop putting the API key in command arguments and the global security model should cover this supported network-facing feature. No code was changed as part of this review; the findings are recommendations for follow-up work.
+The most urgent findings are the release workflow’s shell interpolation of tag names and SMTP credential authentication without TLS. Export permissions also expose mailbox contents to other local users under common Unix defaults. The HTTP/MCP service provides no TLS itself despite documented remote use, and serve guidance should stop putting API keys in command arguments. The global security policy and build troubleshooting also need updates to match supported features and the current Go requirement. No source code was changed as part of this review; findings are recommendations for follow-up work.
