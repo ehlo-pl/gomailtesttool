@@ -213,6 +213,8 @@ gomailtest msgraph listmail --folder inbox --count 20
 
 Retrieves a recipient's merged availability view over a time window (default: the next 24 hours) via the Graph `getSchedule` API. Output is a digit-per-hour availability string with a legend (`0=Free 1=Tentative 2=Busy 3=Out of Office 4=Working Elsewhere`), matching the EWS `getschedule` format. Honors `--start`/`--end`.
 
+**Difference from `getevents`:** `getevents` retrieves calendar event records for `--mailbox` (such as subjects and event IDs), up to `--count`. `getschedule` requires `--to` and reports that recipient's availability for a time window; it does not list event details. Use `getevents` to view events and `getschedule` to check when someone is free or busy.
+
 ```powershell
 # Default window: now → +24 hours
 gomailtest msgraph getschedule --to "colleague@example.com"
