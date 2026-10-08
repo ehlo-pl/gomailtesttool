@@ -47,6 +47,7 @@ Delegated permissions (deprecated): see docs/protocols/msgraph.md.`,
 		newExportInboxCmd(v),
 		newSearchAndExportCmd(v),
 		newExportMessagesCmd(v),
+		newRemoveMessagesCmd(v),
 		newExportBearerTokenCmd(v),
 		newTestConnectCmd(v),
 		newTestAuthCmd(v),
@@ -741,6 +742,63 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("folder", "", "Mail folder to scope the search to (well-known names: inbox, sentitems, drafts, deleteditems, junkemail); with no other criteria exports the newest messages of the folder (env: MSGRAPHFOLDER)")
 	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: MSGRAPHCOUNT)")
 	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: MSGRAPHEXPORTDIR)")
+	return cmd
+}
+
+func newRemoveMessagesCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "removemessages",
+		Short: "Preview and remove messages matching a Message-ID, subject, or folder",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+
+			config := ConfigFromViper(v)
+			config.Action = ActionRemoveMessages
+			config.Subject = v.GetString("subject")
+
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("msgraphtool", ActionRemoveMessages, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			if config.ProxyURL != "" {
+				_ = os.Setenv("HTTP_PROXY", config.ProxyURL)
+				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
+			}
+
+			client, err := NewGraphServiceClient(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+
+			previewWriter := cmd.OutOrStdout()
+			if config.OutputFormat == "json" {
+				previewWriter = cmd.ErrOrStderr()
+			}
+			return removeMessages(ctx, client, config.Mailbox, config.MessageID, config.Subject, config.Folder, config.Count, config, csvLogger, cmd.InOrStdin(), previewWriter, cmd.OutOrStdout())
+		},
+	}
+	cmd.Flags().String("messageid", "", "Internet Message-ID to search for (env: MSGRAPHMESSAGEID)")
+	cmd.Flags().String("subject", "", "Subject substring to search for, used with OData contains() (env: MSGRAPHSUBJECT)")
+	cmd.Flags().String("folder", "", "Mail folder to scope the search to (env: MSGRAPHFOLDER)")
+	cmd.Flags().Int("count", 25, "Maximum number of matching messages to remove (env: MSGRAPHCOUNT)")
+	cmd.Flags().Bool("confirmdelete", false, "Confirm the whole matching set once instead of prompting for each message (env: MSGRAPHCONFIRMDELETE)")
+	cmd.Flags().Bool("permanent", false, "Permanently delete messages instead of moving them to Deleted Items (env: MSGRAPHPERMANENT)")
 	return cmd
 }
 

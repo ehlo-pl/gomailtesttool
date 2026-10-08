@@ -287,6 +287,24 @@ Like `searchandexport`, an empty result is retried with exponential backoff
 (`--maxretries` / `--retrydelay`) to absorb Graph's eventual-consistency
 indexing delay; "No messages found" is reported only after the last attempt.
 
+### removemessages — Remove Matching Messages
+
+Searches using the same criteria as `exportmessages`, displays all matches, and
+asks before removing anything. By default, each message is confirmed separately.
+Use `--confirmdelete` to confirm the whole matching set once. Removal moves
+messages to Deleted Items; `--permanent` uses Graph's permanent-delete action.
+
+```powershell
+gomailtest msgraph removemessages --messageid "<message-id@example.com>"
+gomailtest msgraph removemessages --subject "Invoice" --folder inbox --count 10
+gomailtest msgraph removemessages --subject "Invoice" --confirmdelete
+gomailtest msgraph removemessages --subject "Invoice" --confirmdelete --permanent
+```
+
+`--confirmdelete` still requires an explicit yes at the batch prompt; it only
+avoids asking separately for every message. Permanent deletion is not recoverable
+from Deleted Items and requires the **`Mail.ReadWrite`** Graph permission.
+
 ### exportbearertoken — Print access token
 
 Acquires a Microsoft Graph bearer token using configured auth (`--secret`,
@@ -398,6 +416,17 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--messageid` | Internet Message-ID to search for | `MSGRAPHMESSAGEID` | — |
 | `--subject` | Subject substring to search for (OData `contains()`) | `MSGRAPHSUBJECT` | — |
 | `--count` | Maximum number of matching messages to export | `MSGRAPHCOUNT` | 25 |
+
+### removemessages-specific
+
+| Flag | Description | Environment Variable | Default |
+|------|-------------|---------------------|---------|
+| `--messageid` | Internet Message-ID to search for | `MSGRAPHMESSAGEID` | — |
+| `--subject` | Subject substring to search for (OData `contains()`) | `MSGRAPHSUBJECT` | — |
+| `--folder` | Mail folder to scope the search to | `MSGRAPHFOLDER` | — |
+| `--count` | Maximum number of matching messages to remove | `MSGRAPHCOUNT` | 25 |
+| `--confirmdelete` | Prompt once for the entire matching set | `MSGRAPHCONFIRMDELETE` | false |
+| `--permanent` | Permanently delete instead of moving to Deleted Items | `MSGRAPHPERMANENT` | false |
 
 ## Authentication Methods
 
@@ -576,6 +605,7 @@ For `searchandexport` and `exportmessages`, a successful-but-empty result is als
 | draft | `Mail.ReadWrite` |
 | getevents, sendinvite, respondmeeting | `Calendars.ReadWrite` |
 | getinbox, exportinbox, searchandexport, exportmessages | `Mail.Read` |
+| removemessages | `Mail.ReadWrite` |
 | getschedule | `Calendars.Read` |
 | testconnect | None (unauthenticated network probe) |
 | testauth | None for the core token check; the optional `--mailbox` probe uses `User.Read.All` |

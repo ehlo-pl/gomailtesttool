@@ -1,10 +1,13 @@
 package msgraph
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -1161,77 +1164,10 @@ func searchAndExport(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 // When folder is non-empty the search is scoped to that mail folder; with no
 // other criteria the newest count messages of the folder are exported.
 func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, messageID string, subject string, folder string, count int, config *Config, logger logger.Logger) error {
-	// Build OData filter from the supplied criteria.
-	// SECURITY: Escape single quotes for OData filter (defense-in-depth);
-	// validateMessageID()/validateSearchSubject() already reject control
-	// characters and (for messageID) quotes.
-	var clauses []string
-	if messageID != "" {
-		escapedMessageID := strings.ReplaceAll(messageID, "'", "''")
-		clauses = append(clauses, fmt.Sprintf("internetMessageId eq '%s'", escapedMessageID))
-	}
-	if subject != "" {
-		escapedSubject := strings.ReplaceAll(subject, "'", "''")
-		clauses = append(clauses, fmt.Sprintf("contains(subject,'%s')", escapedSubject))
-	}
-	filter := strings.Join(clauses, " and ")
-
-	// Graph rejects $orderby combined with a $filter on unrelated properties,
-	// so only order (newest first) when exporting a whole folder unfiltered.
-	var filterPtr *string
-	var orderBy []string
-	if filter != "" {
-		filterPtr = &filter
-	} else {
-		orderBy = []string{"receivedDateTime DESC"}
-	}
-	selectFields := []string{"id", "internetMessageId", "subject", "receivedDateTime", "from", "toRecipients", "ccRecipients", "bccRecipients", "hasAttachments"}
-
-	// Build the query description once so it can be reused for verbose
-	// pre-call logging and for the debug log emitted on error.
-	queryDesc := buildExportMessagesQueryDesc(mailbox, folder, filter, orderBy, count, selectFields)
-
-	logVerbose(config.VerboseMode, "Calling Graph API: %s", queryDesc)
-
-	// Execute API call with retry logic; empty results are also retried
-	// because Graph is eventually consistent for just-delivered messages.
-	messages, err := fetchMessagesWithRetry(ctx, config.MaxRetries, config.RetryDelay, "exportMessages", func() ([]models.Messageable, error) {
-		if folder != "" {
-			requestConfig := &users.ItemMailFoldersItemMessagesRequestBuilderGetRequestConfiguration{
-				QueryParameters: &users.ItemMailFoldersItemMessagesRequestBuilderGetQueryParameters{
-					Filter:  filterPtr,
-					Top:     Int32Ptr(int32(count)),
-					Orderby: orderBy,
-					Select:  selectFields,
-				},
-			}
-			apiResult, apiErr := client.Users().ByUserId(mailbox).MailFolders().ByMailFolderId(folder).Messages().Get(ctx, requestConfig)
-			if apiErr != nil {
-				return nil, apiErr
-			}
-			return apiResult.GetValue(), nil
-		}
-		requestConfig := &users.ItemMessagesRequestBuilderGetRequestConfiguration{
-			QueryParameters: &users.ItemMessagesRequestBuilderGetQueryParameters{
-				Filter:  filterPtr,
-				Top:     Int32Ptr(int32(count)),
-				Orderby: orderBy,
-				Select:  selectFields,
-			},
-		}
-		apiResult, apiErr := client.Users().ByUserId(mailbox).Messages().Get(ctx, requestConfig)
-		if apiErr != nil {
-			return nil, apiErr
-		}
-		return apiResult.GetValue(), nil
-	})
-
+	messages, err := searchMessages(ctx, client, mailbox, messageID, subject, folder, count, config, logger, "exportMessages")
 	if err != nil {
-		log.Printf("[DEBUG] Graph API query attempted: %s", queryDesc)
-		enrichedErr := enrichGraphAPIError(err, logger, "exportMessages")
-		return fmt.Errorf("error searching messages for %s: %w", mailbox, enrichedErr)
+		return err
 	}
-
 	messageCount := len(messages)
 
 	logVerbose(config.VerboseMode, "API response received: %d messages", messageCount)
@@ -1289,6 +1225,198 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 	}
 
 	return nil
+}
+
+func searchMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, messageID string, subject string, folder string, count int, config *Config, logger logger.Logger, operation string) ([]models.Messageable, error) {
+	// Build OData filter from the supplied criteria.
+	// SECURITY: Escape single quotes for OData filter (defense-in-depth);
+	// validateMessageID()/validateSearchSubject() already reject control
+	// characters and (for messageID) quotes.
+	var clauses []string
+	if messageID != "" {
+		escapedMessageID := strings.ReplaceAll(messageID, "'", "''")
+		clauses = append(clauses, fmt.Sprintf("internetMessageId eq '%s'", escapedMessageID))
+	}
+	if subject != "" {
+		escapedSubject := strings.ReplaceAll(subject, "'", "''")
+		clauses = append(clauses, fmt.Sprintf("contains(subject,'%s')", escapedSubject))
+	}
+	filter := strings.Join(clauses, " and ")
+
+	// Graph rejects $orderby combined with a $filter on unrelated properties,
+	// so only order (newest first) when exporting a whole folder unfiltered.
+	var filterPtr *string
+	var orderBy []string
+	if filter != "" {
+		filterPtr = &filter
+	} else {
+		orderBy = []string{"receivedDateTime DESC"}
+	}
+	selectFields := []string{"id", "internetMessageId", "subject", "receivedDateTime", "from", "toRecipients", "ccRecipients", "bccRecipients", "hasAttachments"}
+
+	// Build the query description once so it can be reused for verbose
+	// pre-call logging and for the debug log emitted on error.
+	queryDesc := buildExportMessagesQueryDesc(mailbox, folder, filter, orderBy, count, selectFields)
+
+	logVerbose(config.VerboseMode, "Calling Graph API: %s", queryDesc)
+
+	// Execute API call with retry logic; empty results are also retried
+	// because Graph is eventually consistent for just-delivered messages.
+	messages, err := fetchMessagesWithRetry(ctx, config.MaxRetries, config.RetryDelay, operation, func() ([]models.Messageable, error) {
+		if folder != "" {
+			requestConfig := &users.ItemMailFoldersItemMessagesRequestBuilderGetRequestConfiguration{
+				QueryParameters: &users.ItemMailFoldersItemMessagesRequestBuilderGetQueryParameters{
+					Filter:  filterPtr,
+					Top:     Int32Ptr(int32(count)),
+					Orderby: orderBy,
+					Select:  selectFields,
+				},
+			}
+			apiResult, apiErr := client.Users().ByUserId(mailbox).MailFolders().ByMailFolderId(folder).Messages().Get(ctx, requestConfig)
+			if apiErr != nil {
+				return nil, apiErr
+			}
+			return apiResult.GetValue(), nil
+		}
+		requestConfig := &users.ItemMessagesRequestBuilderGetRequestConfiguration{
+			QueryParameters: &users.ItemMessagesRequestBuilderGetQueryParameters{
+				Filter:  filterPtr,
+				Top:     Int32Ptr(int32(count)),
+				Orderby: orderBy,
+				Select:  selectFields,
+			},
+		}
+		apiResult, apiErr := client.Users().ByUserId(mailbox).Messages().Get(ctx, requestConfig)
+		if apiErr != nil {
+			return nil, apiErr
+		}
+		return apiResult.GetValue(), nil
+	})
+
+	if err != nil {
+		log.Printf("[DEBUG] Graph API query attempted: %s", queryDesc)
+		enrichedErr := enrichGraphAPIError(err, logger, operation)
+		return nil, fmt.Errorf("error searching messages for %s: %w", mailbox, enrichedErr)
+	}
+
+	return messages, nil
+}
+
+type removeMessageResult struct {
+	ID      string `json:"id"`
+	Subject string `json:"subject"`
+	Status  string `json:"status"`
+	Error   string `json:"error,omitempty"`
+}
+
+func removeMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, messageID string, subject string, folder string, count int, config *Config, logger logger.Logger, input io.Reader, previewWriter io.Writer, resultWriter io.Writer) error {
+	messages, err := searchMessages(ctx, client, mailbox, messageID, subject, folder, count, config, logger, "removeMessages")
+	if err != nil {
+		return err
+	}
+
+	results := make([]removeMessageResult, 0, len(messages))
+	if len(messages) == 0 {
+		if config.OutputFormat == "json" {
+			return json.NewEncoder(resultWriter).Encode(results)
+		}
+		_, _ = fmt.Fprintln(previewWriter, "No messages found matching the given criteria.")
+		if logger != nil {
+			_ = logger.WriteRow([]string{ActionRemoveMessages, StatusSuccess, mailbox, "No messages found (0 messages)", "", ""})
+		}
+		return nil
+	}
+
+	_, _ = fmt.Fprintf(previewWriter, "Messages matching the removal criteria (%d):\n", len(messages))
+	for _, message := range messages {
+		_, _ = fmt.Fprintf(previewWriter, "- %s (ID: %s)\n", derefOr(message.GetSubject(), "(no subject)"), derefOr(message.GetId(), "(missing ID)"))
+	}
+
+	reader := bufio.NewReader(input)
+	confirmedAll := false
+	if config.ConfirmDelete {
+		confirmedAll, err = confirmRemoval(reader, previewWriter, fmt.Sprintf("Remove all %d listed messages? [y/N] ", len(messages)))
+		if err != nil {
+			return err
+		}
+		if !confirmedAll {
+			_, _ = fmt.Fprintln(previewWriter, "Removal cancelled.")
+		}
+	}
+
+	removedCount := 0
+	var removalErrors []error
+	for _, message := range messages {
+		id := derefOr(message.GetId(), "")
+		result := removeMessageResult{ID: id, Subject: derefOr(message.GetSubject(), "(no subject)")}
+
+		confirmed := confirmedAll
+		if !config.ConfirmDelete {
+			confirmed, err = confirmRemoval(reader, previewWriter, fmt.Sprintf("Remove %q (ID: %s)? [y/N] ", result.Subject, derefOr(message.GetId(), "(missing ID)")))
+			if err != nil {
+				return err
+			}
+		}
+		if !confirmed {
+			result.Status = "skipped"
+			results = append(results, result)
+			continue
+		}
+		if id == "" {
+			err := fmt.Errorf("message has no ID")
+			result.Status = "error"
+			result.Error = err.Error()
+			removalErrors = append(removalErrors, err)
+			results = append(results, result)
+			if logger != nil {
+				_ = logger.WriteRow([]string{ActionRemoveMessages, StatusError, mailbox, err.Error(), "", ""})
+			}
+			continue
+		}
+
+		if config.Permanent {
+			err = client.Users().ByUserId(mailbox).Messages().ByMessageId(id).PermanentDelete().Post(ctx, nil)
+		} else {
+			err = client.Users().ByUserId(mailbox).Messages().ByMessageId(id).Delete(ctx, nil)
+		}
+		if err != nil {
+			result.Status = "error"
+			result.Error = err.Error()
+			removalErrors = append(removalErrors, fmt.Errorf("failed to remove message %s: %w", id, err))
+			if logger != nil {
+				_ = logger.WriteRow([]string{ActionRemoveMessages, StatusError, mailbox, err.Error(), id, ""})
+			}
+		} else {
+			result.Status = StatusSuccess
+			removedCount++
+			if logger != nil {
+				_ = logger.WriteRow([]string{ActionRemoveMessages, StatusSuccess, mailbox, "Removed successfully", id, ""})
+			}
+		}
+		results = append(results, result)
+	}
+
+	if config.OutputFormat == "json" {
+		if err := json.NewEncoder(resultWriter).Encode(results); err != nil {
+			return err
+		}
+	} else {
+		_, _ = fmt.Fprintf(previewWriter, "Removed %d/%d messages.\n", removedCount, len(messages))
+	}
+
+	return errors.Join(removalErrors...)
+}
+
+func confirmRemoval(reader *bufio.Reader, output io.Writer, prompt string) (bool, error) {
+	if _, err := io.WriteString(output, prompt); err != nil {
+		return false, err
+	}
+	response, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	response = strings.TrimSpace(response)
+	return strings.EqualFold(response, "y") || strings.EqualFold(response, "yes"), nil
 }
 
 // folderPathSegment renders the Graph URL path segment used for message

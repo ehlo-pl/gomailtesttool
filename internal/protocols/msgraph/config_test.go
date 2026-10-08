@@ -197,6 +197,42 @@ func TestValidateConfiguration_ExportMessages(t *testing.T) {
 	})
 }
 
+func TestValidateConfiguration_RemoveMessages(t *testing.T) {
+	base := func() *Config {
+		cfg := NewConfig()
+		cfg.TenantID = "00000000-0000-0000-0000-000000000001"
+		cfg.ClientID = "00000000-0000-0000-0000-000000000002"
+		cfg.Secret = "app-secret"
+		cfg.Mailbox = "user@example.com"
+		cfg.Action = ActionRemoveMessages
+		cfg.Subject = ""
+		return cfg
+	}
+
+	t.Run("no criteria fails", func(t *testing.T) {
+		err := validateConfiguration(base())
+		if err == nil || !strings.Contains(err.Error(), "removemessages") {
+			t.Fatalf("expected criteria validation error, got: %v", err)
+		}
+	})
+
+	t.Run("folder is valid", func(t *testing.T) {
+		cfg := base()
+		cfg.Folder = "inbox"
+		if err := validateConfiguration(cfg); err != nil {
+			t.Fatalf("validateConfiguration() unexpected error = %v", err)
+		}
+	})
+
+	t.Run("invalid message ID fails", func(t *testing.T) {
+		cfg := base()
+		cfg.MessageID = "bad'@example.com"
+		if err := validateConfiguration(cfg); err == nil || !strings.Contains(err.Error(), "invalid message ID") {
+			t.Fatalf("expected invalid message ID error, got: %v", err)
+		}
+	})
+}
+
 func TestValidateConfiguration_FindTimeSlot(t *testing.T) {
 	base := func() *Config {
 		cfg := NewConfig()

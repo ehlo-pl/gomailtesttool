@@ -76,6 +76,10 @@ type Config struct {
 	// Export configuration
 	ExportDir string // Directory under which to create the dated export folder (default: OS temp dir)
 
+	// Message removal configuration
+	ConfirmDelete bool // Confirm once for the full matching set instead of per message
+	Permanent     bool // Permanently delete messages instead of moving them to Deleted Items
+
 	// Network configuration
 	ProxyURL   string        // HTTP/HTTPS proxy URL (e.g., http://proxy.example.com:8080)
 	MaxRetries int           // Maximum retry attempts for transient failures (default: 3)
@@ -126,6 +130,7 @@ const (
 	ActionExportInbox       = "exportinbox"
 	ActionSearchAndExport   = "searchandexport"
 	ActionExportMessages    = "exportmessages"
+	ActionRemoveMessages    = "removemessages"
 	ActionExportBearerToken = "exportbearertoken"
 	ActionTestConnect       = "testconnect"
 	ActionTestAuth          = "testauth"
@@ -214,6 +219,8 @@ func BindEnvs(v *viper.Viper) {
 		"messageid":          "MSGRAPHMESSAGEID",
 		"messageidsuffix":    "MSGRAPHMESSAGEIDSUFFIX",
 		"exportdir":          "MSGRAPHEXPORTDIR",
+		"confirmdelete":      "MSGRAPHCONFIRMDELETE",
+		"permanent":          "MSGRAPHPERMANENT",
 		"proxy":              "MSGRAPHPROXY",
 		"maxretries":         "MSGRAPHMAXRETRIES",
 		"retrydelay":         "MSGRAPHRETRYDELAY",
@@ -331,6 +338,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		MessageID:             v.GetString("messageid"),
 		MessageIDSuffix:       v.GetString("messageidsuffix"),
 		ExportDir:             v.GetString("exportdir"),
+		ConfirmDelete:         v.GetBool("confirmdelete"),
+		Permanent:             v.GetBool("permanent"),
 		ProxyURL:              v.GetString("proxy"),
 		MaxRetries:            maxRetries,
 		RetryDelay:            time.Duration(retryDelayMs) * time.Millisecond,
@@ -534,10 +543,10 @@ func validateConfiguration(config *Config) error {
 		}
 	}
 
-	// Validate exportmessages-specific requirements
-	if config.Action == ActionExportMessages {
+	// Validate search and removal actions that select messages.
+	if config.Action == ActionExportMessages || config.Action == ActionRemoveMessages {
 		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" && strings.TrimSpace(config.Folder) == "" {
-			return fmt.Errorf("exportmessages action requires --messageid, --subject and/or --folder parameter")
+			return fmt.Errorf("%s action requires --messageid, --subject and/or --folder parameter", config.Action)
 		}
 
 		if config.MessageID != "" {
