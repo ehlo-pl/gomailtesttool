@@ -741,6 +741,7 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("subject", "", "Subject substring to search for, used with OData contains() (env: MSGRAPHSUBJECT)")
 	cmd.Flags().String("folder", "", "Mail folder to scope the search to (well-known names: inbox, sentitems, drafts, deleteditems, junkemail); with no other criteria exports the newest messages of the folder (env: MSGRAPHFOLDER)")
 	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: MSGRAPHCOUNT)")
+	cmd.Flags().String("exportmethod", "content", "Export method: content (.eml via message content) or exportitems (Graph beta mailbox exportItems API, writes opaque .bin files re-importable via mailbox import) (env: MSGRAPHEXPORTMETHOD)")
 	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: MSGRAPHEXPORTDIR)")
 	return cmd
 }
