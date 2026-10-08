@@ -119,7 +119,7 @@ The MIME must already contain the intended recipients, subject, body, and
 attachments. Do not combine it with `--template`, `--template-vars`, recipient,
 subject/body, attachment, header, priority, or message-ID options. Graph still
 controls the sending mailbox and may replace or normalize the sender details
-from the MIME message.
+from the MIME message. `--save-to-sent` is not available in this raw MIME mode.
 
 ### draft — Save an Email as a Draft (does not send)
 

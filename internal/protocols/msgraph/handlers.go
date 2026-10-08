@@ -368,7 +368,11 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 		} else if htmlContent != "" {
 			bodyType = "HTML"
 		}
-		_ = logger.WriteRow([]string{ActionSendMail, status, senderMailbox, toStr, ccStr, bccStr, subject, bodyType, fmt.Sprintf("%d", attachmentCount)})
+		logSubject := subject
+		if config.MIMEBase64 != "" {
+			logSubject = "MIME message"
+		}
+		_ = logger.WriteRow([]string{ActionSendMail, status, senderMailbox, toStr, ccStr, bccStr, logSubject, bodyType, fmt.Sprintf("%d", attachmentCount)})
 	}
 
 	return returnErr

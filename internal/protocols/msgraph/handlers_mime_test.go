@@ -6,15 +6,17 @@ package msgraph
 import (
 	"encoding/base64"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	abstractions "github.com/microsoft/kiota-abstractions-go"
+	"github.com/spf13/viper"
 )
 
 func TestBuildMIMERequest(t *testing.T) {
 	const message = "From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test\r\n\r\nBody\r\n"
-	path := t.TempDir() + "/message.eml"
+	path := filepath.Join(t.TempDir(), "message.eml")
 	if err := os.WriteFile(path, []byte(message), 0600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -52,11 +54,11 @@ func (a *testMIMERequestAdapter) GetBaseUrl() string {
 }
 
 func TestValidateConfiguration_MIMEBase64(t *testing.T) {
-	messagePath := t.TempDir() + "/message.eml"
+	messagePath := filepath.Join(t.TempDir(), "message.eml")
 	if err := os.WriteFile(messagePath, []byte("not parsed"), 0600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
-	templatePath := t.TempDir() + "/template.html"
+	templatePath := filepath.Join(t.TempDir(), "template.html")
 	if err := os.WriteFile(templatePath, []byte("template"), 0600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -111,7 +113,7 @@ func TestValidateConfiguration_MIMEBase64(t *testing.T) {
 			configure: func(config *Config) {
 				config.To = stringSlice{"recipient@example.com"}
 			},
-			want: "recipient options",
+			want: "recipient",
 		},
 		{
 			name: "body cannot be overridden",
@@ -126,6 +128,13 @@ func TestValidateConfiguration_MIMEBase64(t *testing.T) {
 				config.Action = ActionSaveDraft
 			},
 			want: "only supported by sendmail",
+		},
+		{
+			name: "save to sent is unavailable",
+			configure: func(config *Config) {
+				config.SaveToSent = true
+			},
+			want: "--save-to-sent",
 		},
 	}
 	for _, test := range tests {
@@ -144,5 +153,23 @@ func TestBuildMIMERequestRejectsUnreadablePath(t *testing.T) {
 	_, err := buildMIMERequest(&testMIMERequestAdapter{baseURL: "https://graph.microsoft.com/v1.0"}, "sender@example.com", "/no/such/message.eml")
 	if err == nil || !strings.Contains(err.Error(), "failed to read MIME message file") {
 		t.Fatalf("buildMIMERequest() error = %v, want read error", err)
+	}
+}
+
+func TestSendmailMIMEBase64RejectsExplicitDefaultContentFlag(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "message.eml")
+	if err := os.WriteFile(path, []byte("opaque message"), 0600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	command := newSendMailCmd(viper.New())
+	if err := command.Flags().Set("mimebase64", path); err != nil {
+		t.Fatalf("Set(mimebase64) error = %v", err)
+	}
+	if err := command.Flags().Set("subject", NewConfig().Subject); err != nil {
+		t.Fatalf("Set(subject) error = %v", err)
+	}
+	err := command.RunE(command, nil)
+	if err == nil || !strings.Contains(err.Error(), "--mimebase64 cannot be combined with --subject") {
+		t.Fatalf("RunE() error = %v, want explicit subject conflict", err)
 	}
 }

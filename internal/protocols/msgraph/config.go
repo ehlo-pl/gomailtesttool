@@ -445,8 +445,8 @@ func validateConfiguration(config *Config) error {
 			config.BodyHTML != "" || len(config.AttachmentFiles) > 0 ||
 			len(config.InlineAttachmentFiles) > 0 || len(config.Headers) > 0 ||
 			config.Priority != defaults.Priority || config.MessageID != "" ||
-			config.MessageIDSuffix != "" {
-			return fmt.Errorf("--mimebase64 cannot be combined with message content or recipient options")
+			config.MessageIDSuffix != "" || config.SaveToSent {
+			return fmt.Errorf("--mimebase64 cannot be combined with message content, recipient, or --save-to-sent options")
 		}
 	}
 
