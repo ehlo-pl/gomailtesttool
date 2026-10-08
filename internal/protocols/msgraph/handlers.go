@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-	"net/url"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
@@ -316,12 +316,11 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 	} else {
 		logVerbose(config.VerboseMode, "Email details - To: %v, CC: %v, BCC: %v", to, cc, bcc)
 	}
-	err = retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
-		if mimeRequest != nil {
-			return client.GetAdapter().SendNoContent(ctx, mimeRequest, nil)
-		}
-		return client.Users().ByUserId(senderMailbox).SendMail().Post(ctx, requestBody, requestConfig)
-	})
+	if mimeRequest != nil {
+		err = client.GetAdapter().SendNoContent(ctx, mimeRequest, nil)
+	} else {
+		err = client.Users().ByUserId(senderMailbox).SendMail().Post(ctx, requestBody, requestConfig)
+	}
 
 	status := StatusSuccess
 	attachmentCount := len(attachmentPaths) + len(config.InlineAttachmentFiles)

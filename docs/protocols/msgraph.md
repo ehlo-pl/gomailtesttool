@@ -88,6 +88,9 @@ gomailtest msgraph sendmail \
 gomailtest msgraph sendmail --template "C:\Templates\message.eml" --template-vars Name=World
 gomailtest msgraph sendmail --to "recipient@example.com" \
     --template "C:\Templates\body.html" --template-vars Name=World
+
+# Send a complete RFC 5322 message using Graph's MIME request format
+gomailtest msgraph sendmail --mimebase64 "C:\Templates\ready-to-send.eml"
 ```
 
 > **Note:** Microsoft Graph only passes through `X-`-prefixed custom headers. Standard RFC headers (From, To, Subject, Date, Message-ID, etc.) are set by the Graph API itself and cannot be overridden via `--header`.
@@ -108,6 +111,15 @@ headers without a Graph mapping are reported in verbose mode. Any other
 extension is rendered and used as the HTML body. Mutually exclusive with
 `--body`/`--bodyHTML`; `--template-vars key=value`
 (repeatable) supplies variables referenced as `{{.key}}`.
+
+`--mimebase64` is a separate `sendmail` mode for a complete `.eml` file. It
+reads the file as-is (without template expansion or MIME parsing), base64-encodes
+its bytes, and sends them as the request body with `Content-Type: text/plain`.
+The MIME must already contain the intended recipients, subject, body, and
+attachments. Do not combine it with `--template`, `--template-vars`, recipient,
+subject/body, attachment, header, priority, or message-ID options. Graph still
+controls the sending mailbox and may replace or normalize the sender details
+from the MIME message.
 
 ### draft — Save an Email as a Draft (does not send)
 
@@ -367,6 +379,7 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--bodyHTML` | Email body HTML | `MSGRAPHBODYHTML` |
 | `--template` | Message template file with Go `text/template` variables: `.eml` fields are mapped to the Graph API, any other extension is used as the HTML body; mutually exclusive with `--body`/`--bodyHTML` | `MSGRAPHTEMPLATE` |
 | `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` in `--template` (repeatable) | `MSGRAPHTEMPLATEVARS` |
+| `--mimebase64` | Send an unchanged complete `.eml` file as base64 MIME; mutually exclusive with template and message-content options (`sendmail` only) | `MSGRAPHMIMEBASE64` |
 | `--attachments` | Comma-separated file paths | `MSGRAPHATTACHMENTS` |
 | `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` (referenced from `--bodyHTML`) | `MSGRAPHINLINEATTACHMENTS` |
 | `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values). **Microsoft Graph only passes through `X-`-prefixed custom headers** — standard RFC headers (From, To, Subject, etc.) are controlled by the API itself and cannot be injected here. Note: several X-item (on the same names) will end with only first one - it's MAPI limitation.  | `MSGRAPHHEADER` |

@@ -45,13 +45,13 @@ type Config struct {
 	Headers               []string    // Custom headers in "Name: Value" form
 
 	// Email content
-	Subject      string // Email subject line
-	Body         string // Email body text content
-	BodyHTML     string // Email body HTML content (future use)
+	Subject      string   // Email subject line
+	Body         string   // Email body text content
+	BodyHTML     string   // Email body HTML content (future use)
 	Priority     string   // Email priority: high, normal, low (maps to Graph Importance)
 	Template     string   // Path to a message template: .eml (fields mapped to the Graph API) or HTML body file
 	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
-	MIMEBase64            string   // Path to a complete .eml file sent as base64-encoded MIME
+	MIMEBase64   string   // Path to a complete .eml file sent as base64-encoded MIME
 	SaveToSent   bool     // Save a copy in Sent Items (Graph API saveToSentItems)
 
 	// Calendar invite configuration
@@ -220,13 +220,13 @@ func BindEnvs(v *viper.Viper) {
 		"loglevel":           "MSGRAPHLOGLEVEL",
 		"output":             "MSGRAPHOUTPUT",
 		"logformat":          "MSGRAPHLOGFORMAT",
-		"count":                "MSGRAPHCOUNT",
-		"header":               "MSGRAPHHEADER",
-		"save-to-sent":         "MSGRAPHSAVETOSENT",
-		"event-id":     "MSGRAPHEVENTID",
-		"response":     "MSGRAPHRESPONSE",
-		"comment":      "MSGRAPHCOMMENT",
-		"send-response": "MSGRAPHSENDRESPONSE",
+		"count":              "MSGRAPHCOUNT",
+		"header":             "MSGRAPHHEADER",
+		"save-to-sent":       "MSGRAPHSAVETOSENT",
+		"event-id":           "MSGRAPHEVENTID",
+		"response":           "MSGRAPHRESPONSE",
+		"comment":            "MSGRAPHCOMMENT",
+		"send-response":      "MSGRAPHSENDRESPONSE",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -423,11 +423,11 @@ func validateConfiguration(config *Config) error {
 		if config.Action != ActionSendMail {
 			return fmt.Errorf("--mimebase64 is only supported by sendmail")
 		}
-		if err := validateFilePath(config.MIMEBase64, "MIME message file"); err != nil {
-			return err
-		}
 		if !strings.EqualFold(filepath.Ext(config.MIMEBase64), ".eml") {
 			return fmt.Errorf("--mimebase64 requires a .eml file")
+		}
+		if err := validateFilePath(config.MIMEBase64, "MIME message file"); err != nil {
+			return err
 		}
 		file, err := os.Open(config.MIMEBase64)
 		if err != nil {
