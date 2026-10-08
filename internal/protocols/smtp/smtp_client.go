@@ -377,14 +377,14 @@ func (c *SMTPClient) Auth(username, password, accessToken string, mechanisms []s
 }
 
 // SendMail sends an email message.
-func (c *SMTPClient) SendMail(from string, to []string, data []byte) error {
+func (c *SMTPClient) SendMail(from string, to []string, data []byte) (string, error) {
 	// Apply rate limiting using stored context
 	ctx := c.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := c.limiter.Wait(ctx); err != nil {
-		return fmt.Errorf("rate limit wait failed: %w", err)
+		return "", fmt.Errorf("rate limit wait failed: %w", err)
 	}
 
 	// Use the reusable smtp.Client created after STARTTLS (or Auth)
@@ -402,7 +402,7 @@ func (c *SMTPClient) SendMail(from string, to []string, data []byte) error {
 	c.debugLogMessage(fmt.Sprintf(">>> MAIL FROM:<%s>", from))
 	if err := smtpClient.Mail(from); err != nil {
 		c.debugLogMessage(fmt.Sprintf("<<< MAIL FROM failed: %v", err))
-		return fmt.Errorf("MAIL FROM failed: %w", err)
+		return "", fmt.Errorf("MAIL FROM failed: %w", err)
 	}
 	c.debugLogMessage("<<< 250 Sender OK")
 
@@ -411,17 +411,24 @@ func (c *SMTPClient) SendMail(from string, to []string, data []byte) error {
 		c.debugLogMessage(fmt.Sprintf(">>> RCPT TO:<%s>", recipient))
 		if err := smtpClient.Rcpt(recipient); err != nil {
 			c.debugLogMessage(fmt.Sprintf("<<< RCPT TO failed: %v", err))
-			return fmt.Errorf("RCPT TO failed for %s: %w", recipient, err)
+			return "", fmt.Errorf("RCPT TO failed for %s: %w", recipient, err)
 		}
 		c.debugLogMessage("<<< 250 Recipient OK")
 	}
 
 	// DATA
 	c.debugLogMessage(">>> DATA")
-	w, err := smtpClient.Data()
+	commandID, err := smtpClient.Text.Cmd("DATA")
 	if err != nil {
 		c.debugLogMessage(fmt.Sprintf("<<< DATA failed: %v", err))
-		return fmt.Errorf("DATA command failed: %w", err)
+		return "", fmt.Errorf("DATA command failed: %w", err)
+	}
+	smtpClient.Text.StartResponse(commandID)
+	_, _, err = smtpClient.Text.ReadResponse(354)
+	smtpClient.Text.EndResponse(commandID)
+	if err != nil {
+		c.debugLogMessage(fmt.Sprintf("<<< DATA failed: %v", err))
+		return "", fmt.Errorf("DATA command failed: %w", err)
 	}
 	c.debugLogMessage("<<< 354 Start mail input; end with <CRLF>.<CRLF>")
 
@@ -438,18 +445,24 @@ func (c *SMTPClient) SendMail(from string, to []string, data []byte) error {
 		}
 	}
 
+	w := smtpClient.Text.DotWriter()
 	if _, err := w.Write(data); err != nil {
-		return fmt.Errorf("failed to write message: %w", err)
+		return "", fmt.Errorf("failed to write message: %w", err)
 	}
 
 	c.debugLogMessage(">>> . (end of message)")
 	if err := w.Close(); err != nil {
 		c.debugLogMessage(fmt.Sprintf("<<< Message send failed: %v", err))
-		return fmt.Errorf("failed to close DATA: %w", err)
+		return "", fmt.Errorf("failed to close DATA: %w", err)
 	}
-	c.debugLogMessage("<<< 250 Message accepted for delivery")
+	_, response, err := smtpClient.Text.ReadResponse(250)
+	if err != nil {
+		c.debugLogMessage(fmt.Sprintf("<<< Message send failed: %v", err))
+		return "", fmt.Errorf("failed to close DATA: %w", err)
+	}
+	c.debugLogMessage(fmt.Sprintf("<<< 250 %s", response))
 
-	return nil
+	return response, nil
 }
 
 // Close closes the connection.

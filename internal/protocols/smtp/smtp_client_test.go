@@ -4,9 +4,14 @@
 package smtp
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/tls"
+	"fmt"
 	"io"
+	"net"
+	"net/smtp"
+	"net/textproto"
 	"os"
 	"strings"
 	"testing"
@@ -14,6 +19,69 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/smtp/protocol"
 )
+
+func TestSMTPClientSendMailReturnsFinalResponse(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer func() {
+		if err := clientConn.Close(); err != nil {
+			t.Errorf("client connection close error = %v", err)
+		}
+	}()
+	defer func() {
+		if err := serverConn.Close(); err != nil {
+			t.Errorf("server connection close error = %v", err)
+		}
+	}()
+
+	serverErr := make(chan error, 1)
+	go func() {
+		reader := bufio.NewReader(serverConn)
+		for _, response := range []string{
+			"250 test server ready\r\n",
+			"250 sender ok\r\n",
+			"250 recipient ok\r\n",
+			"354 send message\r\n",
+		} {
+			if _, err := reader.ReadString('\n'); err != nil {
+				serverErr <- err
+				return
+			}
+			if _, err := fmt.Fprint(serverConn, response); err != nil {
+				serverErr <- err
+				return
+			}
+		}
+
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				serverErr <- err
+				return
+			}
+			if line == ".\r\n" {
+				break
+			}
+		}
+		_, err := fmt.Fprint(serverConn, "250 2.0.0 <server-assigned@example.com> queued\r\n")
+		serverErr <- err
+	}()
+
+	config := NewConfig()
+	client := NewSMTPClient("localhost", 25, config)
+	client.conn = clientConn
+	client.smtpClient = &smtp.Client{Text: textproto.NewConn(clientConn)}
+
+	response, err := client.SendMail("sender@example.com", []string{"recipient@example.com"}, []byte("Subject: test\r\n\r\nbody\r\n"))
+	if err != nil {
+		t.Fatalf("SendMail() error = %v", err)
+	}
+	if want := "2.0.0 <server-assigned@example.com> queued"; response != want {
+		t.Errorf("SendMail() response = %q, want %q", response, want)
+	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("SMTP test server error = %v", err)
+	}
+}
 
 // TestDebugLogCommand tests debug logging of SMTP commands
 func TestDebugLogCommand(t *testing.T) {
