@@ -2,6 +2,8 @@ package msgraph
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -49,6 +51,7 @@ type Config struct {
 	Priority     string   // Email priority: high, normal, low (maps to Graph Importance)
 	Template     string   // Path to a message template: .eml (fields mapped to the Graph API) or HTML body file
 	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
+	MIMEBase64            string   // Path to a complete .eml file sent as base64-encoded MIME
 	SaveToSent   bool     // Save a copy in Sent Items (Graph API saveToSentItems)
 
 	// Calendar invite configuration
@@ -200,6 +203,7 @@ func BindEnvs(v *viper.Viper) {
 		"priority":           "MSGRAPHPRIORITY",
 		"template":           "MSGRAPHTEMPLATE",
 		"template-vars":      "MSGRAPHTEMPLATEVARS",
+		"mimebase64":         "MSGRAPHMIMEBASE64",
 		"attachments":        "MSGRAPHATTACHMENTS",
 		"inline-attachments": "MSGRAPHINLINEATTACHMENTS",
 		"start":              "MSGRAPHSTART",
@@ -313,6 +317,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Priority:              priority,
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
+		MIMEBase64:            v.GetString("mimebase64"),
 		SaveToSent:            v.GetBool("save-to-sent"),
 		InviteSubject:         v.GetString("invite-subject"),
 		StartTime:             v.GetString("start"),
@@ -411,6 +416,37 @@ func validateConfiguration(config *Config) error {
 		}
 		if _, err := tmpl.ParseVars(config.TemplateVars); err != nil {
 			return fmt.Errorf("invalid --template-vars: %w", err)
+		}
+	}
+
+	if config.MIMEBase64 != "" {
+		if config.Action != ActionSendMail {
+			return fmt.Errorf("--mimebase64 is only supported by sendmail")
+		}
+		if err := validateFilePath(config.MIMEBase64, "MIME message file"); err != nil {
+			return err
+		}
+		if !strings.EqualFold(filepath.Ext(config.MIMEBase64), ".eml") {
+			return fmt.Errorf("--mimebase64 requires a .eml file")
+		}
+		file, err := os.Open(config.MIMEBase64)
+		if err != nil {
+			return fmt.Errorf("MIME message file is not readable: %w", err)
+		}
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("MIME message file is not readable: %w", err)
+		}
+		if config.Template != "" || len(config.TemplateVars) > 0 {
+			return fmt.Errorf("--mimebase64 cannot be used with --template or --template-vars")
+		}
+		defaults := NewConfig()
+		if len(config.To) > 0 || len(config.Cc) > 0 || len(config.Bcc) > 0 ||
+			config.Subject != defaults.Subject || config.Body != defaults.Body ||
+			config.BodyHTML != "" || len(config.AttachmentFiles) > 0 ||
+			len(config.InlineAttachmentFiles) > 0 || len(config.Headers) > 0 ||
+			config.Priority != defaults.Priority || config.MessageID != "" ||
+			config.MessageIDSuffix != "" {
+			return fmt.Errorf("--mimebase64 cannot be combined with message content or recipient options")
 		}
 	}
 

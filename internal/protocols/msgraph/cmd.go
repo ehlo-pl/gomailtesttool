@@ -122,6 +122,20 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 
 			config := ConfigFromViper(v)
 			config.Action = ActionSendMail
+			if cmd.Flags().Changed("mimebase64") && config.MIMEBase64 == "" {
+				return fmt.Errorf("--mimebase64 requires a file path")
+			}
+			if config.MIMEBase64 != "" {
+				for _, name := range []string{
+					"to", "cc", "bcc", "subject", "body", "bodyhtml", "template",
+					"template-vars", "attachments", "inline-attachments", "header",
+					"priority", "messageid", "messageidsuffix",
+				} {
+					if cmd.Flags().Changed(name) {
+						return fmt.Errorf("--mimebase64 cannot be combined with --%s", name)
+					}
+				}
+			}
 
 			if err := validateConfiguration(config); err != nil {
 				return fmt.Errorf("validation failed: %w", err)
@@ -143,8 +157,10 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 				_ = os.Setenv("HTTPS_PROXY", config.ProxyURL)
 			}
 
-			if err := resolveTemplate(config); err != nil {
-				return fmt.Errorf("template failed: %w", err)
+			if config.MIMEBase64 == "" {
+				if err := resolveTemplate(config); err != nil {
+					return fmt.Errorf("template failed: %w", err)
+				}
 			}
 
 			client, err := NewGraphServiceClient(ctx, config, slogger)
@@ -153,7 +169,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 			}
 
 			// Default To to mailbox if no recipients specified
-			if len(config.To) == 0 && len(config.Cc) == 0 && len(config.Bcc) == 0 {
+			if config.MIMEBase64 == "" && len(config.To) == 0 && len(config.Cc) == 0 && len(config.Bcc) == 0 {
 				config.To = stringSlice{config.Mailbox}
 			}
 
@@ -170,6 +186,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: MSGRAPHBODYHTML)")
 	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file has its recognised fields (From/To/Cc/Bcc/Subject/bodies) mapped to the Graph API; any other extension is used as the HTML body (env: MSGRAPHTEMPLATE)")
 	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: MSGRAPHTEMPLATEVARS)")
+	cmd.Flags().String("mimebase64", "", "Send a complete .eml file as base64-encoded MIME without parsing or modifying it (env: MSGRAPHMIMEBASE64)")
 	cmd.Flags().String("attachments", "", "Comma-separated file paths to attach (env: MSGRAPHATTACHMENTS)")
 	cmd.Flags().String("inline-attachments", "", "Comma-separated file paths to embed inline via cid:<filename> (env: MSGRAPHINLINEATTACHMENTS)")
 	cmd.Flags().StringArray("header", nil, "Custom header in 'Name: Value' form (repeatable) (env: MSGRAPHHEADER — comma-separated; avoid commas in header values)")

@@ -2,6 +2,7 @@ package msgraph
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"net/url"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/export"
@@ -253,18 +255,45 @@ func buildMessage(to, cc, bcc []string, subject, textContent, htmlContent string
 	return message, nil
 }
 
+func buildMIMERequest(adapter abstractions.RequestAdapter, senderMailbox, path string) (*abstractions.RequestInformation, error) {
+	message, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read MIME message file: %w", err)
+	}
+	endpoint := strings.TrimRight(adapter.GetBaseUrl(), "/") + "/users/" + url.PathEscape(senderMailbox) + "/sendMail"
+	requestURL, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Graph sendMail URL: %w", err)
+	}
+	request := abstractions.NewRequestInformation()
+	request.Method = abstractions.POST
+	request.SetUri(*requestURL)
+	request.Headers.Add("Content-Type", "text/plain")
+	request.Content = []byte(base64.StdEncoding.EncodeToString(message))
+	return request, nil
+}
+
 // SendEmail sends an email via the Microsoft Graph API.
 // Returns a non-nil error if the send fails; logging to CSV and console occurs regardless.
 func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, senderMailbox string, to, cc, bcc []string, subject, textContent, htmlContent string, attachmentPaths []string, config *Config, logger logger.Logger) error {
-	message, err := buildMessage(to, cc, bcc, subject, textContent, htmlContent, attachmentPaths, config)
-	if err != nil {
-		return fmt.Errorf("invalid Message-ID: %w", err)
+	var requestBody *users.ItemSendMailPostRequestBody
+	var mimeRequest *abstractions.RequestInformation
+	var err error
+	if config.MIMEBase64 != "" {
+		mimeRequest, err = buildMIMERequest(client.GetAdapter(), senderMailbox, config.MIMEBase64)
+		if err != nil {
+			return err
+		}
+	} else {
+		message, buildErr := buildMessage(to, cc, bcc, subject, textContent, htmlContent, attachmentPaths, config)
+		if buildErr != nil {
+			return fmt.Errorf("invalid Message-ID: %w", buildErr)
+		}
+		requestBody = users.NewItemSendMailPostRequestBody()
+		requestBody.SetMessage(message)
+		saveToSentItems := config.SaveToSent
+		requestBody.SetSaveToSentItems(&saveToSentItems)
 	}
-
-	requestBody := users.NewItemSendMailPostRequestBody()
-	requestBody.SetMessage(message)
-	saveToSentItems := config.SaveToSent
-	requestBody.SetSaveToSentItems(&saveToSentItems)
 
 	var sentMessageID string
 	responseOption := abstractions.NewRequestHandlerOption()
@@ -274,13 +303,25 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 		}
 		return nil, nil
 	})
+	if mimeRequest != nil {
+		mimeRequest.AddRequestOptions([]abstractions.RequestOption{responseOption})
+	}
 	requestConfig := &users.ItemSendMailRequestBuilderPostRequestConfiguration{
 		Options: []abstractions.RequestOption{responseOption},
 	}
 
 	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/sendMail", senderMailbox)
-	logVerbose(config.VerboseMode, "Email details - To: %v, CC: %v, BCC: %v", to, cc, bcc)
-	err = client.Users().ByUserId(senderMailbox).SendMail().Post(ctx, requestBody, requestConfig)
+	if config.MIMEBase64 != "" {
+		logVerbose(config.VerboseMode, "Sending complete MIME message from %s", config.MIMEBase64)
+	} else {
+		logVerbose(config.VerboseMode, "Email details - To: %v, CC: %v, BCC: %v", to, cc, bcc)
+	}
+	err = retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+		if mimeRequest != nil {
+			return client.GetAdapter().SendNoContent(ctx, mimeRequest, nil)
+		}
+		return client.Users().ByUserId(senderMailbox).SendMail().Post(ctx, requestBody, requestConfig)
+	})
 
 	status := StatusSuccess
 	attachmentCount := len(attachmentPaths) + len(config.InlineAttachmentFiles)
@@ -294,14 +335,20 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 	} else {
 		logVerbose(config.VerboseMode, "Email sent successfully via Graph API")
 		fmt.Printf("Email sent successfully from %s.\n", senderMailbox)
-		fmt.Printf("To: %v\n", to)
-		fmt.Printf("Cc: %v\n", cc)
-		fmt.Printf("Bcc: %v\n", bcc)
-		fmt.Printf("Subject: %s\n", subject)
+		if config.MIMEBase64 == "" {
+			fmt.Printf("To: %v\n", to)
+			fmt.Printf("Cc: %v\n", cc)
+			fmt.Printf("Bcc: %v\n", bcc)
+			fmt.Printf("Subject: %s\n", subject)
+		} else {
+			fmt.Println("Message format: base64 MIME")
+		}
 		if sentMessageID != "" {
 			fmt.Printf("Message ID: %s\n", sentMessageID)
 		}
-		if htmlContent != "" {
+		if config.MIMEBase64 != "" {
+			fmt.Println("Body Type: MIME")
+		} else if htmlContent != "" {
 			fmt.Println("Body Type: HTML")
 		} else {
 			fmt.Println("Body Type: Text")
@@ -317,7 +364,9 @@ func SendEmail(ctx context.Context, client *msgraphsdk.GraphServiceClient, sende
 		ccStr := strings.Join(cc, "; ")
 		bccStr := strings.Join(bcc, "; ")
 		bodyType := "Text"
-		if htmlContent != "" {
+		if config.MIMEBase64 != "" {
+			bodyType = "MIME"
+		} else if htmlContent != "" {
 			bodyType = "HTML"
 		}
 		_ = logger.WriteRow([]string{ActionSendMail, status, senderMailbox, toStr, ccStr, bccStr, subject, bodyType, fmt.Sprintf("%d", attachmentCount)})
