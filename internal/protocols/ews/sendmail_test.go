@@ -24,7 +24,7 @@ func TestCreateItemSOAPDispositions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := fmt.Sprintf(tt.tpl, "Subj", "Text", "hello",
-				"", buildRecipientsXML([]string{"a@example.com"}), "")
+				"", "", buildRecipientsXML([]string{"a@example.com"}), "")
 
 			if !strings.Contains(body, tt.wantDisposition) {
 				t.Errorf("body missing disposition %q:\n%s", tt.wantDisposition, body)
@@ -40,5 +40,16 @@ func TestCreateItemSOAPDispositions(t *testing.T) {
 				t.Errorf("draft body must not contain a Send disposition:\n%s", body)
 			}
 		})
+	}
+}
+
+func TestBuildMessageIDHeaderXML(t *testing.T) {
+	got := buildMessageIDHeaderXML("custom@example.com")
+	if !strings.Contains(got, `HeaderName="X-Message-ID"`) ||
+		!strings.Contains(got, "&lt;custom@example.com&gt;") {
+		t.Fatalf("buildMessageIDHeaderXML() = %q, want escaped X-Message-ID header", got)
+	}
+	if got := buildMessageIDHeaderXML(""); got != "" {
+		t.Fatalf("buildMessageIDHeaderXML(empty) = %q, want empty", got)
 	}
 }

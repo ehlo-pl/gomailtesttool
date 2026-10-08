@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
@@ -50,8 +51,9 @@ type Config struct {
 	EndTime   string
 
 	// Search / export (exportmessages)
-	MessageID string
-	ExportDir string
+	MessageID       string
+	MessageIDSuffix string
+	ExportDir       string
 
 	// Pagination (listmail, exportmessages)
 	Count int
@@ -191,6 +193,7 @@ func BindEnvs(v *viper.Viper) {
 		"start":            "EWSSTART",
 		"end":              "EWSEND",
 		"messageid":        "EWSMESSAGEID",
+		"messageidsuffix":  "EWSMESSAGEIDSUFFIX",
 		"exportdir":        "EWSEXPORTDIR",
 		"count":            "EWSCOUNT",
 		"duration":         "EWSDURATION",
@@ -311,6 +314,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		StartTime:             v.GetString("start"),
 		EndTime:          v.GetString("end"),
 		MessageID:        v.GetString("messageid"),
+		MessageIDSuffix:  v.GetString("messageidsuffix"),
 		ExportDir:        v.GetString("exportdir"),
 		Count:            count,
 		Duration:         duration,
@@ -427,6 +431,11 @@ func validateConfiguration(config *Config) error {
 	}
 
 	if config.Action == ActionSendMail || config.Action == ActionSaveDraft {
+		if config.MessageID != "" || config.MessageIDSuffix != "" {
+			if _, err := mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, mimebuilder.GenerateMessageID(config.Host, "ewstool")); err != nil {
+				return err
+			}
+		}
 		// Validate --template/--template-vars. An .eml template is parsed
 		// and its recognised fields mapped onto EWS CreateItem, so
 		// recipients may come from its To/Cc headers instead of --to.

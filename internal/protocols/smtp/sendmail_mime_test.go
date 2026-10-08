@@ -87,6 +87,36 @@ func TestBuildMIMEMessage_NoExtrasFallsBackToPlainText(t *testing.T) {
 	}
 }
 
+func TestBuildMIMEMessage_UsesMessageIDOptions(t *testing.T) {
+	tests := []struct {
+		name       string
+		messageID  string
+		suffix     string
+		wantHeader string
+	}{
+		{name: "explicit ID", messageID: "custom@example.com", wantHeader: "Message-ID: <custom@example.com>"},
+		{name: "suffix", suffix: "example.com", wantHeader: "Message-ID: <"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newTestConfig()
+			cfg.MessageID = tt.messageID
+			cfg.MessageIDSuffix = tt.suffix
+			data, err := buildMIMEMessage(cfg, discardLogger())
+			if err != nil {
+				t.Fatalf("buildMIMEMessage() error = %v", err)
+			}
+			if !strings.Contains(string(data), tt.wantHeader) {
+				t.Errorf("message missing expected header %q:\n%s", tt.wantHeader, data)
+			}
+			if tt.suffix != "" && !strings.Contains(string(data), "@example.com>") {
+				t.Errorf("message ID does not use suffix %q:\n%s", tt.suffix, data)
+			}
+		})
+	}
+}
+
 func TestBuildMIMEMessage_CcHeaderPresent_BccHeaderAbsent(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Cc = []string{"cc@example.com"}

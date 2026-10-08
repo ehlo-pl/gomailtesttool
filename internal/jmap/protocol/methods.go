@@ -97,19 +97,20 @@ type Error struct {
 
 // Common capability URIs.
 const (
-	CoreCapability    = "urn:ietf:params:jmap:core"
-	MailCapability    = "urn:ietf:params:jmap:mail"
+	CoreCapability       = "urn:ietf:params:jmap:core"
+	MailCapability       = "urn:ietf:params:jmap:mail"
 	SubmissionCapability = "urn:ietf:params:jmap:submission"
 )
 
 // Common method names.
 const (
-	MethodMailboxGet          = "Mailbox/get"
-	MethodMailboxQuery        = "Mailbox/query"
-	MethodEmailGet            = "Email/get"
-	MethodEmailQuery          = "Email/query"
-	MethodEmailSet            = "Email/set"
-	MethodEmailSubmissionSet  = "EmailSubmission/set"
+	MethodMailboxGet         = "Mailbox/get"
+	MethodMailboxQuery       = "Mailbox/query"
+	MethodEmailGet           = "Email/get"
+	MethodEmailQuery         = "Email/query"
+	MethodEmailSet           = "Email/set"
+	MethodEmailImport        = "Email/import"
+	MethodEmailSubmissionSet = "EmailSubmission/set"
 )
 
 // GetRequest creates arguments for a /get method.
@@ -294,6 +295,56 @@ func NewEmailSetAndSubmitRequest(accountId Id, draft EmailCreate, mailFromEmail 
 					"create": map[string]interface{}{
 						"submission1": map[string]interface{}{
 							"emailId": "#draft",
+							"envelope": map[string]interface{}{
+								"mailFrom": map[string]string{"email": mailFromEmail},
+								"rcptTo":   rcptList,
+							},
+						},
+					},
+				},
+				CallId: "c2",
+			},
+		},
+	}
+}
+
+// NewEmailImportAndSubmitRequest imports a complete RFC 5322 message and submits
+// it in one JMAP request. This supports headers that Email/set cannot write,
+// such as a caller-selected Message-ID.
+func NewEmailImportAndSubmitRequest(accountId Id, blobId Id, mailboxIds map[Id]bool, mailFromEmail string, rcptTo []EmailAddress) *Request {
+	rcptList := make([]map[string]string, 0, len(rcptTo))
+	for _, r := range rcptTo {
+		rcptList = append(rcptList, map[string]string{"email": r.Email})
+	}
+
+	return &Request{
+		Using: []string{CoreCapability, MailCapability, SubmissionCapability},
+		MethodCalls: []MethodCall{
+			{
+				Name: MethodEmailImport,
+				Arguments: map[string]interface{}{
+					"accountId": accountId,
+					"emails": map[string]interface{}{
+						"imported": map[string]interface{}{
+							"blobId":     blobId,
+							"mailboxIds": mailboxIds,
+							"keywords":   map[string]bool{"$draft": true},
+						},
+					},
+				},
+				CallId: "c1",
+			},
+			{
+				Name: MethodEmailSubmissionSet,
+				Arguments: map[string]interface{}{
+					"accountId": accountId,
+					"create": map[string]interface{}{
+						"submission1": map[string]interface{}{
+							"emailId": map[string]string{
+								"resultOf": "c1",
+								"name":     MethodEmailImport,
+								"path":     "/created/imported/id",
+							},
 							"envelope": map[string]interface{}{
 								"mailFrom": map[string]string{"email": mailFromEmail},
 								"rcptTo":   rcptList,

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
+	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
 	"github.com/spf13/cobra"
@@ -66,7 +67,8 @@ type Config struct {
 	Folder string // Well-known or custom folder name for listmail (default: inbox)
 
 	// Search configuration
-	MessageID string // Internet Message ID for searchandexport/exportmessages actions
+	MessageID       string // Internet Message ID for searches or a complete ID for sendmail/draft
+	MessageIDSuffix string // Domain suffix for the generated ID used by sendmail/draft
 
 	// Export configuration
 	ExportDir string // Directory under which to create the dated export folder (default: OS temp dir)
@@ -206,6 +208,7 @@ func BindEnvs(v *viper.Viper) {
 		"duration":           "MSGRAPHDURATION",
 		"folder":             "MSGRAPHFOLDER",
 		"messageid":          "MSGRAPHMESSAGEID",
+		"messageidsuffix":    "MSGRAPHMESSAGEIDSUFFIX",
 		"exportdir":          "MSGRAPHEXPORTDIR",
 		"proxy":              "MSGRAPHPROXY",
 		"maxretries":         "MSGRAPHMAXRETRIES",
@@ -321,6 +324,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		SendMeetingResponse:   v.GetBool("send-response"),
 		Folder:                v.GetString("folder"),
 		MessageID:             v.GetString("messageid"),
+		MessageIDSuffix:       v.GetString("messageidsuffix"),
 		ExportDir:             v.GetString("exportdir"),
 		ProxyURL:              v.GetString("proxy"),
 		MaxRetries:            maxRetries,
@@ -359,6 +363,13 @@ func validateConfiguration(config *Config) error {
 
 	if err := validateAuthConfiguration(config); err != nil {
 		return err
+	}
+
+	if (config.Action == ActionSendMail || config.Action == ActionSaveDraft) &&
+		(config.MessageID != "" || config.MessageIDSuffix != "") {
+		if _, err := mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, mimebuilder.GenerateMessageID("", "msgraphtool")); err != nil {
+			return err
+		}
 	}
 
 	// Validate attachment file paths

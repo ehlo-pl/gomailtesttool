@@ -40,6 +40,10 @@ gomailtest msgraph sendmail
 # Send to specific recipient
 gomailtest msgraph sendmail --to "recipient@example.com"
 
+# Add a custom tracking ID (not the server-generated Internet Message-ID)
+gomailtest msgraph sendmail --to "recipient@example.com" --messageid "test-123@example.com"
+gomailtest msgraph sendmail --to "recipient@example.com" --messageidsuffix "example.com"
+
 # Custom subject and body
 gomailtest msgraph sendmail \
     --to "recipient@example.com" \
@@ -87,6 +91,14 @@ gomailtest msgraph sendmail --to "recipient@example.com" \
 ```
 
 > **Note:** Microsoft Graph only passes through `X-`-prefixed custom headers. Standard RFC headers (From, To, Subject, Date, Message-ID, etc.) are set by the Graph API itself and cannot be overridden via `--header`.
+
+`--messageid` sets the `X-Message-ID` custom header, and `--messageidsuffix`
+sets the domain used after `@` in a generated value. These flags are mutually
+exclusive. Microsoft Graph does not allow clients to set `internetMessageId`
+(the standard `Message-ID` header); Exchange generates it when the message is
+created or sent. The `X-Message-ID` value is separate and does not change or
+replace that server-generated Internet Message-ID. The same flags are available
+for `draft`.
 
 `--template` with a `.eml` file parses the rendered message and maps its
 recognized fields (`To`/`Cc`/`Bcc`/`Subject`/text and HTML bodies) onto the
@@ -362,7 +374,8 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--start` | Start time (RFC3339) | `MSGRAPHSTART` |
 | `--end` | End time (RFC3339) | `MSGRAPHEND` |
 | `--timezone` | Event timezone Graph interprets `--start`/`--end` in (`sendinvite`; default `UTC`) | `MSGRAPHTIMEZONE` |
-| `--messageid` | Internet Message ID | `MSGRAPHMESSAGEID` |
+| `--messageid` | `X-Message-ID` value (sendmail/draft); Internet Message-ID search value (export actions) | `MSGRAPHMESSAGEID` |
+| `--messageidsuffix` | Domain suffix for generated `X-Message-ID` (sendmail/draft) | `MSGRAPHMESSAGEIDSUFFIX` |
 | `--exportdir` | Directory under which to create the dated export folder (used by `exportinbox`, `searchandexport`, `exportmessages`) | `MSGRAPHEXPORTDIR` |
 
 ### exportmessages-specific

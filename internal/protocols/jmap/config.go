@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
@@ -47,8 +48,9 @@ type Config struct {
 	SaveToSent            bool     // Place created email in the Sent mailbox (JMAP mailboxIds)
 
 	// Search / export (exportmessages)
-	MessageID string
-	ExportDir string
+	MessageID       string
+	MessageIDSuffix string
+	ExportDir       string
 
 	// Pagination (listmail, exportmessages)
 	Count int
@@ -135,6 +137,7 @@ func BindEnvs(v *viper.Viper) {
 		"inline-attachments": "JMAPINLINEATTACHMENTS",
 		"save-to-sent":       "JMAPSAVETOSENT",
 		"messageid":   "JMAPMESSAGEID",
+		"messageidsuffix": "JMAPMESSAGEIDSUFFIX",
 		"exportdir":   "JMAPEXPORTDIR",
 		"count":       "JMAPCOUNT",
 		"verbose":     "JMAPVERBOSE",
@@ -209,6 +212,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		InlineAttachmentFiles: parseStringSlice(v.GetString("inline-attachments")),
 		SaveToSent:            v.GetBool("save-to-sent"),
 		MessageID:             v.GetString("messageid"),
+		MessageIDSuffix:       v.GetString("messageidsuffix"),
 		ExportDir:      v.GetString("exportdir"),
 		Count:          count,
 		VerboseMode:    v.GetBool("verbose"),
@@ -293,6 +297,11 @@ func validateConfiguration(config *Config) error {
 	}
 
 	if config.Action == ActionSendMail {
+		if config.MessageID != "" || config.MessageIDSuffix != "" {
+			if _, err := mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, mimebuilder.GenerateMessageID(config.Host, "jmaptool")); err != nil {
+				return err
+			}
+		}
 		// Validate --template/--template-vars. An .eml template is parsed
 		// and its recognised fields mapped onto Email/set, so recipients
 		// may come from its To/Cc/Bcc headers instead of --to.

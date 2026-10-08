@@ -1,6 +1,7 @@
 package smtp
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -223,7 +224,11 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	messageData := config.RawMessage
 	messageID := config.RawMessageID
 	if messageData == nil {
-		messageData, err = buildMIMEMessage(config, slogLogger)
+		messageID, err = mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, generateMessageID(config.Host))
+		if err != nil {
+			return fmt.Errorf("invalid Message-ID: %w", err)
+		}
+		messageData, err = buildMIMEMessageWithID(config, slogLogger, messageID)
 		if err != nil {
 			logger.LogError(slogLogger, "Failed to build email message", "error", err)
 			if logErr := writeSMTPCSVRow(csvLogger, []string{
@@ -236,7 +241,19 @@ func SendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 			}
 			return fmt.Errorf("failed to build email message: %w", err)
 		}
-		messageID = generateMessageID(config.Host)
+	} else if config.MessageID != "" || config.MessageIDSuffix != "" {
+		defaultID := config.RawMessageID
+		if defaultID == "" {
+			defaultID = generateMessageID(config.Host)
+		}
+		messageID, err = mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, defaultID)
+		if err != nil {
+			return fmt.Errorf("invalid Message-ID: %w", err)
+		}
+		messageData, err = replaceRawMessageID(messageData, messageID)
+		if err != nil {
+			return fmt.Errorf("failed to set template Message-ID: %w", err)
+		}
 	}
 
 	// Send email. The SMTP envelope (RCPT TO) includes To, Cc, and Bcc
@@ -318,6 +335,10 @@ func writeSMTPCSVRow(csvLogger logger.Logger, row []string) error {
 // no attachments and parses no custom headers, so Build cannot fail. SMTP omits
 // Bcc from the headers — recipients travel in the envelope (RCPT TO).
 func buildEmailMessage(from string, to, cc []string, subject, body, priority string) []byte {
+	return buildEmailMessageWithID(from, to, cc, subject, body, priority, generateMessageID(""))
+}
+
+func buildEmailMessageWithID(from string, to, cc []string, subject, body, priority, messageID string) []byte {
 	data, _ := mimebuilder.Build(mimebuilder.Message{
 		From:      from,
 		To:        to,
@@ -325,7 +346,7 @@ func buildEmailMessage(from string, to, cc []string, subject, body, priority str
 		Subject:   subject,
 		TextBody:  body,
 		Priority:  priority,
-		MessageID: generateMessageID(""),
+		MessageID: messageID,
 	})
 	return data
 }
@@ -335,9 +356,17 @@ func buildEmailMessage(from string, to, cc []string, subject, body, priority str
 // custom headers. If none of these extras are configured, it falls back to the
 // simple plain-text message produced by buildEmailMessage (unchanged behavior).
 func buildMIMEMessage(config *Config, slogLogger *slog.Logger) ([]byte, error) {
+	messageID, err := mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, generateMessageID(config.Host))
+	if err != nil {
+		return nil, err
+	}
+	return buildMIMEMessageWithID(config, slogLogger, messageID)
+}
+
+func buildMIMEMessageWithID(config *Config, slogLogger *slog.Logger, messageID string) ([]byte, error) {
 	hasExtras := config.BodyHTML != "" || len(config.Attachments) > 0 || len(config.InlineAttachments) > 0 || len(config.Headers) > 0
 	if !hasExtras {
-		return buildEmailMessage(config.From, config.To, config.Cc, config.Subject, config.Body, config.Priority), nil
+		return buildEmailMessageWithID(config.From, config.To, config.Cc, config.Subject, config.Body, config.Priority, messageID), nil
 	}
 
 	customHeaders, err := email.ParseHeaders(config.Headers)
@@ -370,8 +399,37 @@ func buildMIMEMessage(config *Config, slogLogger *slog.Logger) ([]byte, error) {
 		Headers:     customHeaders,
 		Attachments: attachments,
 		Inline:      inlineAttachments,
-		MessageID:   generateMessageID(""),
+		MessageID:   messageID,
 	})
+}
+
+func replaceRawMessageID(message []byte, messageID string) ([]byte, error) {
+	if messageID == "" {
+		return nil, fmt.Errorf("Message-ID is empty")
+	}
+	headerEnd := bytes.Index(message, []byte("\r\n\r\n"))
+	lineEnding := "\r\n"
+	if headerEnd < 0 {
+		headerEnd = bytes.Index(message, []byte("\n\n"))
+		lineEnding = "\n"
+	}
+	if headerEnd < 0 {
+		return nil, fmt.Errorf("message template has no header/body separator")
+	}
+
+	headers := strings.Split(string(message[:headerEnd]), lineEnding)
+	replaced := false
+	for i, header := range headers {
+		if strings.HasPrefix(strings.ToLower(header), "message-id:") {
+			headers[i] = "Message-ID: <" + messageID + ">"
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		headers = append(headers, "Message-ID: <"+messageID+">")
+	}
+	return append([]byte(strings.Join(headers, lineEnding)+lineEnding+lineEnding), message[headerEnd+len(lineEnding)*2:]...), nil
 }
 
 // sanitizeEmailHeader removes CRLF sequences from email header values to prevent

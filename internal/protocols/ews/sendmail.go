@@ -13,14 +13,15 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 )
 
 // EWS response type for CreateItem.
 
 type createItemResponseEnvelope struct {
-	XMLName struct{}              `xml:"Envelope"`
-	Body    createItemRespBody    `xml:"Body"`
+	XMLName struct{}           `xml:"Envelope"`
+	Body    createItemRespBody `xml:"Body"`
 }
 
 type createItemRespBody struct {
@@ -158,6 +159,15 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		return err
 	}
 	attachmentsXML := buildAttachmentsXML(append(attachments, inlineAttachments...))
+	messageIDHeaderXML := ""
+	if config.MessageID != "" || config.MessageIDSuffix != "" {
+		messageID, resolveErr := mimebuilder.ResolveMessageID(config.MessageID, config.MessageIDSuffix, mimebuilder.GenerateMessageID(config.Host, "ewstool"))
+		if resolveErr != nil {
+			writeRow("FAILURE", 0, resolveErr.Error())
+			return resolveErr
+		}
+		messageIDHeaderXML = buildMessageIDHeaderXML(messageID)
+	}
 
 	// Determine body type and content.
 	bodyType := "Text"
@@ -178,6 +188,7 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		xmlEscape(config.Subject),
 		bodyType,
 		xmlEscape(bodyContent),
+		messageIDHeaderXML,
 		attachmentsXML,
 		toXML,
 		ccXML,
@@ -220,6 +231,13 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	writeRow("SUCCESS", elapsed, "")
 	logger.LogInfo(slogLogger, config.Action+" completed", "to", toStr, "subject", config.Subject, "elapsed_ms", elapsed)
 	return nil
+}
+
+func buildMessageIDHeaderXML(messageID string) string {
+	if messageID == "" {
+		return ""
+	}
+	return fmt.Sprintf("          <t:InternetMessageHeaders><t:InternetMessageHeader HeaderName=\"X-Message-ID\">%s</t:InternetMessageHeader></t:InternetMessageHeaders>\n", xmlEscape("<"+messageID+">"))
 }
 
 // buildAttachmentsXML builds the EWS <t:Attachments> XML block for a slice of
@@ -268,9 +286,8 @@ func xmlEscape(s string) string {
 // createItemSOAPBodySaveToSentFmt is the SOAP body for CreateItem with
 // MessageDisposition="SendAndSaveCopy" — saves a copy in Sent Items.
 // Args: XML-escaped subject, body type ("Text"/"HTML"), XML-escaped body,
-// attachments XML block (empty string when none), recipient XML blocks for To
-// and Cc. The Attachments block precedes the recipient elements because the EWS
-// schema orders t:Item members (Attachments) before t:Message members (recipients).
+// X-Message-ID header XML (optional), attachments XML block, and recipient XML
+// blocks for To and Cc. The Attachments block precedes recipient elements.
 const createItemSOAPBodySaveToSentFmt = `    <m:CreateItem MessageDisposition="SendAndSaveCopy">
       <m:SavedItemFolderId>
         <t:DistinguishedFolderId Id="sentitems"/>
@@ -279,6 +296,7 @@ const createItemSOAPBodySaveToSentFmt = `    <m:CreateItem MessageDisposition="S
         <t:Message>
           <t:Subject>%s</t:Subject>
           <t:Body BodyType="%s">%s</t:Body>
+%s
 %s          <t:ToRecipients>
 %s      </t:ToRecipients>
           <t:CcRecipients>
@@ -295,6 +313,7 @@ const createItemSOAPBodySendOnlyFmt = `    <m:CreateItem MessageDisposition="Sen
         <t:Message>
           <t:Subject>%s</t:Subject>
           <t:Body BodyType="%s">%s</t:Body>
+%s
 %s          <t:ToRecipients>
 %s      </t:ToRecipients>
           <t:CcRecipients>
@@ -314,6 +333,7 @@ const createItemSOAPBodySaveOnlyDraftFmt = `    <m:CreateItem MessageDisposition
         <t:Message>
           <t:Subject>%s</t:Subject>
           <t:Body BodyType="%s">%s</t:Body>
+%s
 %s          <t:ToRecipients>
 %s      </t:ToRecipients>
           <t:CcRecipients>

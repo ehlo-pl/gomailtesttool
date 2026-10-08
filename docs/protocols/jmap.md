@@ -82,11 +82,19 @@ gomailtest jmap listmail --host jmap.fastmail.com \
 ### sendmail — Send an Email
 
 Builds an email via `Email/set` and submits it via `EmailSubmission/set`.
+When a caller-selected Message-ID is requested, imports a complete RFC 5322
+message via `Email/import` before submitting it so the ID is included in the
+message bytes.
 
 ```powershell
 gomailtest jmap sendmail --host jmap.fastmail.com \
     --username user@example.com --accesstoken "your-api-token" \
     --to recipient@example.com --subject "Test" --body "plain text" --bodyhtml "<p>html</p>"
+
+# Use a caller-selected Message-ID, or only override its domain suffix
+gomailtest jmap sendmail --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token" \
+    --to recipient@example.com --messageid "test-123@example.com"
 
 # Send from a template file (Go text/template variables via --template-vars)
 gomailtest jmap sendmail --host jmap.fastmail.com \
@@ -150,7 +158,8 @@ gomailtest jmap exportmessages --host jmap.fastmail.com \
 | `--bodyhtml` | HTML body content (sendmail) | `JMAPBODYHTML` | — |
 | `--template` | Message template file with Go `text/template` variables: `.eml` fields are mapped to `Email/set`, any other extension is used as the HTML body (sendmail) | `JMAPTEMPLATE` | — |
 | `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` (repeatable, sendmail) | `JMAPTEMPLATEVARS` | — |
-| `--messageid` | Internet Message-ID to search for (exportmessages) | `JMAPMESSAGEID` | — |
+| `--messageid` | Complete Message-ID value to use (sendmail); Internet Message-ID to search for (exportmessages) | `JMAPMESSAGEID` | — |
+| `--messageidsuffix` | Domain suffix for generated Message-ID (sendmail) | `JMAPMESSAGEIDSUFFIX` | — |
 | `--exportdir` | Directory for the export folder (exportmessages) | `JMAPEXPORTDIR` | OS temp dir |
 | `--count` | Maximum number of results to return (listmail, exportmessages) | `JMAPCOUNT` | action-specific: `3` (listmail), `25` (exportmessages) |
 | `--verbose` | Enable verbose output | `JMAPVERBOSE` | false |

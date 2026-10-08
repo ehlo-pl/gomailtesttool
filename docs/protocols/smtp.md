@@ -108,8 +108,14 @@ gomailtest smtp sendmail \
   --username user@example.com --password "yourpassword" \
   --from sender@example.com \
   --to "recipient1@example.com,recipient2@example.com" \
-  --subject "Test Email" --body "This is a test message"
+  --subject "Test Email" --body "This is a test message" \
+  --messageidsuffix "example.com"
 ```
+
+`--messageid` supplies the complete Message-ID value; `--messageidsuffix`
+replaces the domain after `@` in the generated value. The options are
+mutually exclusive. Values may be entered with or without surrounding angle
+brackets.
 
 #### HTML body, attachments, inline images, and custom headers
 
@@ -219,6 +225,8 @@ vars). `teststarttls` requires either STARTTLS or `--smtps` to test, so
 | `--subject` | Email subject | `SMTPSUBJECT` |
 | `--body` | Email body text | `SMTPBODY` |
 | `--bodyhtml` | HTML body content; combine with `--body` for `multipart/alternative` | `SMTPBODYHTML` |
+| `--messageid` | Complete Message-ID value to use | `SMTPMESSAGEID` |
+| `--messageidsuffix` | Domain suffix for the generated Message-ID | `SMTPMESSAGEIDSUFFIX` |
 | `--attachments` | Comma-separated file paths to attach | `SMTPATTACHMENTS` |
 | `--inline-attachments` | Comma-separated file paths to embed inline via `cid:<filename>` | `SMTPINLINEATTACHMENTS` |
 | `--header` | Custom header in `"Name: Value"` form (repeatable); when set via env var use comma-separated values (avoid commas in header values) | `SMTPHEADER` |

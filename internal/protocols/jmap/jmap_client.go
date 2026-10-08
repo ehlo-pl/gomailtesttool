@@ -490,6 +490,39 @@ func (c *JMAPClient) SendEmail(ctx context.Context, draft protocol.EmailCreate, 
 	return nil
 }
 
+// SendRawEmail imports a complete RFC 5322 message and submits it. The import
+// path is used when caller-controlled headers must be preserved by the server.
+func (c *JMAPClient) SendRawEmail(ctx context.Context, rawMessage []byte, mailboxIds map[protocol.Id]bool, mailFrom string, rcptTo []protocol.EmailAddress) error {
+	if c.session == nil {
+		if _, err := c.Discover(ctx); err != nil {
+			return fmt.Errorf("failed to discover session: %w", err)
+		}
+	}
+	if !c.session.HasCapability(protocol.SubmissionCapability) {
+		return fmt.Errorf("JMAP server does not support %s capability — cannot send mail", protocol.SubmissionCapability)
+	}
+	accountId, ok := c.session.GetPrimaryMailAccountId()
+	if !ok {
+		return fmt.Errorf("no primary mail account found")
+	}
+	blobId, err := c.UploadBlob(ctx, "message/rfc822", rawMessage)
+	if err != nil {
+		return fmt.Errorf("failed to upload raw message: %w", err)
+	}
+
+	request := protocol.NewEmailImportAndSubmitRequest(accountId, blobId, mailboxIds, mailFrom, rcptTo)
+	response, err := c.makeAPIRequest(ctx, *request)
+	if err != nil {
+		return err
+	}
+	for _, methodResponse := range response.MethodResponses {
+		if protocol.IsErrorResponse(methodResponse.Name) {
+			return fmt.Errorf("JMAP error in %s: %s", methodResponse.CallId, string(methodResponse.Arguments))
+		}
+	}
+	return nil
+}
+
 // GetAuthMethod returns the authentication method that will be used.
 func (c *JMAPClient) GetAuthMethod() string {
 	authMethod := c.config.AuthMethod
