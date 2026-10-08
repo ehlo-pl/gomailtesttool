@@ -22,8 +22,16 @@ import (
 
 func TestSMTPClientSendMailReturnsFinalResponse(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
-	defer clientConn.Close()
-	defer serverConn.Close()
+	defer func() {
+		if err := clientConn.Close(); err != nil {
+			t.Errorf("client connection close error = %v", err)
+		}
+	}()
+	defer func() {
+		if err := serverConn.Close(); err != nil {
+			t.Errorf("server connection close error = %v", err)
+		}
+	}()
 
 	serverErr := make(chan error, 1)
 	go func() {
