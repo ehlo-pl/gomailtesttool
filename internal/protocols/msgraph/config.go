@@ -74,7 +74,8 @@ type Config struct {
 	MessageIDSuffix string // Domain suffix for the generated ID used by sendmail/draft
 
 	// Export configuration
-	ExportDir string // Directory under which to create the dated export folder (default: OS temp dir)
+	ExportMethod string // exportmessages method: "content" (.eml via message $value, default) or "exportitems" (Graph beta mailbox exportItems)
+	ExportDir    string // Directory under which to create the dated export folder (default: OS temp dir)
 
 	// Message removal configuration
 	ConfirmDelete bool // Confirm once for the full matching set instead of per message
@@ -219,6 +220,7 @@ func BindEnvs(v *viper.Viper) {
 		"messageid":          "MSGRAPHMESSAGEID",
 		"messageidsuffix":    "MSGRAPHMESSAGEIDSUFFIX",
 		"exportdir":          "MSGRAPHEXPORTDIR",
+		"exportmethod":       "MSGRAPHEXPORTMETHOD",
 		"confirmdelete":      "MSGRAPHCONFIRMDELETE",
 		"permanent":          "MSGRAPHPERMANENT",
 		"proxy":              "MSGRAPHPROXY",
@@ -338,6 +340,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		MessageID:             v.GetString("messageid"),
 		MessageIDSuffix:       v.GetString("messageidsuffix"),
 		ExportDir:             v.GetString("exportdir"),
+		ExportMethod:          strings.ToLower(v.GetString("exportmethod")),
 		ConfirmDelete:         v.GetBool("confirmdelete"),
 		Permanent:             v.GetBool("permanent"),
 		ProxyURL:              v.GetString("proxy"),
@@ -540,6 +543,14 @@ func validateConfiguration(config *Config) error {
 		case "accept", "decline", "tentative":
 		default:
 			return fmt.Errorf("respondmeeting --response must be one of: accept, decline, tentative (got %q)", config.MeetingResponse)
+		}
+	}
+
+	if config.Action == ActionExportMessages {
+		switch config.ExportMethod {
+		case "", ExportMethodContent, ExportMethodExportItems:
+		default:
+			return fmt.Errorf("--exportmethod must be %q or %q (got %q)", ExportMethodContent, ExportMethodExportItems, config.ExportMethod)
 		}
 	}
 
@@ -747,3 +758,9 @@ func validateRFC3339Time(timeStr, fieldName string) error {
 func validateFilePath(path, fieldName string) error {
 	return validation.ValidateFilePath(path, fieldName)
 }
+
+// Export methods for the exportmessages action.
+const (
+	ExportMethodContent     = "content"
+	ExportMethodExportItems = "exportitems"
+)

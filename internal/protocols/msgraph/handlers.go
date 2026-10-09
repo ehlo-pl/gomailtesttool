@@ -1202,7 +1202,7 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 	successCount := 0
 	for _, message := range messages {
 		messageID := derefOr(message.GetId(), "")
-		filePath, err := exportMessageToEML(ctx, client, mailbox, message, exportDir, config)
+		filePath, err := exportOne(ctx, client, mailbox, message, exportDir, config)
 		if err != nil {
 			log.Printf("Error exporting message ID %s: %v", messageID, err)
 			if logger != nil {
@@ -1225,6 +1225,99 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 	}
 
 	return nil
+}
+
+func exportOne(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, message models.Messageable, dir string, config *Config) (string, error) {
+	if config.ExportMethod == ExportMethodExportItems {
+		return exportMessageViaExportItems(ctx, client, mailbox, message, dir, config)
+	}
+	return exportMessageToEML(ctx, client, mailbox, message, dir, config)
+}
+
+// exportItemsURL is the Graph beta mailbox exportItems endpoint.
+func exportItemsURL(mailbox string) string {
+	return "https://graph.microsoft.com/beta/admin/exchange/mailboxes/" + url.PathEscape(mailbox) + "/exportItems"
+}
+
+type exportItemsResponse struct {
+	Value []struct {
+		ItemID string          `json:"itemId"`
+		Data   string          `json:"data"`
+		Error  json.RawMessage `json:"error"`
+	} `json:"value"`
+}
+
+// exportMessageViaExportItems exports a message using the Graph beta
+// mailbox exportItems API (requires MailboxItem.Export permission).
+func exportMessageViaExportItems(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, message models.Messageable, dir string, config *Config) (string, error) {
+	if message.GetId() == nil {
+		return "", fmt.Errorf("message has no ID")
+	}
+	id := *message.GetId()
+
+	body, err := json.Marshal(map[string][]string{"itemIds": {id}})
+	if err != nil {
+		return "", err
+	}
+
+	reqURL, err := url.Parse(exportItemsURL(mailbox))
+	if err != nil {
+		return "", fmt.Errorf("invalid exportItems URL: %w", err)
+	}
+
+	var raw []byte
+	err = retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+		req := abstractions.NewRequestInformation()
+		req.Method = abstractions.POST
+		req.SetUri(*reqURL)
+		req.SetStreamContentAndContentType(body, "application/json")
+		req.Headers.TryAdd("Accept", "application/json")
+		resp, apiErr := client.GetAdapter().SendPrimitive(ctx, req, "[]byte", nil)
+		if apiErr != nil {
+			return apiErr
+		}
+		raw, _ = resp.([]byte)
+		return nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("exportItems request failed: %w", err)
+	}
+
+	data, err := parseExportItemsResponse(raw)
+	if err != nil {
+		return "", err
+	}
+
+	name := id
+	if message.GetInternetMessageId() != nil && *message.GetInternetMessageId() != "" {
+		name = *message.GetInternetMessageId()
+	}
+	filePath := filepath.Join(dir, fmt.Sprintf("msg_%s.bin", export.SanitizeFilename(name)))
+	if err := os.WriteFile(filePath, data, 0600); err != nil {
+		return "", fmt.Errorf("failed to write export file: %w", err)
+	}
+	logVerbose(config.VerboseMode, "Exported message via exportItems to %s", filePath)
+	return filePath, nil
+}
+
+// parseExportItemsResponse extracts the decoded item data from an exportItems response.
+func parseExportItemsResponse(raw []byte) ([]byte, error) {
+	var parsed exportItemsResponse
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, fmt.Errorf("failed to parse exportItems response: %w", err)
+	}
+	if len(parsed.Value) == 0 {
+		return nil, fmt.Errorf("exportItems response contained no items")
+	}
+	item := parsed.Value[0]
+	if len(item.Error) > 0 && string(item.Error) != "null" {
+		return nil, fmt.Errorf("exportItems returned an error for item %s: %s", item.ItemID, string(item.Error))
+	}
+	data, err := base64.StdEncoding.DecodeString(item.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode exportItems data: %w", err)
+	}
+	return data, nil
 }
 
 func searchMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox string, messageID string, subject string, folder string, count int, config *Config, logger logger.Logger, operation string) ([]models.Messageable, error) {
