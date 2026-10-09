@@ -210,7 +210,7 @@ All dependencies are necessary for functionality. Further reduction would requir
 
 **"package X is not in GOROOT"**
 - Run `go mod download` from project root
-- Ensure Go 1.24 or later
+- Ensure Go 1.25 or later
 
 **"Access Denied" on Windows**
 - Close any running instances of the tool
