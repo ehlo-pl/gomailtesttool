@@ -15,7 +15,7 @@ export SMTPUSERNAME="user@example.com"
 export SMTPPASSWORD="yourpassword"
 export SMTPFROM="sender@example.com"
 
-gomailtest serve --api-key mysecretkey
+gomailtest serve
 
 # Send an email via the REST API
 curl -X POST http://localhost:8080/smtp/sendmail \
@@ -27,14 +27,16 @@ curl -X POST http://localhost:8080/smtp/sendmail \
 ## Starting the Server
 
 ```bash
-gomailtest serve --api-key <secret> [--port 8080] [--listen 127.0.0.1]
+gomailtest serve [--port 8080] [--listen 127.0.0.1]
 ```
 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
-| `--api-key` | `SERVE_API_KEY` | — | **Required.** Value expected in the `X-API-Key` request header |
+| `--api-key` | `SERVE_API_KEY` | — | **Required.** Prefer `SERVE_API_KEY` to avoid exposing the key in command-line arguments; otherwise, value expected in the `X-API-Key` request header |
 | `--port` | `SERVE_PORT` | `8080` | HTTP listen port |
 | `--listen` | `SERVE_LISTEN` | `127.0.0.1` | Bind address (e.g., `0.0.0.0` to listen on all interfaces) |
+
+If you use `--api-key`, be aware that process-inspection tools may expose its value.
 
 ## Authentication
 
