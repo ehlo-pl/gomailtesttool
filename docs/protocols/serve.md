@@ -89,7 +89,8 @@ curl http://localhost:8080/
     {"method":"GET","path":"/health","description":"Health check (no API key required)","available":true},
     {"method":"POST","path":"/smtp/sendmail","description":"Send email via SMTP (X-API-Key required)","available":true},
     {"method":"POST","path":"/msgraph/sendmail","description":"Send email via Microsoft Graph (X-API-Key required)","available":false},
-    {"method":"POST","path":"/ews/sendmail","description":"Send email via EWS — not yet implemented","available":false}
+    {"method":"POST","path":"/ews/sendmail","description":"Send email via EWS — not yet implemented","available":false},
+    {"method":"POST","path":"/mcp","description":"MCP (Streamable HTTP) endpoint exposing the sendmail tools (X-API-Key required)","available":true}
   ]
 }
 ```
