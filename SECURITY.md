@@ -16,7 +16,7 @@ Please include as much information as possible to help us reproduce the issue. W
 
 ### Tool Design and Context
 
-**gomailtest** (and its protocol sub-tools: smtp, imap, pop3, jmap, msgraph) are designed as **diagnostic CLI utilities for authorized personnel**. Understanding the threat model is critical for proper security assessment:
+The protocol commands (`smtp`, `imap`, `pop3`, `jmap`, `ews`, `msgraph`, and `gmail`) are designed as **diagnostic CLI utilities for authorized personnel**. Their intended input is supplied by an administrator running the command, not directly by an untrusted caller. `serve` is a separate, opt-in mode that deliberately exposes a network API; its additional trust boundary and deployment requirements are described below.
 
 **✅ Trusted Input Sources:**
 - **CLI flags** (`-host`, `-subject`, `-from`, etc.) are provided by authorized users
@@ -31,13 +31,25 @@ Please include as much information as possible to help us reproduce the issue. W
 
 **⚠️ NOT Designed For:**
 - ❌ Accepting input from untrusted sources (web forms, public APIs, user-generated content)
-- ❌ Running as a network service exposed to external requests
+- ❌ Using the CLI commands as a network service or exposing `serve` directly to the public internet
 - ❌ Processing arbitrary user input without validation
 - ❌ Public-facing interfaces or web applications
 
+### Serve Mode Trust Boundary
+
+`gomailtest serve` is an opt-in HTTP service, not an exception to the trusted-operator threat model. It is intended for controlled deployments where only authorized clients can reach it. Its REST endpoints and Streamable HTTP MCP endpoint accept request-supplied message content and can send mail using the credentials and permissions configured in the server process. Treat every caller able to use the API as trusted to send mail through those configured accounts.
+
+- The required `SERVE_API_KEY` / `--api-key` is one shared bearer key. It does not identify individual callers or provide per-user authorization, permissions, or audit identity. Protect it as a credential and use a high-entropy value.
+- The key is required on protected routes, but `GET /health` and `GET /` are intentionally unauthenticated. Do not treat the health check or API key as a substitute for network access controls.
+- The built-in server uses plain HTTP and does not provide TLS. Without a separately secured transport, the API key and request contents can be observed or modified in transit. Use loopback for local access or restrict access to a trusted private network; for remote clients, terminate TLS at a properly secured reverse proxy and prevent clients from bypassing it to reach the HTTP listener directly.
+- Do not expose the listener directly to the public internet or use it as a public-facing API. Deploy only with authorized clients, least-privilege mail credentials, secret-management controls, and network/firewall restrictions. Validate and authorize external users in a separate trusted application before allowing them to reach `serve`; input validation alone does not make the endpoint safe for arbitrary callers.
+- MCP stdio mode has no API key because it is intended for a locally launched subprocess. Its caller and inherited environment must likewise be trusted.
+
+See [docs/protocols/serve.md](docs/protocols/serve.md) for endpoint details and operational guidance.
+
 ### Defense-in-Depth Measures
 
-While CLI flags are trusted input, the tools implement defense-in-depth security measures:
+While command-line input is expected to come from an authorized operator, the tools implement defense-in-depth security measures:
 
 **CRLF Injection Prevention (v2.0.2+):**
 - All SMTP command parameters are sanitized to remove `\r` and `\n` characters

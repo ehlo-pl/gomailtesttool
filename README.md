@@ -286,12 +286,12 @@ Replace legacy `*tool` invocations with `gomailtest <protocol> <action> --flag`:
 
 ## Security
 
-These are diagnostic CLI tools designed for authorized personnel (system administrators, IT staff).
+The protocol commands are diagnostic CLI tools designed for authorized personnel (system administrators, IT staff). `serve` is an opt-in HTTP service with a separate trust boundary; it is intended only for controlled deployments with authorized callers, not as a public-facing API.
 
 - CLI flags and environment variables are **trusted input** from authorized users
-- **Not designed** for untrusted web/API input or public-facing services
+- CLI commands are **not designed** for untrusted web/API input; `serve` requires network restrictions and protected transport for remote access
 - Defense-in-depth measures: CRLF sanitization, password masking in logs
-- See [SECURITY.md](SECURITY.md) for the complete threat model
+- See [SECURITY.md](SECURITY.md#serve-mode-trust-boundary) for the complete threat model and serve deployment requirements
 
 ## License
 
