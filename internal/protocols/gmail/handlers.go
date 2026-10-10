@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -399,7 +398,7 @@ func exportMessageToEML(ctx context.Context, svc *gmailapi.Service, config *Conf
 
 	filename := fmt.Sprintf("msg_%s.eml", export.SanitizeFilename(id))
 	filePath := filepath.Join(dir, filename)
-	if err := os.WriteFile(filePath, raw, 0o644); err != nil {
+	if err := export.WriteFile(filePath, raw); err != nil {
 		return "", fmt.Errorf("failed to write EML file: %w", err)
 	}
 	logVerbose(config.VerboseMode, "Exported message to %s", filePath)
