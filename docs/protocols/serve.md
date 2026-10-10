@@ -4,6 +4,8 @@ Server for sending emails programmatically — over an HTTP REST API **and** ove
 
 Credentials are loaded from environment variables at startup. Each request carries only message content — no credentials in request bodies. The MCP tools expose the same sendmail capabilities as the REST endpoints (see [MCP (Model Context Protocol)](#mcp-model-context-protocol) below).
 
+> **Security boundary:** `serve` can send mail using the credentials configured in its process, so only authorized, trusted clients should be able to reach it. Its shared API key is not caller-specific authorization, and the built-in listener uses plain HTTP (no TLS). Keep it on loopback or a restricted private network; for remote access, use a TLS-terminating reverse proxy and block direct access to the listener. Do not expose it directly to the public internet. See [SECURITY.md](../../SECURITY.md#serve-mode-trust-boundary) for the full trust boundary and deployment requirements.
+
 ## Quick Start
 
 ```bash
@@ -37,6 +39,8 @@ gomailtest serve [--port 8080] [--listen 127.0.0.1]
 | `--listen` | `SERVE_LISTEN` | `127.0.0.1` | Bind address (e.g., `0.0.0.0` to listen on all interfaces) |
 
 If you use `--api-key`, be aware that process-inspection tools may expose its value.
+
+The built-in HTTP server does not provide TLS. The API key is a shared bearer secret, not a user identity or per-caller authorization mechanism. All protected callers can invoke the available sendmail tools using the server's configured credentials. Restrict network access to authorized clients; use loopback for local access, or a TLS-terminating reverse proxy with network controls for remote access. Do not expose the listener directly to the public internet. `GET /health` and `GET /` are unauthenticated.
 
 ## Authentication
 
