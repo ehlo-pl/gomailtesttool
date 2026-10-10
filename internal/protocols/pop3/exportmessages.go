@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/mail"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -130,7 +129,7 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		}
 		filename := fmt.Sprintf("msg_%s.eml", export.SanitizeFilename(name))
 		filePath := filepath.Join(exportDir, filename)
-		if err := os.WriteFile(filePath, body, 0644); err != nil {
+		if err := export.WriteFile(filePath, body); err != nil {
 			logger.LogError(slogLogger, "Failed to write EML file", "error", err, "msgnum", m.Number)
 			writeExportRow(csvLogger, slogLogger, config, false, fmt.Sprintf("%d", m.Number), subject, "", err.Error())
 			continue

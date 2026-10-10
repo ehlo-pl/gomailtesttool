@@ -1571,7 +1571,7 @@ func exportMessageToEML(ctx context.Context, client *msgraphsdk.GraphServiceClie
 	filename := fmt.Sprintf("msg_%s.eml", export.SanitizeFilename(name))
 	filePath := filepath.Join(dir, filename)
 
-	if err := os.WriteFile(filePath, mimeContent, 0644); err != nil {
+	if err := export.WriteFile(filePath, mimeContent); err != nil {
 		return "", fmt.Errorf("failed to write EML file: %w", err)
 	}
 
@@ -1641,7 +1641,7 @@ func exportMessageToJSON(message models.Messageable, dir string, config *Config)
 	filename := fmt.Sprintf("msg_%s.json", export.SanitizeFilename(id))
 	filePath := filepath.Join(dir, filename)
 
-	if err := os.WriteFile(filePath, jsonData, 0644); err != nil {
+	if err := export.WriteFile(filePath, jsonData); err != nil {
 		return fmt.Errorf("failed to write JSON file: %w", err)
 	}
 
