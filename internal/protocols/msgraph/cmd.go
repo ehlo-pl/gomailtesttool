@@ -587,6 +587,7 @@ client-side, constrained to working hours (08:00-17:00 UTC, Monday-Friday).`,
 		},
 	}
 	cmd.Flags().String("to", "", "Recipient email address whose calendar to search (env: MSGRAPHTO)")
+	cmd.Flags().String("method", "post", "HTTP method used to read availability: post (calendar/getSchedule) or get (calendarView of the recipient) (env: MSGRAPHMETHOD)")
 	cmd.Flags().Int("duration", 30, "Meeting duration in minutes (env: MSGRAPHDURATION)")
 	cmd.Flags().String("start", "", "Window start (RFC3339 or PowerShell sortable format); default: now (env: MSGRAPHSTART)")
 	cmd.Flags().String("end", "", "Window end; default: start + 5 working days (env: MSGRAPHEND)")

@@ -213,6 +213,10 @@ gomailtest msgraph listmail --folder inbox --count 20
 
 Retrieves a recipient's merged availability view over a time window (default: the next 24 hours) via the Graph `getSchedule` API. Output is a digit-per-hour availability string with a legend (`0=Free 1=Tentative 2=Busy 3=Out of Office 4=Working Elsewhere`), matching the EWS `getschedule` format. Honors `--start`/`--end`.
 
+Use `--method post` (default) to call `calendar/getSchedule`, or `--method get`
+to read `calendarView` and derive availability from events. `MSGRAPHMETHOD` can
+also set the method.
+
 **Difference from `getevents`:** `getevents` retrieves calendar event records for `--mailbox` (such as subjects and event IDs), up to `--count`. `getschedule` requires `--to` and reports that recipient's availability for a time window; it does not list event details. Use `getevents` to view events and `getschedule` to check when someone is free or busy.
 
 ```powershell
@@ -227,6 +231,10 @@ gomailtest msgraph getschedule --to "colleague@example.com" \
 ### findtimeslot — Search Free Meeting Slots
 
 Searches a recipient's calendar for available meeting slots. Busy data comes from the Graph `getSchedule` API and slots are computed client-side, constrained to working hours (08:00–17:00 UTC, Monday–Friday). Defaults: 30-minute slots, next 5 working days, first 3 slots.
+
+Use `--method post` (default) to call `calendar/getSchedule`, or `--method get`
+to read `calendarView` and derive busy periods from events. `MSGRAPHMETHOD` can
+also set the method.
 
 ```powershell
 gomailtest msgraph findtimeslot --to "colleague@example.com"

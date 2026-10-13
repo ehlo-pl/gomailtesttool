@@ -69,6 +69,16 @@ func TestConfigFromViper_AppModeNotDelegated(t *testing.T) {
 	})
 }
 
+func TestConfigFromViper_MethodEnvironmentVariable(t *testing.T) {
+	t.Setenv("MSGRAPHMETHOD", " GET ")
+	v := viper.New()
+	BindEnvs(v)
+
+	if got := ConfigFromViper(v).Method; got != MethodGet {
+		t.Fatalf("ConfigFromViper().Method = %q, want %q", got, MethodGet)
+	}
+}
+
 // validConfigForPriorityTest returns a Config that passes every check in
 // validateConfiguration() except (possibly) the priority validation, so the
 // priority validation can be tested in isolation.
@@ -276,6 +286,24 @@ func TestValidateConfiguration_FindTimeSlot(t *testing.T) {
 		cfg.To = stringSlice{"a@example.com"}
 		if err := validateConfiguration(cfg); err != nil {
 			t.Fatalf("validateConfiguration() unexpected error = %v", err)
+		}
+	})
+
+	t.Run("get method passes", func(t *testing.T) {
+		cfg := base()
+		cfg.To = stringSlice{"a@example.com"}
+		cfg.Method = MethodGet
+		if err := validateConfiguration(cfg); err != nil {
+			t.Fatalf("validateConfiguration() unexpected error = %v", err)
+		}
+	})
+
+	t.Run("invalid method fails", func(t *testing.T) {
+		cfg := base()
+		cfg.To = stringSlice{"a@example.com"}
+		cfg.Method = "patch"
+		if err := validateConfiguration(cfg); err == nil || !strings.Contains(err.Error(), "--method") {
+			t.Fatalf("expected --method validation error, got: %v", err)
 		}
 	})
 }
