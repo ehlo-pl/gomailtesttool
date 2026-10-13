@@ -741,34 +741,13 @@ func getSchedule(ctx context.Context, client *msgraphsdk.GraphServiceClient, mai
 
 	logVerbose(config.VerboseMode, "Checking availability for %s between %s and %s", recipient, windowStartStr, windowEndStr)
 
-	// Create DateTimeTimeZone objects for Graph API
-	startTimeZone := models.NewDateTimeTimeZone()
-	startTimeZone.SetDateTime(pointerTo(windowStartStr))
-	startTimeZone.SetTimeZone(pointerTo("UTC"))
-
-	endTimeZone := models.NewDateTimeTimeZone()
-	endTimeZone.SetDateTime(pointerTo(windowEndStr))
-	endTimeZone.SetTimeZone(pointerTo("UTC"))
-
-	// Create request body
-	requestBody := users.NewItemCalendarGetSchedulePostRequestBody()
-	requestBody.SetSchedules([]string{recipient})
-	requestBody.SetStartTime(startTimeZone)
-	requestBody.SetEndTime(endTimeZone)
-	interval := int32(60) // 60-minute intervals (one digit per hour)
-	requestBody.SetAvailabilityViewInterval(&interval)
-
-	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/calendar/getSchedule", mailbox)
-
-	// Execute API call with retry logic
 	var scheduleInfo []models.ScheduleInformationable
-	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
-		response, apiErr := client.Users().ByUserId(mailbox).Calendar().GetSchedule().Post(ctx, requestBody, nil)
-		if apiErr == nil && response != nil {
-			scheduleInfo = response.GetValue()
-		}
-		return apiErr
-	})
+	var err error
+	if config.Method == MethodGet {
+		scheduleInfo, err = getScheduleViaGet(ctx, client, recipient, windowStart, windowEnd, config)
+	} else {
+		scheduleInfo, err = getScheduleViaPost(ctx, client, mailbox, recipient, windowStartStr, windowEndStr, config)
+	}
 
 	if err != nil {
 		// Enrich error with rate limit and service error details
@@ -874,6 +853,131 @@ func getSchedule(ctx context.Context, client *msgraphsdk.GraphServiceClient, mai
 	}
 
 	return nil
+}
+
+// getScheduleViaPost reads availability with POST /users/{id}/calendar/getSchedule.
+func getScheduleViaPost(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox, recipient, windowStartStr, windowEndStr string, config *Config) ([]models.ScheduleInformationable, error) {
+	startTimeZone := models.NewDateTimeTimeZone()
+	startTimeZone.SetDateTime(pointerTo(windowStartStr))
+	startTimeZone.SetTimeZone(pointerTo("UTC"))
+
+	endTimeZone := models.NewDateTimeTimeZone()
+	endTimeZone.SetDateTime(pointerTo(windowEndStr))
+	endTimeZone.SetTimeZone(pointerTo("UTC"))
+
+	requestBody := users.NewItemCalendarGetSchedulePostRequestBody()
+	requestBody.SetSchedules([]string{recipient})
+	requestBody.SetStartTime(startTimeZone)
+	requestBody.SetEndTime(endTimeZone)
+	interval := int32(60) // 60-minute intervals (one digit per hour)
+	requestBody.SetAvailabilityViewInterval(&interval)
+
+	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/calendar/getSchedule", mailbox)
+
+	var scheduleInfo []models.ScheduleInformationable
+	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+		response, apiErr := client.Users().ByUserId(mailbox).Calendar().GetSchedule().Post(ctx, requestBody, nil)
+		if apiErr == nil && response != nil {
+			scheduleInfo = response.GetValue()
+		}
+		return apiErr
+	})
+	return scheduleInfo, err
+}
+
+// getScheduleViaGet reads availability with GET /users/{recipient}/calendarView
+// and derives the availability view (one digit per hour) from the events.
+func getScheduleViaGet(ctx context.Context, client *msgraphsdk.GraphServiceClient, recipient string, windowStart, windowEnd time.Time, config *Config) ([]models.ScheduleInformationable, error) {
+	headers := abstractions.NewRequestHeaders()
+	headers.Add("Prefer", `outlook.timezone="UTC"`)
+	requestConfig := &users.ItemCalendarViewRequestBuilderGetRequestConfiguration{
+		Headers: headers,
+		QueryParameters: &users.ItemCalendarViewRequestBuilderGetQueryParameters{
+			StartDateTime: pointerTo(windowStart.Format(time.RFC3339)),
+			EndDateTime:   pointerTo(windowEnd.Format(time.RFC3339)),
+			Select:        []string{"start", "end", "showAs"},
+			Top:           Int32Ptr(1000),
+		},
+	}
+
+	logVerbose(config.VerboseMode, "Calling Graph API: GET /users/%s/calendarView?startDateTime=%s&endDateTime=%s", recipient, windowStart.Format(time.RFC3339), windowEnd.Format(time.RFC3339))
+
+	var events []models.Eventable
+	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+		response, apiErr := client.Users().ByUserId(recipient).CalendarView().Get(ctx, requestConfig)
+		if apiErr == nil && response != nil {
+			events = response.GetValue()
+		}
+		return apiErr
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var items []models.ScheduleItemable
+	var busy []eventSlot
+	for _, ev := range events {
+		start, err1 := parseGraphDateTime(ev.GetStart())
+		end, err2 := parseGraphDateTime(ev.GetEnd())
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		status := models.BUSY_FREEBUSYSTATUS
+		if st := ev.GetShowAs(); st != nil {
+			status = *st
+		}
+		item := models.NewScheduleItem()
+		item.SetStart(ev.GetStart())
+		item.SetEnd(ev.GetEnd())
+		item.SetStatus(&status)
+		items = append(items, item)
+		busy = append(busy, eventSlot{start: start, end: end, status: status})
+	}
+
+	info := models.NewScheduleInformation()
+	info.SetScheduleId(&recipient)
+	info.SetAvailabilityView(pointerTo(buildAvailabilityView(busy, windowStart, windowEnd, time.Hour)))
+	info.SetScheduleItems(items)
+	return []models.ScheduleInformationable{info}, nil
+}
+
+type eventSlot struct {
+	start, end time.Time
+	status     models.FreeBusyStatus
+}
+
+// availabilityCode maps a free/busy status to its availability-view digit and priority.
+func availabilityCode(s models.FreeBusyStatus) (byte, int) {
+	switch s {
+	case models.FREE_FREEBUSYSTATUS:
+		return '0', 0
+	case models.WORKINGELSEWHERE_FREEBUSYSTATUS:
+		return '4', 1
+	case models.TENTATIVE_FREEBUSYSTATUS:
+		return '1', 2
+	case models.OOF_FREEBUSYSTATUS:
+		return '3', 4
+	default:
+		return '2', 3
+	}
+}
+
+// buildAvailabilityView builds a Graph-style availability view string with one digit per interval.
+func buildAvailabilityView(events []eventSlot, windowStart, windowEnd time.Time, interval time.Duration) string {
+	var view []byte
+	for t := windowStart; t.Before(windowEnd); t = t.Add(interval) {
+		slotEnd := t.Add(interval)
+		code, prio := byte('0'), 0
+		for _, e := range events {
+			if e.start.Before(slotEnd) && e.end.After(t) {
+				if c, p := availabilityCode(e.status); p > prio {
+					code, prio = c, p
+				}
+			}
+		}
+		view = append(view, code)
+	}
+	return string(view)
 }
 
 type availabilityEntry struct {

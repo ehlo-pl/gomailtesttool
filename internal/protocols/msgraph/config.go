@@ -93,6 +93,7 @@ type Config struct {
 	LogFormat    string // Log file format: csv, json (default: csv)
 	Count        int    // Number of items to retrieve (for getevents and getinbox actions)
 	Duration     int    // Meeting slot length in minutes (findtimeslot)
+	Method       string // getschedule HTTP method: "post" (calendar/getSchedule, default) or "get" (calendarView)
 	ViewType     string // getschedule output view: merged, list, busy, free (default: merged)
 }
 
@@ -353,6 +354,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		LogFormat:             logFormat,
 		Count:                 count,
 		Duration:              duration,
+		Method:                strings.ToLower(strings.TrimSpace(v.GetString("method"))),
 		ViewType:              strings.ToLower(strings.TrimSpace(v.GetString("viewtype"))),
 	}
 }
@@ -507,6 +509,11 @@ func validateConfiguration(config *Config) error {
 		case "", ViewMerged, ViewList, ViewBusy, ViewFree:
 		default:
 			return fmt.Errorf("invalid --viewtype: %s (use: merged, list, busy, free)", config.ViewType)
+		}
+		switch config.Method {
+		case "", MethodPost, MethodGet:
+		default:
+			return fmt.Errorf("invalid --method: %s (use: get, post)", config.Method)
 		}
 		if len(config.To) == 0 {
 			return fmt.Errorf("getschedule action requires --to parameter (recipient email address)")
@@ -770,6 +777,12 @@ func validateFilePath(path, fieldName string) error {
 const (
 	ExportMethodContent     = "content"
 	ExportMethodExportItems = "exportitems"
+)
+
+// getschedule HTTP methods (--method)
+const (
+	MethodPost = "post"
+	MethodGet  = "get"
 )
 
 // getschedule view types (--viewtype)
