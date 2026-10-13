@@ -535,6 +535,7 @@ func newGetScheduleCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("to", "", "Recipient email address to check availability for (env: MSGRAPHTO)")
 	cmd.Flags().String("start", "", "Window start (RFC3339 or PowerShell sortable format); default: now (env: MSGRAPHSTART)")
 	cmd.Flags().String("end", "", "Window end; default: start + 24 hours (env: MSGRAPHEND)")
+	cmd.Flags().String("viewtype", "merged", "Output view: merged (one digit per hour), list (per-hour status), busy (busy items only), free (free slots only) (env: MSGRAPHVIEWTYPE)")
 	return cmd
 }
 

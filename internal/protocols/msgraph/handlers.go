@@ -820,8 +820,47 @@ func getSchedule(ctx context.Context, client *msgraphsdk.GraphServiceClient, mai
 		fmt.Printf("Organizer:     %s\n", mailbox)
 		fmt.Printf("Recipient:     %s\n", recipient)
 		fmt.Printf("Window:        %s — %s (UTC)\n", windowStartStr, windowEndStr)
-		fmt.Printf("Merged view:   %s (one digit per hour)\n", availabilityView)
-		fmt.Printf("First slot:    %s\n", firstSlot)
+		switch config.ViewType {
+		case ViewList:
+			fmt.Printf("Slots (per hour):\n")
+			for _, e := range availabilityList(availabilityView, windowStart, time.Hour) {
+				fmt.Printf("  %s  %s=%s\n", e.Start.Format("2006-01-02 15:04 MST"), e.Code, e.Status)
+			}
+		case ViewBusy:
+			busyItems := 0
+			fmt.Printf("Busy items:\n")
+			for _, item := range info.GetScheduleItems() {
+				if st := item.GetStatus(); st != nil && *st == models.FREE_FREEBUSYSTATUS {
+					continue
+				}
+				status := "busy"
+				if st := item.GetStatus(); st != nil {
+					status = st.String()
+				}
+				start, err1 := parseGraphDateTime(item.GetStart())
+				end, err2 := parseGraphDateTime(item.GetEnd())
+				if err1 != nil || err2 != nil {
+					continue
+				}
+				busyItems++
+				fmt.Printf("  %s — %s  %s\n", start.Format("2006-01-02 15:04"), end.Format("2006-01-02 15:04 MST"), status)
+			}
+			if busyItems == 0 {
+				fmt.Println("  (none)")
+			}
+		case ViewFree:
+			fmt.Printf("Free slots:\n")
+			slots := freeRangesFromView(availabilityView, windowStart, time.Hour)
+			for _, s := range slots {
+				fmt.Printf("  %s — %s\n", s.Start.Format("2006-01-02 15:04"), s.End.Format("2006-01-02 15:04 MST"))
+			}
+			if len(slots) == 0 {
+				fmt.Println("  (none)")
+			}
+		default:
+			fmt.Printf("Merged view:   %s (one digit per hour)\n", availabilityView)
+			fmt.Printf("First slot:    %s\n", firstSlot)
+		}
 		fmt.Printf("Legend:        0=Free 1=Tentative 2=Busy 3=Out of Office 4=Working Elsewhere\n")
 		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 	}
@@ -835,6 +874,43 @@ func getSchedule(ctx context.Context, client *msgraphsdk.GraphServiceClient, mai
 	}
 
 	return nil
+}
+
+type availabilityEntry struct {
+	Start  time.Time
+	Code   string
+	Status string
+}
+
+// availabilityList expands an availability view into one entry per interval.
+func availabilityList(view string, start time.Time, interval time.Duration) []availabilityEntry {
+	entries := make([]availabilityEntry, 0, len(view))
+	for i := 0; i < len(view); i++ {
+		entries = append(entries, availabilityEntry{
+			Start:  start.Add(time.Duration(i) * interval),
+			Code:   string(view[i]),
+			Status: interpretAvailability(view[i : i+1]),
+		})
+	}
+	return entries
+}
+
+// freeRangesFromView merges consecutive free ('0') intervals into ranges.
+func freeRangesFromView(view string, start time.Time, interval time.Duration) []timeslot.Interval {
+	var out []timeslot.Interval
+	for i := 0; i < len(view); i++ {
+		if view[i] != '0' {
+			continue
+		}
+		s := start.Add(time.Duration(i) * interval)
+		e := s.Add(interval)
+		if n := len(out); n > 0 && out[n-1].End.Equal(s) {
+			out[n-1].End = e
+		} else {
+			out = append(out, timeslot.Interval{Start: s, End: e})
+		}
+	}
+	return out
 }
 
 // findTimeSlot searches for free meeting slots of the configured duration in
