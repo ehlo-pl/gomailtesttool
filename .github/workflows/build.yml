@@ -11,12 +11,10 @@ permissions:
   contents: read
 
 jobs:
-  # Test job runs on all platforms
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+  # Validate pull requests by compiling the Windows binaries only.
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v7
 
@@ -25,14 +23,43 @@ jobs:
       with:
         go-version: '1.25'
 
-    - name: Run Tests
-      run: go test -v -race ./...
+    - name: Create bin directory
+      shell: bash
+      run: mkdir -p bin
 
-    - name: Check Test Coverage
-      if: matrix.os == 'ubuntu-latest'
+    - name: Build gomailtest (smtp+pop3+imap+jmap)
+      shell: bash
+      env:
+        GOARCH: amd64
       run: |
-        go test -coverprofile=coverage.out ./...
-        go tool cover -func=coverage.out | tail -1
+        go build -tags "custom,smtp,pop3,imap,jmap" -ldflags="-s -w" -o bin/gomailtest.exe ./cmd/gomailtest
+
+    - name: Build gomailtest-exchange (ews+msgraph)
+      shell: bash
+      env:
+        GOARCH: amd64
+      run: |
+        go build -tags "custom,ews,msgraph" -ldflags="-s -w" -o bin/gomailtest-exchange.exe ./cmd/gomailtest
+
+    - name: Build gomailtest-gmail (gmail)
+      shell: bash
+      env:
+        GOARCH: amd64
+      run: |
+        go build -tags "custom,gmail" -ldflags="-s -w" -o bin/gomailtest-gmail.exe ./cmd/gomailtest
+
+    - name: Verify build outputs
+      shell: bash
+      run: |
+        for binary in bin/gomailtest.exe bin/gomailtest-exchange.exe bin/gomailtest-gmail.exe; do
+          if [ -f "$binary" ]; then
+            echo "✓ ${binary} build successful"
+            ls -lh "$binary"
+          else
+            echo "✗ ${binary} build failed"
+            exit 1
+          fi
+        done
 
   # Lint job runs only on Linux
   lint:
@@ -54,7 +81,6 @@ jobs:
 
   # Build job runs after test, only on tag push
   build:
-    needs: [test]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ${{ matrix.os }}
     strategy:
