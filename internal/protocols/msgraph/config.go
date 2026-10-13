@@ -93,7 +93,7 @@ type Config struct {
 	LogFormat    string // Log file format: csv, json (default: csv)
 	Count        int    // Number of items to retrieve (for getevents and getinbox actions)
 	Duration     int    // Meeting slot length in minutes (findtimeslot)
-	Method       string // getschedule HTTP method: "post" (calendar/getSchedule, default) or "get" (calendarView)
+	Method       string // Availability HTTP method: "post" (calendar/getSchedule, default) or "get" (calendarView)
 	ViewType     string // getschedule output view: merged, list, busy, free (default: merged)
 }
 
@@ -218,6 +218,7 @@ func BindEnvs(v *viper.Viper) {
 		"end":                "MSGRAPHEND",
 		"timezone":           "MSGRAPHTIMEZONE",
 		"duration":           "MSGRAPHDURATION",
+		"method":             "MSGRAPHMETHOD",
 		"folder":             "MSGRAPHFOLDER",
 		"messageid":          "MSGRAPHMESSAGEID",
 		"messageidsuffix":    "MSGRAPHMESSAGEIDSUFFIX",
@@ -503,17 +504,21 @@ func validateConfiguration(config *Config) error {
 		return fmt.Errorf("invalid output format: %s (use: text, json)", config.OutputFormat)
 	}
 
+	// Validate availability-method requirements
+	if config.Action == ActionGetSchedule || config.Action == ActionFindTimeSlot {
+		switch config.Method {
+		case "", MethodPost, MethodGet:
+		default:
+			return fmt.Errorf("invalid --method: %s (use: get, post)", config.Method)
+		}
+	}
+
 	// Validate getschedule-specific requirements
 	if config.Action == ActionGetSchedule {
 		switch config.ViewType {
 		case "", ViewMerged, ViewList, ViewBusy, ViewFree:
 		default:
 			return fmt.Errorf("invalid --viewtype: %s (use: merged, list, busy, free)", config.ViewType)
-		}
-		switch config.Method {
-		case "", MethodPost, MethodGet:
-		default:
-			return fmt.Errorf("invalid --method: %s (use: get, post)", config.Method)
 		}
 		if len(config.To) == 0 {
 			return fmt.Errorf("getschedule action requires --to parameter (recipient email address)")

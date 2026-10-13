@@ -1045,31 +1045,36 @@ func findTimeSlot(ctx context.Context, client *msgraphsdk.GraphServiceClient, ma
 	logVerbose(config.VerboseMode, "Searching %d-minute slots for %s between %s and %s",
 		config.Duration, recipient, windowStart.Format(time.RFC3339), windowEnd.Format(time.RFC3339))
 
-	startTimeZone := models.NewDateTimeTimeZone()
-	startTimeZone.SetDateTime(pointerTo(windowStart.Format(time.RFC3339)))
-	startTimeZone.SetTimeZone(pointerTo("UTC"))
-
-	endTimeZone := models.NewDateTimeTimeZone()
-	endTimeZone.SetDateTime(pointerTo(windowEnd.Format(time.RFC3339)))
-	endTimeZone.SetTimeZone(pointerTo("UTC"))
-
-	requestBody := users.NewItemCalendarGetSchedulePostRequestBody()
-	requestBody.SetSchedules([]string{recipient})
-	requestBody.SetStartTime(startTimeZone)
-	requestBody.SetEndTime(endTimeZone)
-	interval := int32(30)
-	requestBody.SetAvailabilityViewInterval(&interval)
-
-	logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/calendar/getSchedule", mailbox)
-
 	var scheduleInfo []models.ScheduleInformationable
-	err := retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
-		response, apiErr := client.Users().ByUserId(mailbox).Calendar().GetSchedule().Post(ctx, requestBody, nil)
-		if apiErr == nil && response != nil {
-			scheduleInfo = response.GetValue()
-		}
-		return apiErr
-	})
+	var err error
+	if config.Method == MethodGet {
+		scheduleInfo, err = getScheduleViaGet(ctx, client, recipient, windowStart, windowEnd, config)
+	} else {
+		startTimeZone := models.NewDateTimeTimeZone()
+		startTimeZone.SetDateTime(pointerTo(windowStart.Format(time.RFC3339)))
+		startTimeZone.SetTimeZone(pointerTo("UTC"))
+
+		endTimeZone := models.NewDateTimeTimeZone()
+		endTimeZone.SetDateTime(pointerTo(windowEnd.Format(time.RFC3339)))
+		endTimeZone.SetTimeZone(pointerTo("UTC"))
+
+		requestBody := users.NewItemCalendarGetSchedulePostRequestBody()
+		requestBody.SetSchedules([]string{recipient})
+		requestBody.SetStartTime(startTimeZone)
+		requestBody.SetEndTime(endTimeZone)
+		interval := int32(30)
+		requestBody.SetAvailabilityViewInterval(&interval)
+
+		logVerbose(config.VerboseMode, "Calling Graph API: POST /users/%s/calendar/getSchedule", mailbox)
+
+		err = retryWithBackoff(ctx, config.MaxRetries, config.RetryDelay, func() error {
+			response, apiErr := client.Users().ByUserId(mailbox).Calendar().GetSchedule().Post(ctx, requestBody, nil)
+			if apiErr == nil && response != nil {
+				scheduleInfo = response.GetValue()
+			}
+			return apiErr
+		})
+	}
 	if err != nil {
 		enrichedErr := enrichGraphAPIError(err, logger, "findTimeSlot")
 		if logger != nil {
