@@ -93,6 +93,7 @@ type Config struct {
 	LogFormat    string // Log file format: csv, json (default: csv)
 	Count        int    // Number of items to retrieve (for getevents and getinbox actions)
 	Duration     int    // Meeting slot length in minutes (findtimeslot)
+	ViewType     string // getschedule output view: merged, list, busy, free (default: merged)
 }
 
 // NewConfig creates a new Config with sensible default values.
@@ -352,6 +353,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		LogFormat:             logFormat,
 		Count:                 count,
 		Duration:              duration,
+		ViewType:              strings.ToLower(strings.TrimSpace(v.GetString("viewtype"))),
 	}
 }
 
@@ -501,6 +503,11 @@ func validateConfiguration(config *Config) error {
 
 	// Validate getschedule-specific requirements
 	if config.Action == ActionGetSchedule {
+		switch config.ViewType {
+		case "", ViewMerged, ViewList, ViewBusy, ViewFree:
+		default:
+			return fmt.Errorf("invalid --viewtype: %s (use: merged, list, busy, free)", config.ViewType)
+		}
 		if len(config.To) == 0 {
 			return fmt.Errorf("getschedule action requires --to parameter (recipient email address)")
 		}
@@ -763,4 +770,12 @@ func validateFilePath(path, fieldName string) error {
 const (
 	ExportMethodContent     = "content"
 	ExportMethodExportItems = "exportitems"
+)
+
+// getschedule view types (--viewtype)
+const (
+	ViewMerged = "merged"
+	ViewList   = "list"
+	ViewBusy   = "busy"
+	ViewFree   = "free"
 )
