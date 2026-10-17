@@ -97,6 +97,7 @@ func NewConfig() *Config {
 		Body:         "This is a test message from smtptool",
 		Priority:     "normal",
 		StartTLS:     true,
+		SMTPS:        false,
 		SkipVerify:   false,
 		TLSVersion:   "1.2",
 		MaxRetries:   3,
@@ -128,7 +129,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.String("kdc", "", "KDC address override for GSSAPI (host or host:port; uses DNS SRV if omitted) (env: SMTPKDC)")
 
 	// TLS
-	f.Bool("starttls", false, "Force STARTTLS usage (env: SMTPSTARTTLS)")
+	f.Bool("starttls", true, "Force STARTTLS usage (env: SMTPSTARTTLS)")
 	f.Bool("smtps", false, "Use SMTPS (implicit TLS), typically on port 465 (env: SMTPSMTPS)")
 	f.Bool("no-starttls", false, "Force plain connection: disable STARTTLS (including automatic upgrade) even if the server advertises it; error if --starttls is also set (env: SMTPNOSTARTTLS)")
 	f.Bool("no-smtps", false, "Force plain connection: error if --smtps is also set (env: SMTPNOSMTPS)")
@@ -371,9 +372,10 @@ func validateConfiguration(config *Config) error {
 		fmt.Println()
 	}
 
-	// Validate mutual exclusion: -smtps and -starttls cannot be used together
+	// -smtps and -starttls are alternative secure modes. Prefer implicit TLS
+	// when both are set, and keep the default STARTTLS behavior for the secure port.
 	if config.SMTPS && config.StartTLS {
-		return fmt.Errorf("cannot use both -smtps and -starttls flags simultaneously")
+		config.StartTLS = false
 	}
 
 	// Validate mutual exclusion: -no-smtps/-no-starttls cannot be combined

@@ -13,11 +13,11 @@ func TestNewConfigDefaults(t *testing.T) {
 	if cfg.Port != 993 {
 		t.Fatalf("NewConfig().Port = %d, want 993", cfg.Port)
 	}
-	if !cfg.IMAPS {
-		t.Fatal("NewConfig().IMAPS = false, want true")
+	if cfg.IMAPS {
+		t.Fatal("NewConfig().IMAPS = true, want false")
 	}
-	if cfg.StartTLS {
-		t.Fatal("NewConfig().StartTLS = true, want false")
+	if !cfg.StartTLS {
+		t.Fatal("NewConfig().StartTLS = false, want true")
 	}
 }
 
@@ -34,11 +34,10 @@ func TestValidateConfiguration_IMAPSAndSTARTTLS(t *testing.T) {
 		{name: "IMAPS only", imaps: true, starttls: false, wantError: false},
 		{name: "STARTTLS only", imaps: false, starttls: true, wantError: false},
 		{
-			name:      "Both IMAPS and STARTTLS - should error",
+			name:      "Both IMAPS and STARTTLS - prefer IMAPS",
 			imaps:     true,
 			starttls:  true,
-			wantError: true,
-			errorMsg:  "cannot use both --imaps and --starttls",
+			wantError: false,
 		},
 	}
 
