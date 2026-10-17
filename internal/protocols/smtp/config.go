@@ -90,13 +90,13 @@ const (
 // NewConfig creates a new Config with default values.
 func NewConfig() *Config {
 	return &Config{
-		Port:         25,
+		Port:         587,
 		Timeout:      30 * time.Second,
 		AuthMethod:   "auto",
 		Subject:      "SMTP Test",
 		Body:         "This is a test message from smtptool",
 		Priority:     "normal",
-		StartTLS:     false, // Auto-detect
+		StartTLS:     true,
 		SkipVerify:   false,
 		TLSVersion:   "1.2",
 		MaxRetries:   3,
@@ -116,7 +116,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 
 	// SMTP server
 	f.String("host", "", "SMTP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and authentication (env: SMTPHOST)")
-	f.Int("port", 25, "SMTP server port (env: SMTPPORT)")
+	f.Int("port", 587, "SMTP server port (env: SMTPPORT)")
 	f.Int("timeout", 30, "Connection timeout in seconds (env: SMTPTIMEOUT)")
 
 	// Authentication

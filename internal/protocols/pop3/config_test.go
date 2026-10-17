@@ -8,6 +8,19 @@ import (
 	"testing"
 )
 
+func TestNewConfigDefaults(t *testing.T) {
+	cfg := NewConfig()
+	if cfg.Port != 995 {
+		t.Fatalf("NewConfig().Port = %d, want 995", cfg.Port)
+	}
+	if !cfg.POP3S {
+		t.Fatal("NewConfig().POP3S = false, want true")
+	}
+	if cfg.StartTLS {
+		t.Fatal("NewConfig().StartTLS = true, want false")
+	}
+}
+
 // TestValidateConfiguration_POP3SAndSTARTTLS tests mutual exclusion of POP3S and STARTTLS flags
 func TestValidateConfiguration_POP3SAndSTARTTLS(t *testing.T) {
 	tests := []struct {

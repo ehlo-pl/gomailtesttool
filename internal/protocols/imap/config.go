@@ -72,10 +72,10 @@ const (
 // NewConfig creates a new Config with default values.
 func NewConfig() *Config {
 	return &Config{
-		Port:         143,
+		Port:         993,
 		Timeout:      30 * time.Second,
 		AuthMethod:   "auto",
-		IMAPS:        false,
+		IMAPS:        true,
 		StartTLS:     false,
 		SkipVerify:   false,
 		TLSVersion:   "1.2",
@@ -98,7 +98,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 
 	// IMAP server
 	f.String("host", "", "IMAP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and authentication (env: IMAPHOST)")
-	f.Int("port", 143, "IMAP server port (env: IMAPPORT)")
+	f.Int("port", 993, "IMAP server port (env: IMAPPORT)")
 	f.Int("timeout", 30, "Connection timeout in seconds (env: IMAPTIMEOUT)")
 
 	// Authentication

@@ -8,6 +8,19 @@ import (
 	"testing"
 )
 
+func TestNewConfigDefaults(t *testing.T) {
+	cfg := NewConfig()
+	if cfg.Port != 587 {
+		t.Fatalf("NewConfig().Port = %d, want 587", cfg.Port)
+	}
+	if !cfg.StartTLS {
+		t.Fatal("NewConfig().StartTLS = false, want true")
+	}
+	if cfg.SMTPS {
+		t.Fatal("NewConfig().SMTPS = true, want false")
+	}
+}
+
 // TestValidateConfiguration_SMTPSAndSTARTTLS tests mutual exclusion of SMTPS and STARTTLS flags
 func TestValidateConfiguration_SMTPSAndSTARTTLS(t *testing.T) {
 	tests := []struct {
