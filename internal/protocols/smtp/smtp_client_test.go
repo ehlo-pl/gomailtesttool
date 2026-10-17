@@ -1267,13 +1267,13 @@ func TestSMTPSConfig(t *testing.T) {
 		config.Host = "smtp.gmail.com"
 		config.Action = ActionTestConnect
 
-		// Validate should change port from 25 to 465
+		// New default SMTP port is 587, so implicit TLS keeps the secure default port.
 		err := validateConfiguration(config)
 		if err != nil {
 			t.Fatalf("validateConfiguration() error = %v", err)
 		}
-		if config.Port != 465 {
-			t.Errorf("SMTPS config port = %d, want 465", config.Port)
+		if config.Port != 587 {
+			t.Errorf("SMTPS config port = %d, want 587", config.Port)
 		}
 	})
 

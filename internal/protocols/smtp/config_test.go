@@ -8,6 +8,19 @@ import (
 	"testing"
 )
 
+func TestNewConfigDefaults(t *testing.T) {
+	cfg := NewConfig()
+	if cfg.Port != 587 {
+		t.Fatalf("NewConfig().Port = %d, want 587", cfg.Port)
+	}
+	if !cfg.StartTLS {
+		t.Fatal("NewConfig().StartTLS = false, want true")
+	}
+	if cfg.SMTPS {
+		t.Fatal("NewConfig().SMTPS = true, want false")
+	}
+}
+
 // TestValidateConfiguration_SMTPSAndSTARTTLS tests mutual exclusion of SMTPS and STARTTLS flags
 func TestValidateConfiguration_SMTPSAndSTARTTLS(t *testing.T) {
 	tests := []struct {
@@ -36,11 +49,10 @@ func TestValidateConfiguration_SMTPSAndSTARTTLS(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name:      "Both SMTPS and STARTTLS - should error",
+			name:      "Both SMTPS and STARTTLS - prefer SMTPS",
 			smtps:     true,
 			starttls:  true,
-			wantError: true,
-			errorMsg:  "cannot use both -smtps and -starttls",
+			wantError: false,
 		},
 	}
 
@@ -482,8 +494,8 @@ func TestNewConfig(t *testing.T) {
 	config := NewConfig()
 
 	// Verify defaults
-	if config.Port != 25 {
-		t.Errorf("NewConfig() Port = %d, want 25", config.Port)
+	if config.Port != 587 {
+		t.Errorf("NewConfig() Port = %d, want 587", config.Port)
 	}
 	if config.AuthMethod != "auto" {
 		t.Errorf("NewConfig() AuthMethod = %q, want 'auto'", config.AuthMethod)
@@ -494,8 +506,8 @@ func TestNewConfig(t *testing.T) {
 	if config.SMTPS != false {
 		t.Errorf("NewConfig() SMTPS = %v, want false", config.SMTPS)
 	}
-	if config.StartTLS != false {
-		t.Errorf("NewConfig() StartTLS = %v, want false", config.StartTLS)
+	if config.StartTLS != true {
+		t.Errorf("NewConfig() StartTLS = %v, want true", config.StartTLS)
 	}
 	if config.VerboseMode != false {
 		t.Errorf("NewConfig() VerboseMode = %v, want false", config.VerboseMode)

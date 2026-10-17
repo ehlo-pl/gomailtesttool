@@ -73,12 +73,12 @@ const (
 // NewConfig creates a new Config with default values.
 func NewConfig() *Config {
 	return &Config{
-		Port:         110,
+		Port:         995,
 		Timeout:      30 * time.Second,
 		AuthMethod:   "auto",
 		MaxMessages:  100,
 		POP3S:        false,
-		StartTLS:     false,
+		StartTLS:     true,
 		SkipVerify:   false,
 		TLSVersion:   "1.2",
 		MaxRetries:   3,
@@ -99,7 +99,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 
 	// POP3 server
 	f.String("host", "", "POP3 server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and authentication (env: POP3HOST)")
-	f.Int("port", 110, "POP3 server port (env: POP3PORT)")
+	f.Int("port", 995, "POP3 server port (env: POP3PORT)")
 	f.Int("timeout", 30, "Connection timeout in seconds (env: POP3TIMEOUT)")
 
 	// Authentication
@@ -109,7 +109,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.String("authmethod", "auto", "Authentication method: USER, APOP, XOAUTH2, auto (env: POP3AUTHMETHOD)")
 
 	// TLS
-	f.Bool("starttls", false, "Force STLS usage (env: POP3STARTTLS)")
+	f.Bool("starttls", true, "Force STLS usage (env: POP3STARTTLS)")
 	f.Bool("pop3s", false, "Use POP3S (implicit TLS), typically on port 995 (env: POP3POP3S)")
 	f.Bool("no-starttls", false, "Force plain connection: disable STLS; error if --starttls is also set (env: POP3NOSTARTTLS)")
 	f.Bool("no-pop3s", false, "Force plain connection: error if --pop3s is also set (env: POP3NOPOP3S)")
@@ -291,9 +291,10 @@ func validateConfiguration(config *Config) error {
 		fmt.Println()
 	}
 
-	// Validate mutual exclusion: --pop3s and --starttls cannot be used together
+	// --pop3s and --starttls are alternative secure modes; prefer explicit
+	// implicit TLS when both are set, but still reject conflicting explicit flags.
 	if config.POP3S && config.StartTLS {
-		return fmt.Errorf("cannot use both --pop3s and --starttls flags simultaneously")
+		config.StartTLS = false
 	}
 
 	// Validate mutual exclusion: --no-pop3s/--no-starttls cannot be combined

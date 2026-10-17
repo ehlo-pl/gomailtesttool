@@ -8,6 +8,19 @@ import (
 	"testing"
 )
 
+func TestNewConfigDefaults(t *testing.T) {
+	cfg := NewConfig()
+	if cfg.Port != 995 {
+		t.Fatalf("NewConfig().Port = %d, want 995", cfg.Port)
+	}
+	if cfg.POP3S {
+		t.Fatal("NewConfig().POP3S = true, want false")
+	}
+	if !cfg.StartTLS {
+		t.Fatal("NewConfig().StartTLS = false, want true")
+	}
+}
+
 // TestValidateConfiguration_POP3SAndSTARTTLS tests mutual exclusion of POP3S and STARTTLS flags
 func TestValidateConfiguration_POP3SAndSTARTTLS(t *testing.T) {
 	tests := []struct {
@@ -21,11 +34,10 @@ func TestValidateConfiguration_POP3SAndSTARTTLS(t *testing.T) {
 		{name: "POP3S only", pop3s: true, starttls: false, wantError: false},
 		{name: "STARTTLS only", pop3s: false, starttls: true, wantError: false},
 		{
-			name:      "Both POP3S and STARTTLS - should error",
+			name:      "Both POP3S and STARTTLS - prefer POP3S",
 			pop3s:     true,
 			starttls:  true,
-			wantError: true,
-			errorMsg:  "cannot use both --pop3s and --starttls",
+			wantError: false,
 		},
 	}
 

@@ -72,11 +72,11 @@ const (
 // NewConfig creates a new Config with default values.
 func NewConfig() *Config {
 	return &Config{
-		Port:         143,
+		Port:         993,
 		Timeout:      30 * time.Second,
 		AuthMethod:   "auto",
 		IMAPS:        false,
-		StartTLS:     false,
+		StartTLS:     true,
 		SkipVerify:   false,
 		TLSVersion:   "1.2",
 		MaxRetries:   3,
@@ -98,7 +98,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 
 	// IMAP server
 	f.String("host", "", "IMAP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and authentication (env: IMAPHOST)")
-	f.Int("port", 143, "IMAP server port (env: IMAPPORT)")
+	f.Int("port", 993, "IMAP server port (env: IMAPPORT)")
 	f.Int("timeout", 30, "Connection timeout in seconds (env: IMAPTIMEOUT)")
 
 	// Authentication
@@ -108,7 +108,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 	f.String("authmethod", "auto", "Authentication method: PLAIN, LOGIN, XOAUTH2, auto (env: IMAPAUTHMETHOD)")
 
 	// TLS
-	f.Bool("starttls", false, "Force STARTTLS usage (env: IMAPSTARTTLS)")
+	f.Bool("starttls", true, "Force STARTTLS usage (env: IMAPSTARTTLS)")
 	f.Bool("imaps", false, "Use IMAPS (implicit TLS), typically on port 993 (env: IMAPIMAPS)")
 	f.Bool("no-starttls", false, "Force plain connection: disable STARTTLS; error if --starttls is also set (env: IMAPNOSTARTTLS)")
 	f.Bool("no-imaps", false, "Force plain connection: error if --imaps is also set (env: IMAPNOIMAPS)")
@@ -290,9 +290,10 @@ func validateConfiguration(config *Config) error {
 		fmt.Println()
 	}
 
-	// Validate mutual exclusion: --imaps and --starttls cannot be used together
+	// --imaps and --starttls are alternative secure modes. When both are set,
+	// prefer the explicit implicit-TLS flow and disable STARTTLS.
 	if config.IMAPS && config.StartTLS {
-		return fmt.Errorf("cannot use both --imaps and --starttls flags simultaneously")
+		config.StartTLS = false
 	}
 
 	// Validate mutual exclusion: --no-imaps/--no-starttls cannot be combined
