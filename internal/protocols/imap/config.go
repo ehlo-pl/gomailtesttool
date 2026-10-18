@@ -18,9 +18,10 @@ type Config struct {
 	Action      string
 
 	// IMAP server configuration
-	Host    string
-	Port    int
-	Timeout time.Duration
+	Host         string
+	Port         int
+	PortExplicit bool // reports whether the port was explicitly configured
+	Timeout      time.Duration
 
 	// Authentication
 	Username    string
@@ -236,6 +237,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 	return &Config{
 		Host:           v.GetString("host"),
 		Port:           port,
+		PortExplicit:   v.IsSet("port"),
 		Timeout:        time.Duration(timeoutSec) * time.Second,
 		Username:       v.GetString("username"),
 		Password:       v.GetString("password"),
@@ -308,8 +310,8 @@ func validateConfiguration(config *Config) error {
 		return fmt.Errorf("cannot use both --starttls and --no-starttls flags simultaneously")
 	}
 
-	// Smart port default: if --imaps is set and port is 143 (default), change to 993
-	if config.IMAPS && config.Port == 143 {
+	// Smart port default: if --imaps is set without an explicit port, use 993.
+	if config.IMAPS && !config.PortExplicit && config.Port == 143 {
 		config.Port = 993
 	}
 

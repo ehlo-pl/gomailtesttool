@@ -18,9 +18,10 @@ type Config struct {
 	Action      string
 
 	// POP3 server configuration
-	Host    string
-	Port    int
-	Timeout time.Duration
+	Host         string
+	Port         int
+	PortExplicit bool // reports whether the port was explicitly configured
+	Timeout      time.Duration
 
 	// Authentication
 	Username    string
@@ -237,6 +238,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 	return &Config{
 		Host:           v.GetString("host"),
 		Port:           port,
+		PortExplicit:   v.IsSet("port"),
 		Timeout:        time.Duration(timeoutSec) * time.Second,
 		Username:       v.GetString("username"),
 		Password:       v.GetString("password"),
@@ -309,8 +311,8 @@ func validateConfiguration(config *Config) error {
 		return fmt.Errorf("cannot use both --starttls and --no-starttls flags simultaneously")
 	}
 
-	// Smart port default: if --pop3s is set and port is 110 (default), change to 995
-	if config.POP3S && config.Port == 110 {
+	// Smart port default: if --pop3s is set without an explicit port, use 995.
+	if config.POP3S && !config.PortExplicit && config.Port == 110 {
 		config.Port = 995
 	}
 
