@@ -222,8 +222,12 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		successCount++
 	}
 
-	fmt.Printf("\n✓ Exported %d/%d messages\n", successCount, len(items))
-	logger.LogInfo(slogLogger, "exportmessages completed", "total", len(items), "success", successCount)
+	action := "exported"
+	if config.Action == ActionDeleteMessages {
+		action = "deleted"
+	}
+	fmt.Printf("\n✓ %s %d/%d messages\n", strings.ToUpper(action[:1])+action[1:], successCount, len(items))
+	logger.LogInfo(slogLogger, config.Action+" completed", "total", len(items), "success", successCount)
 	return nil
 }
 

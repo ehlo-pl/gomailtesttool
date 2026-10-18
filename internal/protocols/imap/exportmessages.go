@@ -142,7 +142,11 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		writeExportRow(csvLogger, slogLogger, config, true, uidStr, filePath, "")
 	}
 
-	fmt.Printf("Successfully exported %d/%d messages.\n", successCount, len(uids))
+	action := "exported"
+	if config.Action == ActionDeleteMessages {
+		action = "deleted"
+	}
+	fmt.Printf("Successfully %s %d/%d messages.\n", action, successCount, len(uids))
 	return nil
 }
 

@@ -43,3 +43,18 @@ func TestPOP3ClientDeleteSendsDELE(t *testing.T) {
 		t.Errorf("command = %q, want %q", got, "DELE 7\r\n")
 	}
 }
+
+func TestPOP3ClientQuitReportsDeletionCommitFailure(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer serverConn.Close()
+
+	client := &POP3Client{conn: clientConn, reader: bufio.NewReader(clientConn)}
+	go func() {
+		_, _ = bufio.NewReader(serverConn).ReadString('\n')
+		_, _ = serverConn.Write([]byte("-ERR deletion failed\r\n"))
+	}()
+
+	if err := client.Quit(); err == nil {
+		t.Fatal("Quit() error = nil, want failed commit error")
+	}
+}

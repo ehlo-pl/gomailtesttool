@@ -107,6 +107,17 @@ gomailtest pop3 exportmessages --host pop.example.com --port 995 --pop3s \
 Output goes to `%TEMP%\export\{date}\msg_{message-id}.eml`, or
 `<exportdir>\{date}\msg_{message-id}.eml` when `--exportdir` is given.
 
+Use `deletemessages` to delete matches directly, or add `--delete` to
+`exportmessages` to mark each successfully exported message for deletion. POP3
+commits these deletions when the session ends with `QUIT`.
+
+```powershell
+gomailtest pop3 deletemessages --host pop.example.com --username user@example.com \
+    --password "yourpassword" --subject "Invoice"
+gomailtest pop3 exportmessages --host pop.example.com --username user@example.com \
+    --password "yourpassword" --subject "Invoice" --delete
+```
+
 ## Flags
 
 ### Persistent (all subcommands)
@@ -153,6 +164,7 @@ Output goes to `%TEMP%\export\{date}\msg_{message-id}.eml`, or
 | `--subject` | Subject substring to search for | `POP3SUBJECT` | — |
 | `--count` | Maximum number of matching messages to export | `POP3COUNT` | 25 |
 | `--exportdir` | Directory under which to create the dated export folder | `POP3EXPORTDIR` | OS temp dir |
+| `--delete` | Delete each message after successful export | `POP3DELETE` | false |
 
 ## Environment Variables
 

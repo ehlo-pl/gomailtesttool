@@ -113,6 +113,18 @@ gomailtest imap exportmessages --host imap.example.com --port 993 --imaps \
 Output goes to `%TEMP%\export\{date}\msg_{uid}.eml`, or
 `<exportdir>\{date}\msg_{uid}.eml` when `--exportdir` is given.
 
+Use `deletemessages` to delete matches directly, or add `--delete` to
+`exportmessages` to delete each message after its `.eml` file is written. Deletion
+marks the UID `\Deleted` and expunges it; on servers without UIDPLUS, expunge is
+refused when other messages are already marked deleted.
+
+```powershell
+gomailtest imap deletemessages --host imap.example.com --username user@example.com \
+    --password "yourpassword" --subject "Invoice"
+gomailtest imap exportmessages --host imap.example.com --username user@example.com \
+    --password "yourpassword" --subject "Invoice" --delete
+```
+
 ## Flags
 
 | Flag | Description | Environment Variable | Default |
@@ -151,6 +163,7 @@ Output goes to `%TEMP%\export\{date}\msg_{uid}.eml`, or
 | `--mailbox` | Mailbox to search | `IMAPMAILBOX` | INBOX |
 | `--count` | Maximum number of matching messages to export | `IMAPCOUNT` | 25 |
 | `--exportdir` | Directory under which to create the dated export folder | `IMAPEXPORTDIR` | OS temp dir |
+| `--delete` | Delete each message after successful export | `IMAPDELETE` | false |
 
 **Note:** `--imaps` and `--starttls` cannot be used together. When `--imaps` is set and port is the default 143, the port automatically changes to 993. `--no-imaps`+`--imaps` and `--no-starttls`+`--starttls` are each mutually exclusive (useful to catch conflicting defaults from `--config`/env vars).
 

@@ -288,6 +288,11 @@ gomailtest msgraph exportmessages --subject "Invoice" --exportdir "C:\exports"
 # Scope the search to a folder, or export the newest N messages of a folder
 gomailtest msgraph exportmessages --folder inbox --count 10
 gomailtest msgraph exportmessages --folder sentitems --subject "Invoice"
+
+# Move the message to Deleted Items only after it is exported
+gomailtest msgraph exportmessages --subject "Invoice" --delete
+# Permanently delete exported matches
+gomailtest msgraph exportmessages --subject "Invoice" --delete --permanent
 ```
 
 Output goes to `%TEMP%\export\{date}\msg_{id}.eml`, or
@@ -300,7 +305,8 @@ indexing delay; "No messages found" is reported only after the last attempt.
 ### removemessages — Remove Matching Messages
 
 Searches using the same criteria as `exportmessages`, displays all matches, and
-asks before removing anything. By default, each message is confirmed separately.
+asks before removing anything. The command is also available as `deletemessages`.
+By default, each message is confirmed separately.
 Use `--confirmdelete` to confirm the whole matching set once. Removal moves
 messages to Deleted Items; `--permanent` uses Graph's permanent-delete action.
 
@@ -426,6 +432,8 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--messageid` | Internet Message-ID to search for | `MSGRAPHMESSAGEID` | — |
 | `--subject` | Subject substring to search for (OData `contains()`) | `MSGRAPHSUBJECT` | — |
 | `--count` | Maximum number of matching messages to export | `MSGRAPHCOUNT` | 25 |
+| `--delete` | Delete each successfully exported message | `MSGRAPHDELETE` | false |
+| `--permanent` | Permanently delete exported matches; requires `--delete` | `MSGRAPHPERMANENT` | false |
 
 ### removemessages-specific
 

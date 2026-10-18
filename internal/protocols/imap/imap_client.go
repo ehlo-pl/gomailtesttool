@@ -400,6 +400,24 @@ func (c *IMAPClient) DeleteMessage(ctx context.Context, uid imap.UID) error {
 	}
 
 	uidSet := imap.UIDSetNum(uid)
+	uidPlus := c.caps != nil && c.caps.SupportsUIDPLUS()
+	if !uidPlus {
+		data, err := c.client.UIDSearch(&imap.SearchCriteria{
+			Flag: []imap.Flag{imap.FlagDeleted},
+		}, nil).Wait()
+		if err != nil {
+			return fmt.Errorf("failed to check deleted messages before expunge: %w", err)
+		}
+		if deleted, ok := data.All.(imap.UIDSet); ok {
+			uids, _ := deleted.Nums()
+			for _, deletedUID := range uids {
+				if deletedUID != uid {
+					return fmt.Errorf("server lacks UIDPLUS and mailbox has other deleted messages; refusing to expunge UID %d", uid)
+				}
+			}
+		}
+	}
+
 	store := c.client.Store(uidSet, &imap.StoreFlags{
 		Op:     imap.StoreFlagsAdd,
 		Silent: true,
@@ -410,7 +428,7 @@ func (c *IMAPClient) DeleteMessage(ctx context.Context, uid imap.UID) error {
 	}
 
 	var expunge *imapclient.ExpungeCommand
-	if c.caps != nil && c.caps.SupportsUIDPLUS() {
+	if uidPlus {
 		expunge = c.client.UIDExpunge(uidSet)
 	} else {
 		expunge = c.client.Expunge()

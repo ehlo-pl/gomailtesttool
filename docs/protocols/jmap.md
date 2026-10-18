@@ -137,6 +137,16 @@ gomailtest jmap exportmessages --host jmap.fastmail.com \
 
 - Exported filenames are `{sanitized-subject-or-email-id}_{email-id}.eml`.
 - `--exportdir` defaults to the OS temp directory when omitted.
+- Use `deletemessages` to destroy matching email objects, or pass `--delete` to
+  `exportmessages` to destroy each match after its `.eml` file is written.
+
+```powershell
+gomailtest jmap deletemessages --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token" --subject "Invoice"
+gomailtest jmap exportmessages --host jmap.fastmail.com \
+    --username user@example.com --accesstoken "your-api-token" \
+    --subject "Invoice" --delete
+```
 
 ## Flags
 
@@ -161,6 +171,7 @@ gomailtest jmap exportmessages --host jmap.fastmail.com \
 | `--messageid` | Complete Message-ID value to use (sendmail); Internet Message-ID to search for (exportmessages) | `JMAPMESSAGEID` | — |
 | `--messageidsuffix` | Domain suffix for generated Message-ID (sendmail) | `JMAPMESSAGEIDSUFFIX` | — |
 | `--exportdir` | Directory for the export folder (exportmessages) | `JMAPEXPORTDIR` | OS temp dir |
+| `--delete` | Destroy each message after successful export (exportmessages) | `JMAPDELETE` | false |
 | `--count` | Maximum number of results to return (listmail, exportmessages) | `JMAPCOUNT` | action-specific: `3` (listmail), `25` (exportmessages) |
 | `--verbose` | Enable verbose output | `JMAPVERBOSE` | false |
 | `--loglevel` | Log level: debug, info, warn, error | `JMAPLOGLEVEL` | info |

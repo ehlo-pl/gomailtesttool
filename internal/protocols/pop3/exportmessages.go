@@ -33,7 +33,12 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		writeExportRow(csvLogger, slogLogger, config, false, "", "", "", err.Error())
 		return fmt.Errorf("connection failed: %w", err)
 	}
-	defer func() { _ = client.Quit() }()
+	quit := false
+	defer func() {
+		if !quit {
+			_ = client.Quit()
+		}
+	}()
 
 	fmt.Printf("✓ Connected to %s:%d\n", config.Host, config.Port)
 
@@ -170,7 +175,16 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		return nil
 	}
 
-	fmt.Printf("Successfully exported %d message(s).\n", successCount)
+	if err := client.Quit(); err != nil {
+		quit = true
+		return fmt.Errorf("failed to commit POP3 deletions: %w", err)
+	}
+	quit = true
+	action := "exported"
+	if config.Action == ActionDeleteMessages {
+		action = "deleted"
+	}
+	fmt.Printf("Successfully %s %d message(s).\n", action, successCount)
 	return nil
 }
 

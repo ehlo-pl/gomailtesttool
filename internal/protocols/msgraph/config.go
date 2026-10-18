@@ -569,6 +569,9 @@ func validateConfiguration(config *Config) error {
 	}
 
 	if config.Action == ActionExportMessages {
+		if config.Permanent && !config.Delete {
+			return fmt.Errorf("--permanent requires --delete for exportmessages")
+		}
 		switch config.ExportMethod {
 		case "", ExportMethodContent, ExportMethodExportItems:
 		default:

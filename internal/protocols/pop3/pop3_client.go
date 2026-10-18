@@ -422,14 +422,20 @@ func (c *POP3Client) Quit() error {
 		return nil
 	}
 
-	// Send QUIT command (ignore errors)
-	_, _ = c.conn.Write([]byte(protocol.QUIT()))
-
-	// Read response (ignore errors)
+	_, writeErr := c.conn.Write([]byte(protocol.QUIT()))
 	_ = c.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	_, _ = protocol.ReadResponse(c.reader)
-
-	return c.conn.Close()
+	resp, readErr := protocol.ReadResponse(c.reader)
+	closeErr := c.conn.Close()
+	if writeErr != nil {
+		return fmt.Errorf("failed to send QUIT: %w", writeErr)
+	}
+	if readErr != nil {
+		return fmt.Errorf("failed to read QUIT response: %w", readErr)
+	}
+	if !resp.Success {
+		return fmt.Errorf("QUIT failed: %s", resp.Message)
+	}
+	return closeErr
 }
 
 // Close closes the connection without sending QUIT.
