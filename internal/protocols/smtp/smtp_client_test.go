@@ -1267,7 +1267,7 @@ func TestSMTPSConfig(t *testing.T) {
 		config.Host = "smtp.gmail.com"
 		config.Action = ActionTestConnect
 
-		// Validate should change port from 25 to 465
+		// Validate should change the default port from 587 to 465.
 		err := validateConfiguration(config)
 		if err != nil {
 			t.Fatalf("validateConfiguration() error = %v", err)
@@ -1282,6 +1282,7 @@ func TestSMTPSConfig(t *testing.T) {
 		config.SMTPS = true
 		config.Host = "smtp.example.com"
 		config.Port = 587 // Explicit non-default port
+		config.PortExplicit = true
 		config.Action = ActionTestConnect
 
 		err := validateConfiguration(config)

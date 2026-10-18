@@ -6,6 +6,9 @@ package smtp
 import (
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // TestValidateConfiguration_SMTPSAndSTARTTLS tests mutual exclusion of SMTPS and STARTTLS flags
@@ -319,30 +322,34 @@ func TestValidateConfiguration_SMTPSPortDefault(t *testing.T) {
 		name         string
 		smtps        bool
 		initialPort  int
+		portExplicit bool
 		expectedPort int
 	}{
 		{
-			name:         "SMTPS with default port 25 changes to 465",
+			name:         "SMTPS with default port 587 changes to 465",
 			smtps:        true,
-			initialPort:  25,
+			initialPort:  587,
 			expectedPort: 465,
 		},
 		{
 			name:         "SMTPS with explicit port 587 stays 587",
 			smtps:        true,
 			initialPort:  587,
+			portExplicit: true,
 			expectedPort: 587,
 		},
 		{
-			name:         "No SMTPS with port 25 stays 25",
+			name:         "No SMTPS with port 587 stays 587",
 			smtps:        false,
-			initialPort:  25,
-			expectedPort: 25,
+			initialPort:  587,
+			portExplicit: true,
+			expectedPort: 587,
 		},
 		{
 			name:         "SMTPS with explicit port 465 stays 465",
 			smtps:        true,
 			initialPort:  465,
+			portExplicit: true,
 			expectedPort: 465,
 		},
 	}
@@ -354,6 +361,7 @@ func TestValidateConfiguration_SMTPSPortDefault(t *testing.T) {
 			config.Host = "smtp.example.com"
 			config.SMTPS = tt.smtps
 			config.Port = tt.initialPort
+			config.PortExplicit = tt.portExplicit
 
 			err := validateConfiguration(config)
 			if err != nil {
@@ -482,8 +490,8 @@ func TestNewConfig(t *testing.T) {
 	config := NewConfig()
 
 	// Verify defaults
-	if config.Port != 25 {
-		t.Errorf("NewConfig() Port = %d, want 25", config.Port)
+	if config.Port != 587 {
+		t.Errorf("NewConfig() Port = %d, want 587", config.Port)
 	}
 	if config.AuthMethod != "auto" {
 		t.Errorf("NewConfig() AuthMethod = %q, want 'auto'", config.AuthMethod)
@@ -499,6 +507,31 @@ func TestNewConfig(t *testing.T) {
 	}
 	if config.VerboseMode != false {
 		t.Errorf("NewConfig() VerboseMode = %v, want false", config.VerboseMode)
+	}
+}
+
+func TestConfigFromViperPortExplicit(t *testing.T) {
+	cmd := &cobra.Command{}
+	RegisterPersistentFlags(cmd)
+	v := viper.New()
+	if err := v.BindPFlags(cmd.PersistentFlags()); err != nil {
+		t.Fatalf("BindPFlags() error = %v", err)
+	}
+
+	config := ConfigFromViper(v)
+	if config.Port != 587 {
+		t.Errorf("ConfigFromViper() Port = %d, want 587", config.Port)
+	}
+	if config.PortExplicit {
+		t.Error("ConfigFromViper() PortExplicit = true for the default port, want false")
+	}
+
+	if err := cmd.PersistentFlags().Set("port", "587"); err != nil {
+		t.Fatalf("Set port flag: %v", err)
+	}
+	config = ConfigFromViper(v)
+	if !config.PortExplicit {
+		t.Error("ConfigFromViper() PortExplicit = false for an explicitly set port, want true")
 	}
 }
 

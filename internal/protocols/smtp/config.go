@@ -21,9 +21,10 @@ type Config struct {
 	Action      string
 
 	// SMTP server configuration
-	Host    string
-	Port    int
-	Timeout time.Duration
+	Host         string
+	Port         int
+	PortExplicit bool // reports whether the port was explicitly configured
+	Timeout      time.Duration
 
 	// Authentication
 	Username    string
@@ -90,7 +91,7 @@ const (
 // NewConfig creates a new Config with default values.
 func NewConfig() *Config {
 	return &Config{
-		Port:         25,
+		Port:         587,
 		Timeout:      30 * time.Second,
 		AuthMethod:   "auto",
 		Subject:      "SMTP Test",
@@ -116,7 +117,7 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 
 	// SMTP server
 	f.String("host", "", "SMTP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and authentication (env: SMTPHOST)")
-	f.Int("port", 25, "SMTP server port (env: SMTPPORT)")
+	f.Int("port", 587, "SMTP server port (env: SMTPPORT)")
 	f.Int("timeout", 30, "Connection timeout in seconds (env: SMTPTIMEOUT)")
 
 	// Authentication
@@ -277,6 +278,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 	return &Config{
 		Host:              v.GetString("host"),
 		Port:              port,
+		PortExplicit:      v.IsSet("port"),
 		Timeout:           time.Duration(timeoutSec) * time.Second,
 		Username:          v.GetString("username"),
 		Password:          v.GetString("password"),
@@ -385,8 +387,8 @@ func validateConfiguration(config *Config) error {
 		return fmt.Errorf("cannot use both -starttls and -no-starttls flags simultaneously")
 	}
 
-	// Smart port default: if -smtps is set and port is 25 (default), change to 465
-	if config.SMTPS && config.Port == 25 {
+	// Smart port default: if -smtps is set without an explicit port, use 465.
+	if config.SMTPS && !config.PortExplicit && config.Port == 587 {
 		config.Port = 465
 	}
 

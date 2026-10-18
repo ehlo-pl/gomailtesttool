@@ -195,7 +195,7 @@ curl -X POST http://localhost:8080/smtp/sendmail \
 | Variable | Description |
 |----------|-------------|
 | `SMTPHOST` | SMTP server hostname (required to enable endpoint) |
-| `SMTPPORT` | SMTP server port (default: 25) |
+| `SMTPPORT` | SMTP server port (default: 587) |
 | `SMTPUSERNAME` | SMTP username |
 | `SMTPPASSWORD` | SMTP password |
 | `SMTPFROM` | Default sender address |

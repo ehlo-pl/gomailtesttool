@@ -185,7 +185,7 @@ Hello {{.Name}}, this message came from an EML template.
 | Flag | Description | Environment Variable | Default |
 |------|-------------|---------------------|---------|
 | `--host` | SMTP server hostname (required) — the service to connect to; also used for TLS SNI/certificate checks and auth | `SMTPHOST` | — |
-| `--port` | SMTP server port | `SMTPPORT` | 25 |
+| `--port` | SMTP server port | `SMTPPORT` | 587 |
 | `--timeout` | Connection timeout (seconds) | `SMTPTIMEOUT` | 30 |
 | `--username` | SMTP username (`DOMAIN\user` for NTLM, `user@REALM` for GSSAPI) | `SMTPUSERNAME` | — |
 | `--password` | SMTP password | `SMTPPASSWORD` | — |
