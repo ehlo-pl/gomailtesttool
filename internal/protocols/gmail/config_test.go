@@ -145,6 +145,25 @@ func TestValidateConfiguration(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "deletemessages without criteria",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionDeleteMessages
+				c.Subject = ""
+				c.MessageID = ""
+			},
+			wantErr: true,
+		},
+		{
+			name: "deletemessages with raw search query only",
+			mutate: func(t *testing.T, c *Config) {
+				c.Action = ActionDeleteMessages
+				c.Subject = ""
+				c.MessageID = ""
+				c.SearchQuery = "from:x@example.com newer_than:7d"
+			},
+			wantErr: false,
+		},
+		{
 			name: "getschedule requires to",
 			mutate: func(t *testing.T, c *Config) {
 				c.Action = ActionGetSchedule
@@ -264,6 +283,7 @@ func TestEffectiveScopes(t *testing.T) {
 		{ActionSaveDraft, scopeGmailCompose},
 		{ActionGetInbox, scopeGmailReadonly},
 		{ActionExportMessages, scopeGmailReadonly},
+		{ActionDeleteMessages, scopeGmailModify},
 		{ActionGetEvents, scopeCalendarReadonly},
 		{ActionSendInvite, scopeCalendarEvents},
 	}

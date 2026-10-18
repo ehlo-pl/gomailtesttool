@@ -1,7 +1,7 @@
 # Gmail / Google Workspace Protocol — gomailtest
 
 Google Workspace mailbox and calendar operations via the Gmail and Calendar
-APIs: send mail, list and export messages, list events, and create invitations.
+APIs: send mail, list, export, and delete messages, list events, and create invitations.
 
 The enterprise-grade way to reach Gmail/Workspace programmatically is a
 **service account with domain-wide delegation (DWD)** that impersonates a
@@ -41,6 +41,7 @@ gomailtest gmail getinbox --count 5
    ```
    https://www.googleapis.com/auth/gmail.send,
    https://www.googleapis.com/auth/gmail.readonly,
+   https://www.googleapis.com/auth/gmail.modify,
    https://www.googleapis.com/auth/calendar.readonly,
    https://www.googleapis.com/auth/calendar.events
    ```
@@ -69,6 +70,7 @@ Scopes default **per action** (least privilege):
 | `sendmail` | `gmail.send` |
 | `draft` | `gmail.compose` |
 | `getinbox`, `listmail`, `listfolders`, `exportmessages` | `gmail.readonly` |
+| `deletemessages` | `gmail.modify` |
 | `getevents`, `getschedule` | `calendar.readonly` |
 | `sendinvite` | `calendar.events` |
 | `testauth`, `exportbearertoken` | `gmail.readonly` |
@@ -158,6 +160,20 @@ match in `raw` format, base64url-decodes it, and writes a `.eml` file. Requires
 and `--subject` are validated to block search-operator injection; `--search`
 passes a raw Gmail query verbatim and overrides both. `searchandexport` is an
 alias of this action.
+
+### deletemessages — Search and move messages to Trash
+```powershell
+gomailtest gmail deletemessages --credentials sa.json --mailbox user@corp.com \
+    --messageid "<id@host>"
+gomailtest gmail deletemessages --credentials sa.json --mailbox user@corp.com \
+    --subject "invoice" --count 50
+gomailtest gmail deletemessages --credentials sa.json --mailbox user@corp.com \
+    --search "from:billing@vendor.com newer_than:7d"
+```
+Search criteria and count limits work like `exportmessages`. Matching messages
+are moved to Gmail's Trash (rather than permanently deleted); JSON output lists
+the IDs successfully moved. This action requires `gmail.modify`, which must be
+included in the DWD authorization in the Admin Console.
 
 ### getevents — List upcoming calendar events
 ```powershell

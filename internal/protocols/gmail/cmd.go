@@ -24,8 +24,8 @@ func NewCmd() *cobra.Command {
 		Short: "Google Workspace / Gmail API operations",
 		Long: `Interact with Google Workspace via the Gmail and Calendar APIs.
 
-Supports sending mail, listing and exporting messages, and basic calendar
-operations against a Workspace user.
+Supports sending mail, listing, exporting, and deleting messages, plus basic
+calendar operations against a Workspace user.
 
 Authentication methods (pick one): --credentials (service account with
 domain-wide delegation, impersonating --mailbox), --bearertoken (a pre-obtained
@@ -42,6 +42,7 @@ OAuth2 access token), or --oauth (interactive loopback flow).`,
 		newListFoldersCmd(v),
 		newListMailCmd(v),
 		newExportMessagesCmd(v),
+		newDeleteMessagesCmd(v),
 		newGetEventsCmd(v),
 		newSendInviteCmd(v),
 		newFindTimeSlotCmd(v),
@@ -71,7 +72,7 @@ func setup(cmd *cobra.Command, v *viper.Viper, action string) (*Config, context.
 
 	// "subject" is shared with sendmail/sendinvite, whose default would
 	// otherwise narrow the exportmessages search; only use it if provided.
-	if action == ActionExportMessages {
+	if action == ActionExportMessages || action == ActionDeleteMessages {
 		config.Subject = v.GetString("subject")
 	}
 
@@ -262,6 +263,34 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("search", "", "Raw Gmail search query (e.g. 'from:x@y.com newer_than:7d'); overrides --messageid/--subject (env: GMAILSEARCH)")
 	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: GMAILCOUNT)")
 	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: GMAILEXPORTDIR)")
+	return cmd
+}
+
+func newDeleteMessagesCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "deletemessages",
+		Short: "Search messages by Message-ID, Subject, or a raw Gmail query and move them to Trash",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			config, ctx, cancel, slogger, csvLogger, err := setup(cmd, v, ActionDeleteMessages)
+			if err != nil {
+				return err
+			}
+			defer cancel()
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+
+			svc, err := newGmailService(ctx, config, slogger)
+			if err != nil {
+				return err
+			}
+			return deleteMessages(ctx, svc, config, csvLogger)
+		},
+	}
+	cmd.Flags().String("messageid", "", "Internet Message-ID to search for (env: GMAILMESSAGEID)")
+	cmd.Flags().String("subject", "", "Subject substring to search for (env: GMAILSUBJECT)")
+	cmd.Flags().String("search", "", "Raw Gmail search query (e.g. 'from:x@y.com newer_than:7d'); overrides --messageid/--subject (env: GMAILSEARCH)")
+	cmd.Flags().Int("count", 25, "Maximum number of matching messages to move to Trash (env: GMAILCOUNT)")
 	return cmd
 }
 
