@@ -396,6 +396,26 @@ func (c *POP3Client) Retr(ctx context.Context, msgNum int) ([]byte, error) {
 	return []byte(strings.Join(resp.Lines, "\r\n")), nil
 }
 
+// Delete marks a message for deletion, which POP3 commits on a successful QUIT.
+func (c *POP3Client) Delete(ctx context.Context, msgNum int) error {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+	if _, err := c.conn.Write([]byte(protocol.DELE(msgNum))); err != nil {
+		return fmt.Errorf("failed to send DELE: %w", err)
+	}
+	resp, err := protocol.ReadResponse(c.reader)
+	if err != nil {
+		return fmt.Errorf("failed to read DELE response: %w", err)
+	}
+	if !resp.Success {
+		return fmt.Errorf("DELE failed: %s", resp.Message)
+	}
+	return nil
+}
+
 // Quit sends the QUIT command and closes the connection.
 func (c *POP3Client) Quit() error {
 	if c.conn == nil {

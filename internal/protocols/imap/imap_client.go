@@ -391,6 +391,36 @@ func (c *IMAPClient) FetchRFC822(ctx context.Context, uid imap.UID) ([]byte, err
 	return body, nil
 }
 
+// DeleteMessage marks a message as deleted and expunges it from the selected mailbox.
+func (c *IMAPClient) DeleteMessage(ctx context.Context, uid imap.UID) error {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+
+	uidSet := imap.UIDSetNum(uid)
+	store := c.client.Store(uidSet, &imap.StoreFlags{
+		Op:     imap.StoreFlagsAdd,
+		Silent: true,
+		Flags:  []imap.Flag{imap.FlagDeleted},
+	}, nil)
+	if _, err := store.Collect(); err != nil {
+		return fmt.Errorf("failed to mark UID %d as deleted: %w", uid, err)
+	}
+
+	var expunge *imapclient.ExpungeCommand
+	if c.caps != nil && c.caps.SupportsUIDPLUS() {
+		expunge = c.client.UIDExpunge(uidSet)
+	} else {
+		expunge = c.client.Expunge()
+	}
+	if _, err := expunge.Collect(); err != nil {
+		return fmt.Errorf("failed to expunge UID %d: %w", uid, err)
+	}
+	return nil
+}
+
 // Logout sends the LOGOUT command and closes the connection.
 func (c *IMAPClient) Logout() error {
 	if c.client != nil {

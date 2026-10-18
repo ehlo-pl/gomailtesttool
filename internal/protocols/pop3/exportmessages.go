@@ -82,11 +82,14 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		return fmt.Errorf("LIST failed: %w", err)
 	}
 
-	exportDir, err := export.CreateExportDir(config.ExportDir)
-	if err != nil {
-		return err
+	var exportDir string
+	if config.Action != ActionDeleteMessages {
+		exportDir, err = export.CreateExportDir(config.ExportDir)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Export directory: %s\n", exportDir)
 	}
-	fmt.Printf("Export directory: %s\n", exportDir)
 
 	wantMessageID := strings.Trim(config.MessageID, "<>")
 	wantSubject := strings.ToLower(config.Subject)
@@ -116,6 +119,18 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 			continue
 		}
 
+		if config.Action == ActionDeleteMessages {
+			if err := client.Delete(ctx, m.Number); err != nil {
+				logger.LogError(slogLogger, "DELE failed", "error", err, "msgnum", m.Number)
+				writeExportRow(csvLogger, slogLogger, config, false, fmt.Sprintf("%d", m.Number), subject, "", err.Error())
+				continue
+			}
+			successCount++
+			writeExportRow(csvLogger, slogLogger, config, true, fmt.Sprintf("%d", m.Number), subject, "", "")
+			fmt.Printf("Successfully marked message %d for deletion\n", m.Number)
+			continue
+		}
+
 		body, err := client.Retr(ctx, m.Number)
 		if err != nil {
 			logger.LogError(slogLogger, "RETR failed", "error", err, "msgnum", m.Number)
@@ -133,6 +148,15 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 			logger.LogError(slogLogger, "Failed to write EML file", "error", err, "msgnum", m.Number)
 			writeExportRow(csvLogger, slogLogger, config, false, fmt.Sprintf("%d", m.Number), subject, "", err.Error())
 			continue
+		}
+
+		if config.Delete {
+			if err := client.Delete(ctx, m.Number); err != nil {
+				logger.LogError(slogLogger, "DELE failed for exported message", "error", err, "msgnum", m.Number)
+				writeExportRow(csvLogger, slogLogger, config, false, fmt.Sprintf("%d", m.Number), subject, filePath, err.Error())
+				successCount++
+				continue
+			}
 		}
 
 		successCount++
@@ -171,7 +195,7 @@ func writeExportRow(csvLogger logger.Logger, slogLogger *slog.Logger, config *Co
 		status = "SUCCESS"
 	}
 	if logErr := csvLogger.WriteRow([]string{
-		ActionExportMessages, status, config.Host, fmt.Sprintf("%d", config.Port),
+		config.Action, status, config.Host, fmt.Sprintf("%d", config.Port),
 		msgNum, subject, filename, errStr,
 	}); logErr != nil {
 		logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)

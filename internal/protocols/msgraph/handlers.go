@@ -1396,6 +1396,16 @@ func exportMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 			continue
 		}
 
+		if config.Delete {
+			if err := deleteGraphMessage(ctx, client, mailbox, messageID, config.Permanent); err != nil {
+				log.Printf("Error deleting exported message ID %s: %v", messageID, err)
+				if logger != nil {
+					_ = logger.WriteRow([]string{ActionExportMessages, StatusError, mailbox, err.Error(), messageID, filePath})
+				}
+				continue
+			}
+		}
+
 		successCount++
 		if config.OutputFormat != "json" {
 			fmt.Printf("Successfully exported message: %s -> %s\n", derefOr(message.GetSubject(), "(no subject)"), filePath)
@@ -1652,11 +1662,7 @@ func removeMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 			continue
 		}
 
-		if config.Permanent {
-			err = client.Users().ByUserId(mailbox).Messages().ByMessageId(id).PermanentDelete().Post(ctx, nil)
-		} else {
-			err = client.Users().ByUserId(mailbox).Messages().ByMessageId(id).Delete(ctx, nil)
-		}
+		err = deleteGraphMessage(ctx, client, mailbox, id, config.Permanent)
 		if err != nil {
 			result.Status = "error"
 			result.Error = err.Error()
@@ -1683,6 +1689,13 @@ func removeMessages(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 	}
 
 	return errors.Join(removalErrors...)
+}
+
+func deleteGraphMessage(ctx context.Context, client *msgraphsdk.GraphServiceClient, mailbox, id string, permanent bool) error {
+	if permanent {
+		return client.Users().ByUserId(mailbox).Messages().ByMessageId(id).PermanentDelete().Post(ctx, nil)
+	}
+	return client.Users().ByUserId(mailbox).Messages().ByMessageId(id).Delete(ctx, nil)
 }
 
 func confirmRemoval(reader *bufio.Reader, output io.Writer, prompt string) (bool, error) {

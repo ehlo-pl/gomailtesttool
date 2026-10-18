@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // Config holds all jmaptool configuration.
@@ -51,6 +51,7 @@ type Config struct {
 	MessageID       string
 	MessageIDSuffix string
 	ExportDir       string
+	Delete          bool // Delete messages after successfully exporting them
 
 	// Pagination (listmail, exportmessages)
 	Count int
@@ -69,6 +70,7 @@ const (
 	ActionListMail       = "listmail"
 	ActionSendMail       = "sendmail"
 	ActionExportMessages = "exportmessages"
+	ActionDeleteMessages = "deletemessages"
 )
 
 // NewConfig creates a new Config with default values.
@@ -115,34 +117,35 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 // Must be called after RegisterPersistentFlags.
 func BindEnvs(v *viper.Viper) {
 	bindings := map[string]string{
-		"host":        "JMAPHOST",
-		"port":        "JMAPPORT",
-		"address":     "JMAPADDRESS",
-		"ipv4":        "JMAPIPV4",
-		"ipv6":        "JMAPIPV6",
-		"username":    "JMAPUSERNAME",
-		"password":    "JMAPPASSWORD",
-		"accesstoken": "JMAPACCESSTOKEN",
-		"authmethod":  "JMAPAUTHMETHOD",
-		"skipverify":  "JMAPSKIPVERIFY",
-		"to":          "JMAPTO",
-		"cc":          "JMAPCC",
-		"bcc":         "JMAPBCC",
-		"subject":       "JMAPSUBJECT",
-		"body":          "JMAPBODY",
-		"bodyhtml":      "JMAPBODYHTML",
+		"host":               "JMAPHOST",
+		"port":               "JMAPPORT",
+		"address":            "JMAPADDRESS",
+		"ipv4":               "JMAPIPV4",
+		"ipv6":               "JMAPIPV6",
+		"username":           "JMAPUSERNAME",
+		"password":           "JMAPPASSWORD",
+		"accesstoken":        "JMAPACCESSTOKEN",
+		"authmethod":         "JMAPAUTHMETHOD",
+		"skipverify":         "JMAPSKIPVERIFY",
+		"to":                 "JMAPTO",
+		"cc":                 "JMAPCC",
+		"bcc":                "JMAPBCC",
+		"subject":            "JMAPSUBJECT",
+		"body":               "JMAPBODY",
+		"bodyhtml":           "JMAPBODYHTML",
 		"template":           "JMAPTEMPLATE",
 		"template-vars":      "JMAPTEMPLATEVARS",
 		"attachments":        "JMAPATTACHMENTS",
 		"inline-attachments": "JMAPINLINEATTACHMENTS",
 		"save-to-sent":       "JMAPSAVETOSENT",
-		"messageid":   "JMAPMESSAGEID",
-		"messageidsuffix": "JMAPMESSAGEIDSUFFIX",
-		"exportdir":   "JMAPEXPORTDIR",
-		"count":       "JMAPCOUNT",
-		"verbose":     "JMAPVERBOSE",
-		"loglevel":    "JMAPLOGLEVEL",
-		"logformat":   "JMAPLOGFORMAT",
+		"messageid":          "JMAPMESSAGEID",
+		"messageidsuffix":    "JMAPMESSAGEIDSUFFIX",
+		"exportdir":          "JMAPEXPORTDIR",
+		"delete":             "JMAPDELETE",
+		"count":              "JMAPCOUNT",
+		"verbose":            "JMAPVERBOSE",
+		"loglevel":           "JMAPLOGLEVEL",
+		"logformat":          "JMAPLOGFORMAT",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -190,22 +193,22 @@ func ConfigFromViper(v *viper.Viper) *Config {
 	}
 
 	return &Config{
-		Host:           v.GetString("host"),
-		Port:           port,
-		ConnectAddress: v.GetString("address"),
-		IPv4Only:       v.GetBool("ipv4"),
-		IPv6Only:       v.GetBool("ipv6"),
-		Username:       v.GetString("username"),
-		Password:       v.GetString("password"),
-		AccessToken:    v.GetString("accesstoken"),
-		AuthMethod:     authMethod,
-		SkipVerify:     v.GetBool("skipverify"),
-		To:             parseStringSlice(v.GetString("to")),
-		Cc:             parseStringSlice(v.GetString("cc")),
-		Bcc:            parseStringSlice(v.GetString("bcc")),
-		Subject:        subject,
-		Body:           body,
-		BodyHTML:       v.GetString("bodyhtml"),
+		Host:                  v.GetString("host"),
+		Port:                  port,
+		ConnectAddress:        v.GetString("address"),
+		IPv4Only:              v.GetBool("ipv4"),
+		IPv6Only:              v.GetBool("ipv6"),
+		Username:              v.GetString("username"),
+		Password:              v.GetString("password"),
+		AccessToken:           v.GetString("accesstoken"),
+		AuthMethod:            authMethod,
+		SkipVerify:            v.GetBool("skipverify"),
+		To:                    parseStringSlice(v.GetString("to")),
+		Cc:                    parseStringSlice(v.GetString("cc")),
+		Bcc:                   parseStringSlice(v.GetString("bcc")),
+		Subject:               subject,
+		Body:                  body,
+		BodyHTML:              v.GetString("bodyhtml"),
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
 		AttachmentFiles:       parseStringSlice(v.GetString("attachments")),
@@ -213,11 +216,12 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		SaveToSent:            v.GetBool("save-to-sent"),
 		MessageID:             v.GetString("messageid"),
 		MessageIDSuffix:       v.GetString("messageidsuffix"),
-		ExportDir:      v.GetString("exportdir"),
-		Count:          count,
-		VerboseMode:    v.GetBool("verbose"),
-		LogLevel:       logLevel,
-		LogFormat:      logFormat,
+		ExportDir:             v.GetString("exportdir"),
+		Delete:                v.GetBool("delete"),
+		Count:                 count,
+		VerboseMode:           v.GetBool("verbose"),
+		LogLevel:              logLevel,
+		LogFormat:             logFormat,
 	}
 }
 
@@ -241,7 +245,7 @@ func validateConfiguration(config *Config) error {
 	// Validate action
 	validActions := []string{
 		ActionTestConnect, ActionTestAuth,
-		ActionListFolders, ActionListMail, ActionSendMail, ActionExportMessages,
+		ActionListFolders, ActionListMail, ActionSendMail, ActionExportMessages, ActionDeleteMessages,
 	}
 	valid := false
 	for _, a := range validActions {
@@ -290,7 +294,7 @@ func validateConfiguration(config *Config) error {
 	// Action-specific credential and parameter validation
 	switch config.Action {
 	case ActionTestAuth, ActionListFolders, ActionListMail,
-		ActionSendMail, ActionExportMessages:
+		ActionSendMail, ActionExportMessages, ActionDeleteMessages:
 		if config.AccessToken == "" && config.Password == "" {
 			return fmt.Errorf("%s requires either --password or --accesstoken", config.Action)
 		}
@@ -329,9 +333,9 @@ func validateConfiguration(config *Config) error {
 		}
 	}
 
-	if config.Action == ActionExportMessages {
+	if config.Action == ActionExportMessages || config.Action == ActionDeleteMessages {
 		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
-			return fmt.Errorf("exportmessages requires --messageid and/or --subject")
+			return fmt.Errorf("%s requires --messageid and/or --subject", config.Action)
 		}
 	}
 

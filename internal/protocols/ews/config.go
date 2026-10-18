@@ -54,6 +54,7 @@ type Config struct {
 	MessageID       string
 	MessageIDSuffix string
 	ExportDir       string
+	Delete          bool // Delete messages after successfully exporting them
 
 	// Pagination (listmail, exportmessages)
 	Count int
@@ -102,6 +103,7 @@ const (
 	ActionSendMail       = "sendmail"
 	ActionSaveDraft      = "draft"
 	ActionExportMessages = "exportmessages"
+	ActionDeleteMessages = "deletemessages"
 	ActionFindTimeSlot   = "findtimeslot"
 	ActionGetEvents      = "getevents"
 	ActionSendInvite     = "sendinvite"
@@ -166,48 +168,49 @@ func RegisterPersistentFlags(cmd *cobra.Command) {
 // BindEnvs registers Viper environment variable bindings for all ews config keys.
 func BindEnvs(v *viper.Viper) {
 	bindings := map[string]string{
-		"host":             "EWSHOST",
-		"port":             "EWSPORT",
-		"timeout":          "EWSTIMEOUT",
-		"ewspath":          "EWSPATH",
-		"autodiscoverpath": "EWSAUTODISCOVERPATH",
-		"username":         "EWSUSERNAME",
-		"password":         "EWSPASSWORD",
-		"accesstoken":      "EWSACCESSTOKEN",
-		"authmethod":       "EWSAUTHMETHOD",
-		"domain":           "EWSDOMAIN",
-		"mailbox":          "EWSMAILBOX",
-		"skipverify":       "EWSSKIPVERIFY",
-		"tlsversion":       "EWSTLSVERSION",
-		"to":               "EWSTO",
-		"cc":               "EWSCC",
-		"bcc":              "EWSBCC",
-		"subject":          "EWSSUBJECT",
-		"body":             "EWSBODY",
-		"bodyhtml":         "EWSBODYHTML",
+		"host":               "EWSHOST",
+		"port":               "EWSPORT",
+		"timeout":            "EWSTIMEOUT",
+		"ewspath":            "EWSPATH",
+		"autodiscoverpath":   "EWSAUTODISCOVERPATH",
+		"username":           "EWSUSERNAME",
+		"password":           "EWSPASSWORD",
+		"accesstoken":        "EWSACCESSTOKEN",
+		"authmethod":         "EWSAUTHMETHOD",
+		"domain":             "EWSDOMAIN",
+		"mailbox":            "EWSMAILBOX",
+		"skipverify":         "EWSSKIPVERIFY",
+		"tlsversion":         "EWSTLSVERSION",
+		"to":                 "EWSTO",
+		"cc":                 "EWSCC",
+		"bcc":                "EWSBCC",
+		"subject":            "EWSSUBJECT",
+		"body":               "EWSBODY",
+		"bodyhtml":           "EWSBODYHTML",
 		"template":           "EWSTEMPLATE",
 		"template-vars":      "EWSTEMPLATEVARS",
 		"attachments":        "EWSATTACHMENTS",
 		"inline-attachments": "EWSINLINEATTACHMENTS",
 		"save-to-sent":       "EWSSAVETOSENT",
-		"start":            "EWSSTART",
-		"end":              "EWSEND",
-		"messageid":        "EWSMESSAGEID",
-		"messageidsuffix":  "EWSMESSAGEIDSUFFIX",
-		"exportdir":        "EWSEXPORTDIR",
-		"count":            "EWSCOUNT",
-		"duration":         "EWSDURATION",
-		"timezone":      "EWSTIMEZONE",
-		"interval":      "EWSINTERVAL",
-		"proxy":         "EWSPROXY",
-		"ipv4":          "EWSIPV4",
-		"ipv6":          "EWSIPV6",
-		"logformat":     "EWSLOGFORMAT",
-		"item-id":       "EWSITEMID",
-		"change-key":    "EWSCHANGEKEY",
-		"response":      "EWSRESPONSE",
-		"comment":       "EWSCOMMENT",
-		"send-response": "EWSSENDRESPONSE",
+		"start":              "EWSSTART",
+		"end":                "EWSEND",
+		"messageid":          "EWSMESSAGEID",
+		"messageidsuffix":    "EWSMESSAGEIDSUFFIX",
+		"exportdir":          "EWSEXPORTDIR",
+		"delete":             "EWSDELETE",
+		"count":              "EWSCOUNT",
+		"duration":           "EWSDURATION",
+		"timezone":           "EWSTIMEZONE",
+		"interval":           "EWSINTERVAL",
+		"proxy":              "EWSPROXY",
+		"ipv4":               "EWSIPV4",
+		"ipv6":               "EWSIPV6",
+		"logformat":          "EWSLOGFORMAT",
+		"item-id":            "EWSITEMID",
+		"change-key":         "EWSCHANGEKEY",
+		"response":           "EWSRESPONSE",
+		"comment":            "EWSCOMMENT",
+		"send-response":      "EWSSENDRESPONSE",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -289,50 +292,51 @@ func ConfigFromViper(v *viper.Viper) *Config {
 	}
 
 	return &Config{
-		Host:             v.GetString("host"),
-		Port:             port,
-		EWSPath:          ewsPath,
-		AutodiscoverPath: autodiscoverPath,
-		Timeout:          time.Duration(timeoutSec) * time.Second,
-		Username:         v.GetString("username"),
-		Password:         v.GetString("password"),
-		AccessToken:      v.GetString("accesstoken"),
-		AuthMethod:       authMethod,
-		Domain:           v.GetString("domain"),
-		Mailbox:          v.GetString("mailbox"),
-		To:               parseStringSlice(v.GetString("to")),
-		Cc:               parseStringSlice(v.GetString("cc")),
-		Bcc:              parseStringSlice(v.GetString("bcc")),
-		Subject:          subject,
-		Body:             body,
-		BodyHTML:         v.GetString("bodyhtml"),
+		Host:                  v.GetString("host"),
+		Port:                  port,
+		EWSPath:               ewsPath,
+		AutodiscoverPath:      autodiscoverPath,
+		Timeout:               time.Duration(timeoutSec) * time.Second,
+		Username:              v.GetString("username"),
+		Password:              v.GetString("password"),
+		AccessToken:           v.GetString("accesstoken"),
+		AuthMethod:            authMethod,
+		Domain:                v.GetString("domain"),
+		Mailbox:               v.GetString("mailbox"),
+		To:                    parseStringSlice(v.GetString("to")),
+		Cc:                    parseStringSlice(v.GetString("cc")),
+		Bcc:                   parseStringSlice(v.GetString("bcc")),
+		Subject:               subject,
+		Body:                  body,
+		BodyHTML:              v.GetString("bodyhtml"),
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
 		AttachmentFiles:       parseStringSlice(v.GetString("attachments")),
 		InlineAttachmentFiles: parseStringSlice(v.GetString("inline-attachments")),
 		SaveToSent:            v.GetBool("save-to-sent"),
 		StartTime:             v.GetString("start"),
-		EndTime:          v.GetString("end"),
-		MessageID:        v.GetString("messageid"),
-		MessageIDSuffix:  v.GetString("messageidsuffix"),
-		ExportDir:        v.GetString("exportdir"),
-		Count:            count,
-		Duration:         duration,
-		Timezone:            timezone,
-		Interval:            interval,
-		ItemID:              v.GetString("item-id"),
-		ChangeKey:           v.GetString("change-key"),
-		MeetingResponse:     strings.ToLower(v.GetString("response")),
-		Comment:             v.GetString("comment"),
-		SendMeetingResponse: v.GetBool("send-response"),
-		SkipVerify:          v.GetBool("skipverify"),
-		TLSVersion:       tlsVersion,
-		ProxyURL:         v.GetString("proxy"),
-		IPv4Only:         v.GetBool("ipv4"),
-		IPv6Only:         v.GetBool("ipv6"),
-		VerboseMode:      v.GetBool("verbose"),
-		LogLevel:         logLevel,
-		LogFormat:        logFormat,
+		EndTime:               v.GetString("end"),
+		MessageID:             v.GetString("messageid"),
+		MessageIDSuffix:       v.GetString("messageidsuffix"),
+		ExportDir:             v.GetString("exportdir"),
+		Delete:                v.GetBool("delete"),
+		Count:                 count,
+		Duration:              duration,
+		Timezone:              timezone,
+		Interval:              interval,
+		ItemID:                v.GetString("item-id"),
+		ChangeKey:             v.GetString("change-key"),
+		MeetingResponse:       strings.ToLower(v.GetString("response")),
+		Comment:               v.GetString("comment"),
+		SendMeetingResponse:   v.GetBool("send-response"),
+		SkipVerify:            v.GetBool("skipverify"),
+		TLSVersion:            tlsVersion,
+		ProxyURL:              v.GetString("proxy"),
+		IPv4Only:              v.GetBool("ipv4"),
+		IPv6Only:              v.GetBool("ipv6"),
+		VerboseMode:           v.GetBool("verbose"),
+		LogLevel:              logLevel,
+		LogFormat:             logFormat,
 	}
 }
 
@@ -357,7 +361,7 @@ func validateConfiguration(config *Config) error {
 		ActionTestConnect, ActionTestAuth, ActionGetFolder, ActionAutodiscover,
 		ActionListFolders, ActionListMail, ActionSendMail, ActionSaveDraft, ActionExportMessages,
 		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot, ActionFreeBusy,
-		ActionRespondMeeting,
+		ActionRespondMeeting, ActionDeleteMessages,
 	}
 	valid := false
 	for _, a := range validActions {
@@ -409,7 +413,7 @@ func validateConfiguration(config *Config) error {
 	case ActionTestAuth, ActionGetFolder, ActionListFolders, ActionListMail,
 		ActionSendMail, ActionSaveDraft, ActionExportMessages,
 		ActionGetEvents, ActionSendInvite, ActionGetSchedule, ActionFindTimeSlot, ActionFreeBusy,
-		ActionRespondMeeting:
+		ActionRespondMeeting, ActionDeleteMessages:
 		if config.Username == "" {
 			return fmt.Errorf("%s requires --username", config.Action)
 		}
@@ -463,9 +467,9 @@ func validateConfiguration(config *Config) error {
 		}
 	}
 
-	if config.Action == ActionExportMessages {
+	if config.Action == ActionExportMessages || config.Action == ActionDeleteMessages {
 		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
-			return fmt.Errorf("exportmessages requires --messageid and/or --subject")
+			return fmt.Errorf("%s requires --messageid and/or --subject", config.Action)
 		}
 	}
 

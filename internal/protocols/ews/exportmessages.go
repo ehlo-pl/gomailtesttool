@@ -19,8 +19,8 @@ import (
 // EWS response types for GetItem (MIME content).
 
 type getItemResponseEnvelope struct {
-	XMLName struct{}          `xml:"Envelope"`
-	Body    getItemRespBody   `xml:"Body"`
+	XMLName struct{}        `xml:"Envelope"`
+	Body    getItemRespBody `xml:"Body"`
 }
 
 type getItemRespBody struct {
@@ -36,10 +36,10 @@ type getItemRespMessages struct {
 }
 
 type getItemRespMessage struct {
-	ResponseClass string        `xml:"ResponseClass,attr"`
-	ResponseCode  string        `xml:"ResponseCode"`
-	MessageText   string        `xml:"MessageText"`
-	Items         getItemItems  `xml:"Items"`
+	ResponseClass string       `xml:"ResponseClass,attr"`
+	ResponseCode  string       `xml:"ResponseCode"`
+	MessageText   string       `xml:"MessageText"`
+	Items         getItemItems `xml:"Items"`
 }
 
 type getItemItems struct {
@@ -47,9 +47,23 @@ type getItemItems struct {
 }
 
 type getItemMessage struct {
-	ItemId      ewsItemId   `xml:"ItemId"`
-	Subject     string      `xml:"Subject"`
-	MimeContent string      `xml:"MimeContent"`
+	ItemId      ewsItemId `xml:"ItemId"`
+	Subject     string    `xml:"Subject"`
+	MimeContent string    `xml:"MimeContent"`
+}
+
+type deleteItemResponseEnvelope struct {
+	Body struct {
+		Response struct {
+			Messages struct {
+				Message struct {
+					ResponseClass string `xml:"ResponseClass,attr"`
+					ResponseCode  string `xml:"ResponseCode"`
+					MessageText   string `xml:"MessageText"`
+				} `xml:"DeleteItemResponseMessage"`
+			} `xml:"ResponseMessages"`
+		} `xml:"DeleteItemResponse"`
+	} `xml:"Body"`
 }
 
 // exportMessages searches by subject and/or Message-ID, downloads MIME content,
@@ -126,14 +140,28 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		return nil
 	}
 
-	exportDir, err := export.CreateExportDir(config.ExportDir)
-	if err != nil {
-		return err
+	var exportDir string
+	if config.Action != ActionDeleteMessages {
+		exportDir, err = export.CreateExportDir(config.ExportDir)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Export directory: %s\n\n", exportDir)
 	}
-	fmt.Printf("Export directory: %s\n\n", exportDir)
 
 	successCount := 0
 	for _, item := range items {
+		if config.Action == ActionDeleteMessages {
+			if err := deleteEWSMessage(ctx, ewsClient, item.ItemId.ID); err != nil {
+				writeRow("", item.Subject, "", err.Error())
+				continue
+			}
+			fmt.Printf("  Deleted: %s\n", item.Subject)
+			writeRow("", item.Subject, "", "")
+			successCount++
+			continue
+		}
+
 		// Fetch raw MIME via GetItem.
 		getMIMEBody := fmt.Sprintf(getItemMIMESOAPBodyFmt, xmlEscape(item.ItemId.ID))
 		start := time.Now()
@@ -181,6 +209,14 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 			continue
 		}
 
+		if config.Delete {
+			if err := deleteEWSMessage(ctx, ewsClient, item.ItemId.ID); err != nil {
+				writeRow("", subject, emlPath, err.Error())
+				continue
+			}
+			fmt.Printf("  Deleted: %s\n", subject)
+		}
+
 		fmt.Printf("  Exported: %s\n", emlPath)
 		writeRow("", subject, emlPath, "")
 		successCount++
@@ -188,6 +224,23 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 
 	fmt.Printf("\n✓ Exported %d/%d messages\n", successCount, len(items))
 	logger.LogInfo(slogLogger, "exportmessages completed", "total", len(items), "success", successCount)
+	return nil
+}
+
+func deleteEWSMessage(ctx context.Context, client *EWSClient, itemID string) error {
+	body := fmt.Sprintf(`<m:DeleteItem DeleteType="MoveToDeletedItems" SendMeetingCancellations="SendToNone"><m:ItemIds><t:ItemId Id="%s"/></m:ItemIds></m:DeleteItem>`, xmlEscape(itemID))
+	response, err := client.SendSOAP(ctx, body)
+	if err != nil {
+		return fmt.Errorf("DeleteItem request failed: %w", err)
+	}
+	var envelope deleteItemResponseEnvelope
+	if err := xml.Unmarshal(response, &envelope); err != nil {
+		return fmt.Errorf("failed to parse DeleteItem response: %w", err)
+	}
+	result := envelope.Body.Response.Messages.Message
+	if result.ResponseClass != "Success" {
+		return fmt.Errorf("EWS DeleteItem error: %s — %s", result.ResponseCode, result.MessageText)
+	}
 	return nil
 }
 

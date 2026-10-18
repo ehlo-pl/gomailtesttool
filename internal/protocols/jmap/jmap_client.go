@@ -457,6 +457,52 @@ func (c *JMAPClient) DownloadBlob(ctx context.Context, accountId protocol.Id, bl
 	return data, nil
 }
 
+// DeleteEmails destroys the specified email objects in the given account.
+func (c *JMAPClient) DeleteEmails(ctx context.Context, accountId protocol.Id, ids []protocol.Id) error {
+	request := protocol.Request{
+		Using: []string{protocol.CoreCapability, protocol.MailCapability},
+		MethodCalls: []protocol.MethodCall{{
+			Name: protocol.MethodEmailSet,
+			Arguments: map[string]interface{}{
+				"accountId": accountId,
+				"destroy":   ids,
+			},
+			CallId: "delete",
+		}},
+	}
+	response, err := c.makeAPIRequest(ctx, request)
+	if err != nil {
+		return err
+	}
+	if len(response.MethodResponses) == 0 {
+		return fmt.Errorf("no method responses from Email/set")
+	}
+	methodResponse := response.MethodResponses[0]
+	if protocol.IsErrorResponse(methodResponse.Name) {
+		return fmt.Errorf("JMAP Email/set error: %s", string(methodResponse.Arguments))
+	}
+	var result struct {
+		Destroyed    []protocol.Id                   `json:"destroyed"`
+		NotDestroyed map[protocol.Id]json.RawMessage `json:"notDestroyed"`
+	}
+	if err := json.Unmarshal(methodResponse.Arguments, &result); err != nil {
+		return fmt.Errorf("failed to parse Email/set response: %w", err)
+	}
+	if len(result.NotDestroyed) > 0 {
+		return fmt.Errorf("JMAP could not delete messages: %v", result.NotDestroyed)
+	}
+	destroyed := make(map[protocol.Id]bool, len(result.Destroyed))
+	for _, id := range result.Destroyed {
+		destroyed[id] = true
+	}
+	for _, id := range ids {
+		if !destroyed[id] {
+			return fmt.Errorf("JMAP did not delete message %s", id)
+		}
+	}
+	return nil
+}
+
 // SendEmail creates a draft via Email/set and submits it via EmailSubmission/set.
 // Falls back to Email/set only (without submission) when the server lacks the
 // urn:ietf:params:jmap:submission capability.
