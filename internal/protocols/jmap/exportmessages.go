@@ -60,17 +60,31 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		return nil
 	}
 
-	exportDir, err := export.CreateExportDir(config.ExportDir)
-	if err != nil {
-		return err
+	var exportDir string
+	if config.Action != ActionDeleteMessages {
+		exportDir, err = export.CreateExportDir(config.ExportDir)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Export directory: %s\n\n", exportDir)
 	}
-	fmt.Printf("Export directory: %s\n\n", exportDir)
 
 	successCount := 0
 	for _, email := range emails {
 		msgId := ""
 		if len(email.MessageId) > 0 {
 			msgId = email.MessageId[0]
+		}
+
+		if config.Action == ActionDeleteMessages {
+			if err := client.DeleteEmails(ctx, accountId, []protocol.Id{email.Id}); err != nil {
+				writeRow(msgId, email.Subject, "", err.Error())
+				continue
+			}
+			fmt.Printf("  Deleted: %s\n", email.Subject)
+			writeRow(msgId, email.Subject, "", "")
+			successCount++
+			continue
 		}
 
 		blobName := buildEMLFilename(email, exportDir)
@@ -87,13 +101,25 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 			continue
 		}
 
+		if config.Delete {
+			if err := client.DeleteEmails(ctx, accountId, []protocol.Id{email.Id}); err != nil {
+				writeRow(msgId, email.Subject, blobName, err.Error())
+				continue
+			}
+			fmt.Printf("  Deleted: %s\n", email.Subject)
+		}
+
 		fmt.Printf("  Exported: %s\n", blobName)
 		writeRow(msgId, email.Subject, blobName, "")
 		successCount++
 	}
 
-	fmt.Printf("\n✓ Exported %d/%d messages\n", successCount, len(emails))
-	logger.LogInfo(slogLogger, "exportmessages completed",
+	action := "exported"
+	if config.Action == ActionDeleteMessages {
+		action = "deleted"
+	}
+	fmt.Printf("\n✓ %s %d/%d messages\n", strings.ToUpper(action[:1])+action[1:], successCount, len(emails))
+	logger.LogInfo(slogLogger, config.Action+" completed",
 		"total", len(emails), "success", successCount)
 	return nil
 }

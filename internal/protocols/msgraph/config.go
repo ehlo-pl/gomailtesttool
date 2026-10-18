@@ -80,6 +80,7 @@ type Config struct {
 	// Message removal configuration
 	ConfirmDelete bool // Confirm once for the full matching set instead of per message
 	Permanent     bool // Permanently delete messages instead of moving them to Deleted Items
+	Delete        bool // Delete messages after successfully exporting them
 
 	// Network configuration
 	ProxyURL   string        // HTTP/HTTPS proxy URL (e.g., http://proxy.example.com:8080)
@@ -226,6 +227,7 @@ func BindEnvs(v *viper.Viper) {
 		"exportmethod":       "MSGRAPHEXPORTMETHOD",
 		"confirmdelete":      "MSGRAPHCONFIRMDELETE",
 		"permanent":          "MSGRAPHPERMANENT",
+		"delete":             "MSGRAPHDELETE",
 		"proxy":              "MSGRAPHPROXY",
 		"maxretries":         "MSGRAPHMAXRETRIES",
 		"retrydelay":         "MSGRAPHRETRYDELAY",
@@ -346,6 +348,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		ExportMethod:          strings.ToLower(v.GetString("exportmethod")),
 		ConfirmDelete:         v.GetBool("confirmdelete"),
 		Permanent:             v.GetBool("permanent"),
+		Delete:                v.GetBool("delete"),
 		ProxyURL:              v.GetString("proxy"),
 		MaxRetries:            maxRetries,
 		RetryDelay:            time.Duration(retryDelayMs) * time.Millisecond,
@@ -566,6 +569,9 @@ func validateConfiguration(config *Config) error {
 	}
 
 	if config.Action == ActionExportMessages {
+		if config.Permanent && !config.Delete {
+			return fmt.Errorf("--permanent requires --delete for exportmessages")
+		}
 		switch config.ExportMethod {
 		case "", ExportMethodContent, ExportMethodExportItems:
 		default:

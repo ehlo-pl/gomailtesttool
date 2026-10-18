@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // Config holds all pop3tool configuration.
@@ -59,6 +59,7 @@ type Config struct {
 	MessageID string // Message-ID header to search for
 	Count     int    // Maximum number of matching messages to export
 	ExportDir string // Directory under which to create the dated export folder (default: OS temp dir)
+	Delete    bool   // Delete messages after successfully exporting them
 }
 
 // Action constants
@@ -68,6 +69,7 @@ const (
 	ActionTestStartTLS   = "teststarttls"
 	ActionListMail       = "listmail"
 	ActionExportMessages = "exportmessages"
+	ActionDeleteMessages = "deletemessages"
 )
 
 // NewConfig creates a new Config with default values.
@@ -165,6 +167,7 @@ func BindEnvs(v *viper.Viper) {
 		"messageid":   "POP3MESSAGEID",
 		"count":       "POP3COUNT",
 		"exportdir":   "POP3EXPORTDIR",
+		"delete":      "POP3DELETE",
 	}
 	for key, env := range bindings {
 		_ = v.BindEnv(key, env)
@@ -261,13 +264,14 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		MessageID:      v.GetString("messageid"),
 		Count:          count,
 		ExportDir:      v.GetString("exportdir"),
+		Delete:         v.GetBool("delete"),
 	}
 }
 
 // validateConfiguration validates the configuration.
 func validateConfiguration(config *Config) error {
 	// Validate action
-	validActions := []string{ActionTestConnect, ActionTestAuth, ActionTestStartTLS, ActionListMail, ActionExportMessages}
+	validActions := []string{ActionTestConnect, ActionTestAuth, ActionTestStartTLS, ActionListMail, ActionExportMessages, ActionDeleteMessages}
 	valid := false
 	for _, a := range validActions {
 		if config.Action == a {
@@ -342,7 +346,7 @@ func validateConfiguration(config *Config) error {
 
 	// Action-specific validation
 	switch config.Action {
-	case ActionTestAuth, ActionListMail, ActionExportMessages:
+	case ActionTestAuth, ActionListMail, ActionExportMessages, ActionDeleteMessages:
 		if config.Username == "" {
 			return fmt.Errorf("%s requires --username", config.Action)
 		}
@@ -363,9 +367,9 @@ func validateConfiguration(config *Config) error {
 	}
 
 	// Validate exportmessages-specific requirements
-	if config.Action == ActionExportMessages {
+	if config.Action == ActionExportMessages || config.Action == ActionDeleteMessages {
 		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" {
-			return fmt.Errorf("exportmessages action requires --messageid and/or --subject parameter")
+			return fmt.Errorf("%s action requires --messageid and/or --subject parameter", config.Action)
 		}
 	}
 

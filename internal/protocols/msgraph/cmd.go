@@ -746,13 +746,16 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: MSGRAPHCOUNT)")
 	cmd.Flags().String("exportmethod", "content", "Export method: content (.eml via message content) or exportitems (Graph beta mailbox exportItems API, writes opaque .bin files re-importable via mailbox import) (env: MSGRAPHEXPORTMETHOD)")
 	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: MSGRAPHEXPORTDIR)")
+	cmd.Flags().Bool("delete", false, "Delete successfully exported messages (env: MSGRAPHDELETE)")
+	cmd.Flags().Bool("permanent", false, "Permanently delete messages instead of moving them to Deleted Items (env: MSGRAPHPERMANENT)")
 	return cmd
 }
 
 func newRemoveMessagesCmd(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "removemessages",
-		Short: "Preview and remove messages matching a Message-ID, subject, or folder",
+		Use:     "removemessages",
+		Aliases: []string{"deletemessages"},
+		Short:   "Preview and remove messages matching a Message-ID, subject, or folder",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = v.BindPFlags(cmd.Flags())
 			_ = v.BindPFlags(cmd.InheritedFlags())

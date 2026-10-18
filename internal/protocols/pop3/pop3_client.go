@@ -396,20 +396,46 @@ func (c *POP3Client) Retr(ctx context.Context, msgNum int) ([]byte, error) {
 	return []byte(strings.Join(resp.Lines, "\r\n")), nil
 }
 
+// Delete marks a message for deletion, which POP3 commits on a successful QUIT.
+func (c *POP3Client) Delete(ctx context.Context, msgNum int) error {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+	if _, err := c.conn.Write([]byte(protocol.DELE(msgNum))); err != nil {
+		return fmt.Errorf("failed to send DELE: %w", err)
+	}
+	resp, err := protocol.ReadResponse(c.reader)
+	if err != nil {
+		return fmt.Errorf("failed to read DELE response: %w", err)
+	}
+	if !resp.Success {
+		return fmt.Errorf("DELE failed: %s", resp.Message)
+	}
+	return nil
+}
+
 // Quit sends the QUIT command and closes the connection.
 func (c *POP3Client) Quit() error {
 	if c.conn == nil {
 		return nil
 	}
 
-	// Send QUIT command (ignore errors)
-	_, _ = c.conn.Write([]byte(protocol.QUIT()))
-
-	// Read response (ignore errors)
+	_, writeErr := c.conn.Write([]byte(protocol.QUIT()))
 	_ = c.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	_, _ = protocol.ReadResponse(c.reader)
-
-	return c.conn.Close()
+	resp, readErr := protocol.ReadResponse(c.reader)
+	closeErr := c.conn.Close()
+	if writeErr != nil {
+		return fmt.Errorf("failed to send QUIT: %w", writeErr)
+	}
+	if readErr != nil {
+		return fmt.Errorf("failed to read QUIT response: %w", readErr)
+	}
+	if !resp.Success {
+		return fmt.Errorf("QUIT failed: %s", resp.Message)
+	}
+	return closeErr
 }
 
 // Close closes the connection without sending QUIT.

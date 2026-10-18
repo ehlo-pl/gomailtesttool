@@ -35,6 +35,7 @@ Environment variables use the IMAP prefix (e.g. IMAPHOST, IMAPPORT, IMAPUSERNAME
 		newListFoldersCmd(v),
 		newListMailCmd(v),
 		newExportMessagesCmd(v),
+		newDeleteMessagesCmd(v),
 	)
 
 	return cmd
@@ -180,6 +181,41 @@ raw RFC822 message as a .eml file.`,
 	cmd.Flags().String("mailbox", "INBOX", "Mailbox to search (env: IMAPMAILBOX)")
 	cmd.Flags().Int("count", 25, "Maximum number of matching messages to export (env: IMAPCOUNT)")
 	cmd.Flags().String("exportdir", "", "Directory under which to create the dated export folder; defaults to the OS temp directory (env: IMAPEXPORTDIR)")
+	cmd.Flags().Bool("delete", false, "Delete each message after it has been exported (env: IMAPDELETE)")
+	return cmd
+}
+
+func newDeleteMessagesCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "deletemessages",
+		Short: "Delete messages matching a Message-ID and/or subject",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+			config := ConfigFromViper(v)
+			config.Action = ActionDeleteMessages
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("imaptool", ActionDeleteMessages, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+			return exportMessages(ctx, config, csvLogger, slogger)
+		},
+	}
+	cmd.Flags().String("messageid", "", "Message-ID header value to search for (env: IMAPMESSAGEID)")
+	cmd.Flags().String("subject", "", "Subject substring to search for (env: IMAPSUBJECT)")
+	cmd.Flags().String("mailbox", "INBOX", "Mailbox to search (env: IMAPMAILBOX)")
+	cmd.Flags().Int("count", 25, "Maximum number of matching messages to delete (env: IMAPCOUNT)")
 	return cmd
 }
 

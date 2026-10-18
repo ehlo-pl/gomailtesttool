@@ -391,6 +391,54 @@ func (c *IMAPClient) FetchRFC822(ctx context.Context, uid imap.UID) ([]byte, err
 	return body, nil
 }
 
+// DeleteMessage marks a message as deleted and expunges it from the selected mailbox.
+func (c *IMAPClient) DeleteMessage(ctx context.Context, uid imap.UID) error {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+
+	uidSet := imap.UIDSetNum(uid)
+	uidPlus := c.caps != nil && c.caps.SupportsUIDPLUS()
+	if !uidPlus {
+		data, err := c.client.UIDSearch(&imap.SearchCriteria{
+			Flag: []imap.Flag{imap.FlagDeleted},
+		}, nil).Wait()
+		if err != nil {
+			return fmt.Errorf("failed to check deleted messages before expunge: %w", err)
+		}
+		if deleted, ok := data.All.(imap.UIDSet); ok {
+			uids, _ := deleted.Nums()
+			for _, deletedUID := range uids {
+				if deletedUID != uid {
+					return fmt.Errorf("server lacks UIDPLUS and mailbox has other deleted messages; refusing to expunge UID %d", uid)
+				}
+			}
+		}
+	}
+
+	store := c.client.Store(uidSet, &imap.StoreFlags{
+		Op:     imap.StoreFlagsAdd,
+		Silent: true,
+		Flags:  []imap.Flag{imap.FlagDeleted},
+	}, nil)
+	if _, err := store.Collect(); err != nil {
+		return fmt.Errorf("failed to mark UID %d as deleted: %w", uid, err)
+	}
+
+	var expunge *imapclient.ExpungeCommand
+	if uidPlus {
+		expunge = c.client.UIDExpunge(uidSet)
+	} else {
+		expunge = c.client.Expunge()
+	}
+	if _, err := expunge.Collect(); err != nil {
+		return fmt.Errorf("failed to expunge UID %d: %w", uid, err)
+	}
+	return nil
+}
+
 // Logout sends the LOGOUT command and closes the connection.
 func (c *IMAPClient) Logout() error {
 	if c.client != nil {

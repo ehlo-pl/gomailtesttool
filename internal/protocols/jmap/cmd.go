@@ -35,6 +35,7 @@ Environment variables use the JMAP prefix (e.g. JMAPHOST, JMAPPORT, JMAPUSERNAME
 		newListMailCmd(v),
 		newSendMailCmd(v),
 		newExportMessagesCmd(v),
+		newDeleteMessagesCmd(v),
 	)
 
 	return cmd
@@ -303,5 +304,40 @@ func newExportMessagesCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("subject", "", "Subject substring to search for (env: JMAPSUBJECT)")
 	cmd.Flags().Int("count", 25, "Maximum number of messages to export (env: JMAPCOUNT)")
 	cmd.Flags().String("exportdir", "", "Directory for export folder (defaults to OS temp dir) (env: JMAPEXPORTDIR)")
+	cmd.Flags().Bool("delete", false, "Delete each message after it has been exported (env: JMAPDELETE)")
+	return cmd
+}
+
+func newDeleteMessagesCmd(v *viper.Viper) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "deletemessages",
+		Short: "Delete messages matching a Message-ID and/or subject",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = v.BindPFlags(cmd.Flags())
+			_ = v.BindPFlags(cmd.InheritedFlags())
+			if err := bootstrap.LoadConfigFile(v, v.GetString("config")); err != nil {
+				return err
+			}
+			config := ConfigFromViper(v)
+			config.Action = ActionDeleteMessages
+			config.Subject = v.GetString("subject")
+			if err := validateConfiguration(config); err != nil {
+				return fmt.Errorf("validation failed: %w", err)
+			}
+			ctx, cancel := bootstrap.SetupSignalContext()
+			defer cancel()
+			slogger, csvLogger, logErr := bootstrap.InitLoggers("jmaptool", ActionDeleteMessages, config.VerboseMode, config.LogLevel, config.LogFormat)
+			if logErr != nil {
+				slogger.Warn("Could not initialize file logging", "error", logErr)
+			}
+			if csvLogger != nil {
+				defer func() { _ = csvLogger.Close() }()
+			}
+			return exportMessages(ctx, config, csvLogger, slogger)
+		},
+	}
+	cmd.Flags().String("messageid", "", "Internet Message-ID to search for (env: JMAPMESSAGEID)")
+	cmd.Flags().String("subject", "", "Subject substring to search for (env: JMAPSUBJECT)")
+	cmd.Flags().Int("count", 25, "Maximum number of messages to delete (env: JMAPCOUNT)")
 	return cmd
 }

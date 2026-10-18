@@ -88,15 +88,29 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 		uids = uids[:config.Count]
 	}
 
-	exportDir, err := export.CreateExportDir(config.ExportDir)
-	if err != nil {
-		return err
+	var exportDir string
+	if config.Action != ActionDeleteMessages {
+		exportDir, err = export.CreateExportDir(config.ExportDir)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Export directory: %s\n", exportDir)
 	}
-	fmt.Printf("Export directory: %s\n", exportDir)
 
 	successCount := 0
 	for _, uid := range uids {
 		uidStr := fmt.Sprintf("%d", uid)
+
+		if config.Action == ActionDeleteMessages {
+			if err := client.DeleteMessage(ctx, uid); err != nil {
+				writeExportRow(csvLogger, slogLogger, config, false, uidStr, "", err.Error())
+				continue
+			}
+			successCount++
+			writeExportRow(csvLogger, slogLogger, config, true, uidStr, "", "")
+			fmt.Printf("Successfully deleted UID %d\n", uid)
+			continue
+		}
 
 		body, err := client.FetchRFC822(ctx, uid)
 		if err != nil {
@@ -113,12 +127,26 @@ func exportMessages(ctx context.Context, config *Config, csvLogger logger.Logger
 			continue
 		}
 
+		if config.Delete {
+			if err := client.DeleteMessage(ctx, uid); err != nil {
+				logger.LogError(slogLogger, "Failed to delete exported message", "uid", uint32(uid), "error", err)
+				writeExportRow(csvLogger, slogLogger, config, false, uidStr, filePath, err.Error())
+				successCount++
+				continue
+			}
+			fmt.Printf("Successfully deleted UID %d\n", uid)
+		}
+
 		successCount++
 		fmt.Printf("Successfully exported UID %d -> %s\n", uid, filePath)
 		writeExportRow(csvLogger, slogLogger, config, true, uidStr, filePath, "")
 	}
 
-	fmt.Printf("Successfully exported %d/%d messages.\n", successCount, len(uids))
+	action := "exported"
+	if config.Action == ActionDeleteMessages {
+		action = "deleted"
+	}
+	fmt.Printf("Successfully %s %d/%d messages.\n", action, successCount, len(uids))
 	return nil
 }
 
@@ -129,7 +157,7 @@ func writeExportRow(csvLogger logger.Logger, slogLogger *slog.Logger, config *Co
 		status = "SUCCESS"
 	}
 	if logErr := csvLogger.WriteRow([]string{
-		ActionExportMessages, status, config.Host, fmt.Sprintf("%d", config.Port),
+		config.Action, status, config.Host, fmt.Sprintf("%d", config.Port),
 		config.Mailbox, config.Subject, uid, filename, errStr,
 	}); logErr != nil {
 		logger.LogError(slogLogger, "Failed to write CSV row", "error", logErr)

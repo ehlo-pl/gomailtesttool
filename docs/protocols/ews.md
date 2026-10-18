@@ -392,6 +392,15 @@ gomailtest ews exportmessages --host mail.example.com \
 
 - Exported filenames are `{sanitized-subject}_{last-16-chars-of-item-id}.eml`.
 - `--exportdir` defaults to the OS temp directory when omitted.
+- Use `deletemessages` to move matching messages to Deleted Items, or pass
+  `--delete` to remove each match only after its export succeeds.
+
+```powershell
+gomailtest ews deletemessages --host mail.example.com --username "CORP\user" \
+    --password "secret" --subject "Invoice"
+gomailtest ews exportmessages --host mail.example.com --username "CORP\user" \
+    --password "secret" --subject "Invoice" --delete
+```
 
 ## Flags
 
@@ -418,6 +427,7 @@ gomailtest ews exportmessages --host mail.example.com \
 | `--template-vars` | | Template variable in `key=value` form, referenced as `{{.key}}` (repeatable, sendmail) |
 | `--messageid` | | Internet Message-ID to search for (exportmessages) |
 | `--exportdir` | OS temp dir | Directory for the export folder (exportmessages) |
+| `--delete` | `false` | Delete after successful export (`exportmessages`) |
 | `--count` | action-specific: `10` (listmail, getevents), `3` (findtimeslot), `25` (exportmessages) | Maximum number of results to return |
 | `--timezone` | `UTC` | IANA timezone name for display/interpretation of Free/Busy times (freebusy) |
 | `--interval` | `30` | Merged free/busy slot interval in minutes (5-60, freebusy) |
@@ -455,6 +465,7 @@ All flags can be set via environment variables using the `EWS` prefix:
 | `EWSTEMPLATE` | `--template` | Message template file (sendmail) |
 | `EWSTEMPLATEVARS` | `--template-vars` | Template variables in `key=value` form (sendmail) |
 | `EWSMESSAGEID` | `--messageid` | `X-Message-ID` value (sendmail/draft); Internet Message-ID search value (exportmessages) |
+| `EWSDELETE` | `--delete` | Delete each matching message after successful export |
 | `EWSMESSAGEIDSUFFIX` | `--messageidsuffix` | Domain suffix for generated `X-Message-ID` (sendmail/draft) |
 | `EWSEXPORTDIR` | `--exportdir` | Export directory (exportmessages) |
 | `EWSCOUNT` | `--count` | Maximum number of results (listmail, getevents, findtimeslot, exportmessages) |

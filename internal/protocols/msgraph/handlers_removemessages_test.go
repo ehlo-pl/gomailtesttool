@@ -100,6 +100,7 @@ func TestRemoveMessages_PreviewAndDeleteModes(t *testing.T) {
 					t.Errorf("delete request %d method = %q, want %q", i, deleteMethods[i], method)
 				}
 			}
+
 			if got := strings.Count(preview.String(), "Remove "); got != tt.wantPrompts {
 				t.Errorf("confirmation prompts = %d, want %d\noutput=%q", got, tt.wantPrompts, preview.String())
 			}
@@ -107,5 +108,22 @@ func TestRemoveMessages_PreviewAndDeleteModes(t *testing.T) {
 				t.Errorf("preview omitted matching messages: %q", preview.String())
 			}
 		})
+	}
+}
+
+func TestDeleteCommandAndExportFlags(t *testing.T) {
+	root := NewCmd()
+	deleteCmd, _, err := root.Find([]string{"deletemessages"})
+	if err != nil || deleteCmd.Name() != "removemessages" {
+		t.Fatalf("deletemessages alias = %v, err = %v", deleteCmd, err)
+	}
+	exportCmd, _, err := root.Find([]string{"exportmessages"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, flag := range []string{"delete", "permanent"} {
+		if exportCmd.Flags().Lookup(flag) == nil {
+			t.Errorf("exportmessages is missing --%s", flag)
+		}
 	}
 }
