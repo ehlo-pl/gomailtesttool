@@ -148,3 +148,62 @@ func TestValidateConfiguration_NoTLSFlags(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateConfiguration_IMAPSPortDefault tests smart port defaulting for IMAPS.
+func TestValidateConfiguration_IMAPSPortDefault(t *testing.T) {
+	tests := []struct {
+		name         string
+		imaps        bool
+		initialPort  int
+		portExplicit bool
+		expectedPort int
+	}{
+		{
+			name:         "IMAPS with default port 143 changes to 993",
+			imaps:        true,
+			initialPort:  143,
+			expectedPort: 993,
+		},
+		{
+			name:         "IMAPS with explicit port 143 stays 143",
+			imaps:        true,
+			initialPort:  143,
+			portExplicit: true,
+			expectedPort: 143,
+		},
+		{
+			name:         "No IMAPS with port 143 stays 143",
+			imaps:        false,
+			initialPort:  143,
+			portExplicit: true,
+			expectedPort: 143,
+		},
+		{
+			name:         "IMAPS with explicit port 993 stays 993",
+			imaps:        true,
+			initialPort:  993,
+			portExplicit: true,
+			expectedPort: 993,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := NewConfig()
+			config.Action = ActionTestConnect
+			config.Host = "imap.example.com"
+			config.IMAPS = tt.imaps
+			config.Port = tt.initialPort
+			config.PortExplicit = tt.portExplicit
+
+			err := validateConfiguration(config)
+			if err != nil {
+				t.Fatalf("validateConfiguration() unexpected error = %v", err)
+			}
+
+			if config.Port != tt.expectedPort {
+				t.Errorf("validateConfiguration() port = %d, want %d", config.Port, tt.expectedPort)
+			}
+		})
+	}
+}

@@ -149,3 +149,62 @@ func TestValidateConfiguration_NoTLSFlags(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateConfiguration_POP3SPortDefault tests smart port defaulting for POP3S.
+func TestValidateConfiguration_POP3SPortDefault(t *testing.T) {
+	tests := []struct {
+		name         string
+		pop3s        bool
+		initialPort  int
+		portExplicit bool
+		expectedPort int
+	}{
+		{
+			name:         "POP3S with default port 110 changes to 995",
+			pop3s:        true,
+			initialPort:  110,
+			expectedPort: 995,
+		},
+		{
+			name:         "POP3S with explicit port 110 stays 110",
+			pop3s:        true,
+			initialPort:  110,
+			portExplicit: true,
+			expectedPort: 110,
+		},
+		{
+			name:         "No POP3S with port 110 stays 110",
+			pop3s:        false,
+			initialPort:  110,
+			portExplicit: true,
+			expectedPort: 110,
+		},
+		{
+			name:         "POP3S with explicit port 995 stays 995",
+			pop3s:        true,
+			initialPort:  995,
+			portExplicit: true,
+			expectedPort: 995,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := NewConfig()
+			config.Action = ActionTestConnect
+			config.Host = "pop3.example.com"
+			config.POP3S = tt.pop3s
+			config.Port = tt.initialPort
+			config.PortExplicit = tt.portExplicit
+
+			err := validateConfiguration(config)
+			if err != nil {
+				t.Fatalf("validateConfiguration() unexpected error = %v", err)
+			}
+
+			if config.Port != tt.expectedPort {
+				t.Errorf("validateConfiguration() port = %d, want %d", config.Port, tt.expectedPort)
+			}
+		})
+	}
+}
