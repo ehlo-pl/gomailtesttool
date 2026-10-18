@@ -24,8 +24,8 @@ func TestDeleteMessagesCommandAndExportFlag(t *testing.T) {
 
 func TestPOP3ClientDeleteSendsDELE(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
-	defer clientConn.Close()
-	defer serverConn.Close()
+	defer func() { _ = clientConn.Close() }()
+	defer func() { _ = serverConn.Close() }()
 
 	client := &POP3Client{conn: clientConn, reader: bufio.NewReader(clientConn)}
 	serverResult := make(chan string, 1)
@@ -46,7 +46,7 @@ func TestPOP3ClientDeleteSendsDELE(t *testing.T) {
 
 func TestPOP3ClientQuitReportsDeletionCommitFailure(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 
 	client := &POP3Client{conn: clientConn, reader: bufio.NewReader(clientConn)}
 	go func() {
