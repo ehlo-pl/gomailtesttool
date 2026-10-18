@@ -378,6 +378,61 @@ func exportMessages(ctx context.Context, svc *gmailapi.Service, config *Config, 
 	return nil
 }
 
+// deleteMessages searches for matching messages and moves each one to Gmail's
+// Trash. The raw Gmail query overrides the Message-ID and subject criteria.
+func deleteMessages(ctx context.Context, svc *gmailapi.Service, config *Config, csv logger.Logger) error {
+	query := config.SearchQuery
+	if query == "" {
+		query = buildSearchQuery(config.MessageID, config.Subject)
+	}
+
+	var listRes *gmailapi.ListMessagesResponse
+	err := retryGmail(ctx, config, func() error {
+		var apiErr error
+		listRes, apiErr = svc.Users.Messages.List("me").Q(query).MaxResults(int64(config.Count)).Context(ctx).Do()
+		return apiErr
+	})
+	if err != nil {
+		return fmt.Errorf("error searching messages: %w", enrichGmailAPIError(err, ActionDeleteMessages))
+	}
+
+	if len(listRes.Messages) == 0 {
+		if config.OutputFormat == "json" {
+			printJSON([]any{})
+		} else {
+			fmt.Println("No messages found matching the given criteria.")
+		}
+		writeCSV(csv, []string{ActionDeleteMessages, StatusSuccess, config.Mailbox, "No messages found (0 messages)", "N/A"})
+		return nil
+	}
+
+	success := make([]string, 0, len(listRes.Messages))
+	for _, message := range listRes.Messages {
+		err := retryGmail(ctx, config, func() error {
+			_, apiErr := svc.Users.Messages.Trash("me", message.Id).Context(ctx).Do()
+			return apiErr
+		})
+		if err != nil {
+			deleteErr := enrichGmailAPIError(err, ActionDeleteMessages)
+			log.Printf("Error moving message %s to Trash: %v", message.Id, deleteErr)
+			writeCSV(csv, []string{ActionDeleteMessages, StatusError, config.Mailbox, deleteErr.Error(), message.Id})
+			continue
+		}
+		success = append(success, message.Id)
+		writeCSV(csv, []string{ActionDeleteMessages, StatusSuccess, config.Mailbox, "Moved to Trash", message.Id})
+		if config.OutputFormat != "json" {
+			fmt.Printf("Successfully moved message %s to Trash\n", message.Id)
+		}
+	}
+
+	if config.OutputFormat == "json" {
+		printJSON(success)
+	} else {
+		fmt.Printf("Successfully moved %d/%d messages to Trash.\n", len(success), len(listRes.Messages))
+	}
+	return nil
+}
+
 // exportMessageToEML fetches a message's raw RFC822 content, base64url-decodes
 // it, and writes it to a .eml file in dir.
 func exportMessageToEML(ctx context.Context, svc *gmailapi.Service, config *Config, id, dir string) (string, error) {

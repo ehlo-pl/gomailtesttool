@@ -101,6 +101,7 @@ const (
 	ActionListFolders       = "listfolders"
 	ActionListMail          = "listmail"
 	ActionExportMessages    = "exportmessages"
+	ActionDeleteMessages    = "deletemessages"
 	ActionGetEvents         = "getevents"
 	ActionSendInvite        = "sendinvite"
 	ActionGetSchedule       = "getschedule"
@@ -420,9 +421,9 @@ func validateConfiguration(config *Config) error {
 
 	// Per-action requirements.
 	switch config.Action {
-	case ActionExportMessages:
+	case ActionExportMessages, ActionDeleteMessages:
 		if config.MessageID == "" && strings.TrimSpace(config.Subject) == "" && strings.TrimSpace(config.SearchQuery) == "" {
-			return fmt.Errorf("exportmessages action requires --messageid, --subject and/or --search parameter")
+			return fmt.Errorf("%s action requires --messageid, --subject and/or --search parameter", config.Action)
 		}
 		// SECURITY: validate the search inputs before they are placed into a
 		// Gmail search query (rfc822msgid:/subject:) to block operator injection.

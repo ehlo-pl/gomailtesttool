@@ -30,6 +30,7 @@ const (
 	scopeGmailSend        = "https://www.googleapis.com/auth/gmail.send"
 	scopeGmailCompose     = "https://www.googleapis.com/auth/gmail.compose"
 	scopeGmailReadonly    = "https://www.googleapis.com/auth/gmail.readonly"
+	scopeGmailModify      = "https://www.googleapis.com/auth/gmail.modify"
 	scopeCalendarReadonly = "https://www.googleapis.com/auth/calendar.readonly"
 	scopeCalendarEvents   = "https://www.googleapis.com/auth/calendar.events"
 )
@@ -48,6 +49,8 @@ func effectiveScopes(config *Config) []string {
 		return []string{scopeGmailCompose}
 	case ActionGetInbox, ActionExportMessages:
 		return []string{scopeGmailReadonly}
+	case ActionDeleteMessages:
+		return []string{scopeGmailModify}
 	case ActionGetEvents, ActionGetSchedule, ActionFindTimeSlot:
 		return []string{scopeCalendarReadonly}
 	case ActionSendInvite:

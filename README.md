@@ -18,7 +18,7 @@ gomailtest <protocol> <action> [flags]
 | `jmap` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages` | JMAP (RFC 8620) servers |
 | `ews` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `freebusy`, `getfolder`, `autodiscover` | On-premises Exchange via EWS (Exchange 2007–2019) |
 | `msgraph` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `exportbearertoken` | Exchange Online via Microsoft Graph API |
-| `gmail` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
+| `gmail` | `testconnect`, `testauth`, `sendmail`, `listfolders`, `listmail`, `exportmessages`, `deletemessages`, `getevents`, `sendinvite`, `getschedule`, `findtimeslot`, `exportbearertoken` | Google Workspace / Gmail via the Gmail & Calendar APIs |
 
 See tables below for the full action × protocol matrix, including deprecated aliases (`getinbox`, `exportinbox`, `searchandexport`, `getmailboxes`).
 
@@ -34,6 +34,7 @@ Quick reference for all CLI actions available across supported mail/calendar pro
 | `listfolders`       | —    | ✓    | —    | ✓    | ✓   | ✓       | ✓     |
 | `listmail`          | —    | ✓    | ✓    | ✓    | ✓   | ✓       | ✓     |
 | `exportmessages`    | —    | ✓    | ✓    | ✓    | ✓   | ✓       | ✓     |
+| `deletemessages`    | —    | ✓    | ✓    | —    | ✓   | ✓       | ✓     |
 | `getevents`         | —    | —    | —    | —    | ✓   | ✓       | ✓     |
 | `sendinvite`        | —    | —    | —    | —    | ✓   | ✓       | ✓     |
 | `getschedule`       | —    | —    | —    | —    | ✓   | ✓       | ✓     |

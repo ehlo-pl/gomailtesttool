@@ -98,6 +98,82 @@ func TestExportMessages_JSONOutputIncludesExportedFiles(t *testing.T) {
 	}
 }
 
+func TestDeleteMessages_MovesMatchesToTrash(t *testing.T) {
+	const messageID = "abc123"
+	trashed := false
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/gmail/v1/users/me/messages":
+			if got := r.URL.Query().Get("q"); got != "subject:(Delete Test)" {
+				http.Error(w, "unexpected query: "+got, http.StatusBadRequest)
+				return
+			}
+			if got := r.URL.Query().Get("maxResults"); got != "1" {
+				http.Error(w, "unexpected maxResults: "+got, http.StatusBadRequest)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"messages": []map[string]string{{"id": messageID}},
+			})
+		case "/gmail/v1/users/me/messages/" + messageID + "/trash":
+			if r.Method != http.MethodPost {
+				http.Error(w, "unexpected method: "+r.Method, http.StatusMethodNotAllowed)
+				return
+			}
+			trashed = true
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": messageID, "labelIds": []string{"TRASH"}})
+		default:
+			http.Error(w, "unexpected path: "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmailapi.NewService(context.Background(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	cfg := &Config{
+		Subject:      "Delete Test",
+		Count:        1,
+		OutputFormat: "json",
+		MaxRetries:   0,
+		RetryDelay:   1,
+	}
+	stdout := captureStdout(t, func() {
+		if err := deleteMessages(context.Background(), svc, cfg, nil); err != nil {
+			t.Fatalf("deleteMessages() error = %v", err)
+		}
+	})
+	if !trashed {
+		t.Fatal("message was not moved to Trash")
+	}
+	var got []string
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("json.Unmarshal(stdout) error = %v\nstdout=%s", err, stdout)
+	}
+	if len(got) != 1 || got[0] != messageID {
+		t.Fatalf("deleted message IDs = %v, want [%s]", got, messageID)
+	}
+}
+
+func TestDeleteMessagesCommand(t *testing.T) {
+	root := NewCmd()
+	cmd, _, err := root.Find([]string{"deletemessages"})
+	if err != nil || cmd.Name() != "deletemessages" {
+		t.Fatalf("deletemessages command = %v, err = %v", cmd, err)
+	}
+	for _, name := range []string{"messageid", "subject", "search", "count"} {
+		if cmd.Flags().Lookup(name) == nil {
+			t.Errorf("deletemessages missing --%s flag", name)
+		}
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 
