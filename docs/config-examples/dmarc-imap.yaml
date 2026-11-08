@@ -1,0 +1,15 @@
+# DMARC analyzer — collect from an IMAP folder
+# Usage: dmarcanalyzer collect imap --config dmarc-imap.yaml --folder DMARC
+#        dmarcanalyzer report --config dmarc-imap.yaml
+dmarc:
+  datadir: /var/lib/dmarcanalyzer
+  period: month
+  last: 180d
+imap:
+  host: imap.example.com
+  port: 993
+  imaps: true
+  username: dmarc@example.com
+  password: change-me
+  # accesstoken: ya29...   # XOAUTH2 instead of password
+  # authmethod: auto

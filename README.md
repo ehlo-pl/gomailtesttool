@@ -277,6 +277,9 @@ Replace legacy `*tool` invocations with `gomailtest <protocol> <action> --flag`:
 - [docs/protocols/gmail.md](docs/protocols/gmail.md) — Gmail / Google Workspace tool
 - [docs/protocols/serve.md](docs/protocols/serve.md) — HTTP serve mode (REST API with X-API-Key)
 
+### Companion Tools
+- [apps/DMARCanalyzer/README.md](apps/DMARCanalyzer/README.md) — `dmarcanalyzer`: collect DMARC aggregate reports (Graph, Gmail, IMAP, POP3) as .eml, store them in SQLite and summarize by period (text, Markdown, CSV, JSON, HTML)
+
 ### General Docs
 - [docs/config-file.md](docs/config-file.md) — `--config` YAML config file (defaults for any protocol/action)
 - [BUILD.md](BUILD.md) — Build instructions
