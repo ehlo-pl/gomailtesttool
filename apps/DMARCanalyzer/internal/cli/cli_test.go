@@ -154,7 +154,11 @@ func TestRunCollectIncrementalAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st.Close()
+	t.Cleanup(func() {
+		if err := st.Close(); err != nil {
+			t.Errorf("close store: %v", err)
+		}
+	})
 	e := &env{cfg: &config.Config{DataDir: dir}, log: slog.New(slog.NewTextHandler(io.Discard, nil)), store: st}
 
 	recv := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)

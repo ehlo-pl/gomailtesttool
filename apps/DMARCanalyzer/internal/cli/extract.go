@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,7 +43,9 @@ The same report (reporter, report ID, domain) is stored only once.`,
 			reprocess, _ := cmd.Flags().GetBool("reprocess")
 			x := &pipeline.Extractor{Store: e.store, Limits: extract.DefaultLimits, Reprocess: reprocess, Log: e.log}
 			st, err := x.Paths(ctx, inputs)
-			printExtractStats(cmd.OutOrStdout(), st)
+			if printErr := printExtractStats(cmd.OutOrStdout(), st); printErr != nil {
+				return errors.Join(err, printErr)
+			}
 			return err
 		},
 	}
@@ -51,17 +54,22 @@ The same report (reporter, report ID, domain) is stored only once.`,
 	return cmd
 }
 
-func printExtractStats(w io.Writer, st *pipeline.ExtractStats) {
+func printExtractStats(w io.Writer, st *pipeline.ExtractStats) error {
 	if st == nil {
-		return
+		return nil
 	}
-	fmt.Fprintf(w, "Files: %d (unchanged %d)  New reports: %d  Duplicates: %d  No report: %d  Forensic skipped: %d  Errors: %d\n",
-		st.Files, st.Unchanged, st.Reports, st.Duplicates, st.NoReport, st.Forensic, st.Errors)
+	if _, err := fmt.Fprintf(w, "Files: %d (unchanged %d)  New reports: %d  Duplicates: %d  No report: %d  Forensic skipped: %d  Errors: %d\n",
+		st.Files, st.Unchanged, st.Reports, st.Duplicates, st.NoReport, st.Forensic, st.Errors); err != nil {
+		return err
+	}
 	for i, e := range st.ErrorList {
 		if i == 20 {
-			fmt.Fprintf(w, "  ... %d more errors\n", len(st.ErrorList)-20)
-			break
+			_, err := fmt.Fprintf(w, "  ... %d more errors\n", len(st.ErrorList)-20)
+			return err
 		}
-		fmt.Fprintf(w, "  error: %s\n", e)
+		if _, err := fmt.Fprintf(w, "  error: %s\n", e); err != nil {
+			return err
+		}
 	}
+	return nil
 }

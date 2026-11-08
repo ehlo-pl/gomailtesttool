@@ -153,7 +153,9 @@ func runReport(ctx context.Context, e *env, ro *reportOpts, stdout io.Writer) er
 	if ro.format == report.FormatCSV && ro.section == "all" {
 		files, err := report.WriteCSVDir(ro.out, s)
 		for _, f := range files {
-			fmt.Fprintln(stdout, "Wrote", f)
+			if _, writeErr := fmt.Fprintln(stdout, "Wrote", f); writeErr != nil {
+				return writeErr
+			}
 		}
 		return err
 	}
@@ -171,8 +173,8 @@ func runReport(ctx context.Context, e *env, ro *reportOpts, stdout io.Writer) er
 	if err := f.Close(); err != nil {
 		return err
 	}
-	fmt.Fprintln(stdout, "Wrote", ro.out)
-	return nil
+	_, err = fmt.Fprintln(stdout, "Wrote", ro.out)
+	return err
 }
 
 // resolvePTRs looks up PTR names concurrently, using and filling the cache.

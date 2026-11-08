@@ -370,7 +370,9 @@ func runCollect(ctx context.Context, e *env, co *collectOpts, out io.Writer) (*c
 	}
 	closeErr := sess.Close() // POP3 commits deletions here
 	if fetchErr != nil {
-		printCollectStats(out, stats, co)
+		if err := printCollectStats(out, stats, co); err != nil {
+			return stats, errors.Join(fmt.Errorf("collect: %w", fetchErr), err)
+		}
 		return stats, fmt.Errorf("collect: %w", fetchErr)
 	}
 	if closeErr != nil && stats.Deleted > 0 {
@@ -379,19 +381,30 @@ func runCollect(ctx context.Context, e *env, co *collectOpts, out io.Writer) (*c
 	if err := e.store.SetLastCollect(ctx, src.ID, startedAt); err != nil {
 		return stats, err
 	}
-	printCollectStats(out, stats, co)
+	if err := printCollectStats(out, stats, co); err != nil {
+		return stats, err
+	}
 	return stats, nil
 }
 
-func printCollectStats(w io.Writer, st *collectStats, co *collectOpts) {
-	fmt.Fprintf(w, "Downloaded: %d new messages", st.Downloaded)
+func printCollectStats(w io.Writer, st *collectStats, co *collectOpts) error {
+	if _, err := fmt.Fprintf(w, "Downloaded: %d new messages", st.Downloaded); err != nil {
+		return err
+	}
 	if co.deleteAfter {
-		fmt.Fprintf(w, "  Deleted on server: %d", st.Deleted)
+		if _, err := fmt.Fprintf(w, "  Deleted on server: %d", st.Deleted); err != nil {
+			return err
+		}
 	}
-	fmt.Fprintln(w)
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
 	if co.extract {
-		printExtractStats(w, &st.Extract)
+		if err := printExtractStats(w, &st.Extract); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // emlName builds a collision-safe file name from a message key: a readable

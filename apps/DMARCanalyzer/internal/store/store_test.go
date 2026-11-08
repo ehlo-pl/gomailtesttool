@@ -145,12 +145,18 @@ func TestOpenFileReopen(t *testing.T) {
 	if _, err := s.InsertReport(ctx, mustParse(t, tu.Sample("G", "1", "example.com", day)), "x", ""); err != nil {
 		t.Fatal(err)
 	}
-	_ = s.Close()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
 	s, err = Open(ctx, path)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
-	defer s.Close()
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Errorf("close store: %v", err)
+		}
+	})
 	st, _ := s.Stats(ctx)
 	if st.Reports != 1 {
 		t.Errorf("reports after reopen = %d", st.Reports)

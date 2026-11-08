@@ -31,22 +31,38 @@ func newDBCmd(v *viper.Viper) *cobra.Command {
 				return err
 			}
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "Database:         %s\n", e.cfg.DBPath)
-			fmt.Fprintf(w, "Data directory:   %s\n", e.cfg.DataDir)
-			fmt.Fprintf(w, "Sources:          %d\n", st.Sources)
-			fmt.Fprintf(w, "Fetched messages: %d\n", st.FetchedMessages)
+			if _, err := fmt.Fprintf(w, "Database:         %s\n", e.cfg.DBPath); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(w, "Data directory:   %s\n", e.cfg.DataDir); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(w, "Sources:          %d\n", st.Sources); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(w, "Fetched messages: %d\n", st.FetchedMessages); err != nil {
+				return err
+			}
 			statuses := make([]string, 0, len(st.Files))
 			for k := range st.Files {
 				statuses = append(statuses, k)
 			}
 			sort.Strings(statuses)
 			for _, k := range statuses {
-				fmt.Fprintf(w, "Files %-11s %d\n", k+":", st.Files[k])
+				if _, err := fmt.Fprintf(w, "Files %-11s %d\n", k+":", st.Files[k]); err != nil {
+					return err
+				}
 			}
-			fmt.Fprintf(w, "Reports:          %d from %d reporters, %d domains\n", st.Reports, st.Reporters, st.Domains)
-			fmt.Fprintf(w, "Records:          %d covering %d messages\n", st.Records, st.Messages)
+			if _, err := fmt.Fprintf(w, "Reports:          %d from %d reporters, %d domains\n", st.Reports, st.Reporters, st.Domains); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(w, "Records:          %d covering %d messages\n", st.Records, st.Messages); err != nil {
+				return err
+			}
 			if !st.FirstReport.IsZero() {
-				fmt.Fprintf(w, "Report range:     %s → %s\n", st.FirstReport.Format("2006-01-02"), st.LastReport.Format("2006-01-02"))
+				if _, err := fmt.Fprintf(w, "Report range:     %s → %s\n", st.FirstReport.Format("2006-01-02"), st.LastReport.Format("2006-01-02")); err != nil {
+					return err
+				}
 			}
 			return nil
 		},
@@ -65,8 +81,8 @@ func newDBCmd(v *viper.Viper) *cobra.Command {
 			if _, err := e.store.DB().ExecContext(ctx, "VACUUM"); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "Database compacted:", e.cfg.DBPath)
-			return nil
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), "Database compacted:", e.cfg.DBPath)
+			return err
 		},
 	})
 	return cmd

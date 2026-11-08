@@ -143,27 +143,45 @@ func rangeText(s *Summary) string {
 
 func renderText(w io.Writer, s *Summary) error {
 	o := s.Overall
-	fmt.Fprintf(w, "DMARC aggregate report summary\n")
-	fmt.Fprintf(w, "Range: %s (report begin, %s)   Period: %s   Generated: %s\n\n",
-		rangeText(s), s.Timezone, s.Period, s.Generated.Format(time.RFC3339))
-	if o.Messages == 0 {
-		fmt.Fprintln(w, "No DMARC records found for the selected range.")
-		return nil
+	if _, err := fmt.Fprint(w, "DMARC aggregate report summary\n"); err != nil {
+		return err
 	}
-	fmt.Fprintf(w, "Messages: %d   DMARC pass: %d (%.2f%%)   fail: %d\n", o.Messages, o.Pass, o.PassPct, o.Fail)
-	fmt.Fprintf(w, "DKIM aligned pass: %.2f%%   SPF aligned pass: %.2f%%\n", o.DKIMPct, o.SPFPct)
-	fmt.Fprintf(w, "Disposition: none %d / quarantine %d / reject %d\n", o.None, o.Quarantine, o.Reject)
-	fmt.Fprintf(w, "Reports: %d from %d reporters, %d source IPs\n", o.Reports, o.Reporters, o.SourceIPs)
+	if _, err := fmt.Fprintf(w, "Range: %s (report begin, %s)   Period: %s   Generated: %s\n\n",
+		rangeText(s), s.Timezone, s.Period, s.Generated.Format(time.RFC3339)); err != nil {
+		return err
+	}
+	if o.Messages == 0 {
+		_, err := fmt.Fprintln(w, "No DMARC records found for the selected range.")
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "Messages: %d   DMARC pass: %d (%.2f%%)   fail: %d\n", o.Messages, o.Pass, o.PassPct, o.Fail); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "DKIM aligned pass: %.2f%%   SPF aligned pass: %.2f%%\n", o.DKIMPct, o.SPFPct); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "Disposition: none %d / quarantine %d / reject %d\n", o.None, o.Quarantine, o.Reject); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "Reports: %d from %d reporters, %d source IPs\n", o.Reports, o.Reporters, o.SourceIPs); err != nil {
+		return err
+	}
 
 	for _, t := range tables(s) {
 		if len(t.Rows) == 0 {
 			continue
 		}
-		fmt.Fprintf(w, "\n== %s ==\n", t.Title)
+		if _, err := fmt.Fprintf(w, "\n== %s ==\n", t.Title); err != nil {
+			return err
+		}
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, strings.Join(t.Header, "\t"))
+		if _, err := fmt.Fprintln(tw, strings.Join(t.Header, "\t")); err != nil {
+			return err
+		}
 		for _, r := range t.Rows {
-			fmt.Fprintln(tw, strings.Join(sanitizeCells(r), "\t"))
+			if _, err := fmt.Fprintln(tw, strings.Join(sanitizeCells(r), "\t")); err != nil {
+				return err
+			}
 		}
 		if err := tw.Flush(); err != nil {
 			return err
@@ -191,28 +209,42 @@ func sanitizeCells(r []string) []string {
 
 func renderMarkdown(w io.Writer, s *Summary) error {
 	o := s.Overall
-	fmt.Fprintf(w, "# DMARC aggregate report summary\n\n")
-	fmt.Fprintf(w, "- **Range:** %s (by report begin, %s)\n- **Period:** %s\n- **Generated:** %s\n\n",
-		rangeText(s), s.Timezone, s.Period, s.Generated.Format(time.RFC3339))
+	if _, err := fmt.Fprint(w, "# DMARC aggregate report summary\n\n"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "- **Range:** %s (by report begin, %s)\n- **Period:** %s\n- **Generated:** %s\n\n",
+		rangeText(s), s.Timezone, s.Period, s.Generated.Format(time.RFC3339)); err != nil {
+		return err
+	}
 	if o.Messages == 0 {
 		_, err := fmt.Fprintln(w, "_No DMARC records found for the selected range._")
 		return err
 	}
-	fmt.Fprintf(w, "| Messages | DMARC pass | Pass %% | DKIM %% | SPF %% | None | Quarantine | Reject | Reports | Reporters | Source IPs |\n")
-	fmt.Fprintf(w, "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
-	fmt.Fprintf(w, "| %d | %d | %.2f | %.2f | %.2f | %d | %d | %d | %d | %d | %d |\n",
-		o.Messages, o.Pass, o.PassPct, o.DKIMPct, o.SPFPct, o.None, o.Quarantine, o.Reject, o.Reports, o.Reporters, o.SourceIPs)
+	if _, err := fmt.Fprint(w, "| Messages | DMARC pass | Pass % | DKIM % | SPF % | None | Quarantine | Reject | Reports | Reporters | Source IPs |\n"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(w, "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "| %d | %d | %.2f | %.2f | %.2f | %d | %d | %d | %d | %d | %d |\n",
+		o.Messages, o.Pass, o.PassPct, o.DKIMPct, o.SPFPct, o.None, o.Quarantine, o.Reject, o.Reports, o.Reporters, o.SourceIPs); err != nil {
+		return err
+	}
 	for _, t := range tables(s) {
 		if len(t.Rows) == 0 {
 			continue
 		}
-		fmt.Fprintf(w, "\n## %s\n\n| %s |\n|%s\n", t.Title, strings.Join(t.Header, " | "), strings.Repeat("---|", len(t.Header)))
+		if _, err := fmt.Fprintf(w, "\n## %s\n\n| %s |\n|%s\n", t.Title, strings.Join(t.Header, " | "), strings.Repeat("---|", len(t.Header))); err != nil {
+			return err
+		}
 		for _, r := range t.Rows {
 			cells := sanitizeCells(r)
 			for i := range cells {
 				cells[i] = mdEscape(cells[i])
 			}
-			fmt.Fprintf(w, "| %s |\n", strings.Join(cells, " | "))
+			if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(cells, " | ")); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

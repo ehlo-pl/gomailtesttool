@@ -240,18 +240,18 @@ func (s *Store) InsertReport(ctx context.Context, f *dmarc.Feedback, xmlSHA, sou
 	if err != nil {
 		return false, err
 	}
-	defer recStmt.Close()
+	defer func() { _ = recStmt.Close() }()
 	authStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO record_auth(record_id,kind,domain,selector,scope,result) VALUES(?,?,?,?,?,?)`)
 	if err != nil {
 		return false, err
 	}
-	defer authStmt.Close()
+	defer func() { _ = authStmt.Close() }()
 	reasonStmt, err := tx.PrepareContext(ctx, `INSERT INTO record_reasons(record_id,type,comment) VALUES(?,?,?)`)
 	if err != nil {
 		return false, err
 	}
-	defer reasonStmt.Close()
+	defer func() { _ = reasonStmt.Close() }()
 
 	for _, r := range f.Records {
 		rr, err := recStmt.ExecContext(ctx, reportID, r.SourceIP, r.Count, r.Disposition, nullable(r.DKIM), nullable(r.SPF),

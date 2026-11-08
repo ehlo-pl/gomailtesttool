@@ -89,14 +89,17 @@ func Unpack(name string, data []byte, lim Limits) ([]Payload, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: gzip: %w", name, err)
 		}
-		defer zr.Close()
 		out, err := readLimited(zr, lim.MaxDecompressed)
-		if err != nil {
-			return nil, fmt.Errorf("%s: gzip: %w", name, err)
-		}
 		inner := strings.TrimSuffix(strings.TrimSuffix(name, ".gz"), ".gzip")
 		if zr.Name != "" {
 			inner = path.Base(zr.Name)
+		}
+		closeErr := zr.Close()
+		if err != nil {
+			return nil, fmt.Errorf("%s: gzip: %w", name, err)
+		}
+		if closeErr != nil {
+			return nil, fmt.Errorf("%s: gzip close: %w", name, closeErr)
 		}
 		return []Payload{{Name: inner, Data: out}}, nil
 	case kindZip:

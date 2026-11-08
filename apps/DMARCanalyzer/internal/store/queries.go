@@ -58,7 +58,7 @@ func (s *Store) Stats(ctx context.Context) (*Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var status string
 		var n int
@@ -146,7 +146,7 @@ func (s *Store) Records(ctx context.Context, f RecordFilter) ([]RecordRow, error
 	if err != nil {
 		return nil, fmt.Errorf("query records: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []RecordRow
 	for rows.Next() {
 		var r RecordRow
