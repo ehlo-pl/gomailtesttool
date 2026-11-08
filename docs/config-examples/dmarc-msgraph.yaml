@@ -1,0 +1,21 @@
+# DMARC analyzer — collect from Exchange Online via Microsoft Graph, weekly HTML report
+# Usage: dmarcanalyzer run msgraph --config dmarc-msgraph.yaml
+# Required Graph application permission: Mail.Read (Mail.ReadWrite only with --delete-after)
+dmarc:
+  datadir: C:\dmarc
+  # loglevel: INFO
+  # report defaults (used by `report` and `run`)
+  period: week
+  last: 12w
+  format: html
+  out: C:\dmarc\dmarc-weekly.html
+  # resolve: true
+msgraph:
+  tenantid: 00000000-0000-0000-0000-000000000000
+  clientid: 00000000-0000-0000-0000-000000000000
+  # Use one credential: secret, pfx + pfxpass, thumbprint (Windows cert store) or bearertoken
+  secret: change-me
+  # thumbprint: 0123456789ABCDEF0123456789ABCDEF01234567
+  mailbox: dmarc@example.com
+  # maxretries: 3
+  # retrydelay: 2000

@@ -246,6 +246,19 @@ gomailtest msgraph exportmessages --bearertoken "eyJ0..." \
 
 ---
 
+## Companion tool: DMARC analyzer
+
+`dmarcanalyzer` (built from `apps/DMARCanalyzer`, `make build-dmarc`) reuses the msgraph, gmail, imap and pop3
+connection settings to collect DMARC aggregate report e-mails as `.eml`, extract them into SQLite and report
+by period. See [apps/DMARCanalyzer/README.md](apps/DMARCanalyzer/README.md).
+
+```bash
+dmarcanalyzer collect imap --host imap.example.com --imaps --username dmarc@example.com --password "..." --folder DMARC
+dmarcanalyzer report --period week --last 90d --format html --out dmarc.html
+```
+
+---
+
 ## Choosing the Right Protocol
 
 | Scenario | Recommended Subcommand |

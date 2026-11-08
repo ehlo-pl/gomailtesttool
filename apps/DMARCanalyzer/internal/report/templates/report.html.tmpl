@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DMARC Report Summary</title>
+<style>
+:root{--bg:#fff;--fg:#1d1f23;--muted:#5f6670;--line:#e3e5e8;--head:#f5f6f8;--pass:#2f8f5b;--fail:#c8473b;--accent:#2b5fab}
+@media (prefers-color-scheme:dark){:root{--bg:#16181c;--fg:#e6e7ea;--muted:#9aa1ab;--line:#2c3036;--head:#1f2227;--pass:#4fb37d;--fail:#e0675b;--accent:#7aa7ec}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1200px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:16px;margin:32px 0 8px}
+.meta{color:var(--muted);margin-bottom:20px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{border:1px solid var(--line);border-radius:8px;padding:12px}
+.kpi .v{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi .l{color:var(--muted);font-size:12px}
+.pass{color:var(--pass)}.fail{color:var(--fail)}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{background:var(--head);font-weight:600;position:sticky;top:0}
+tr:last-child td{border-bottom:0}
+td.wrap{white-space:normal;min-width:220px}
+svg text{fill:var(--fg);font-size:12px} .bp{fill:var(--pass)} .bf{fill:var(--fail)}
+.legend span{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 12px;vertical-align:middle}
+.empty{color:var(--muted);font-style:italic}
+</style>
+</head>
+<body>
+<main>
+<h1>DMARC aggregate report summary</h1>
+<div class="meta">Range {{.Range}} (by report begin, {{.S.Timezone}}) · Period: {{.S.Period}} · Generated {{date .S.Generated}}</div>
+{{with .S.Overall}}{{if .Messages}}
+<div class="kpis">
+  <div class="kpi"><div class="v">{{.Messages}}</div><div class="l">Messages</div></div>
+  <div class="kpi"><div class="v pass">{{f2 .PassPct}}%</div><div class="l">DMARC pass ({{.Pass}})</div></div>
+  <div class="kpi"><div class="v fail">{{.Fail}}</div><div class="l">DMARC fail</div></div>
+  <div class="kpi"><div class="v">{{f2 .DKIMPct}}%</div><div class="l">DKIM aligned pass</div></div>
+  <div class="kpi"><div class="v">{{f2 .SPFPct}}%</div><div class="l">SPF aligned pass</div></div>
+  <div class="kpi"><div class="v">{{.Quarantine}} / {{.Reject}}</div><div class="l">Quarantined / rejected</div></div>
+  <div class="kpi"><div class="v">{{.Reports}}</div><div class="l">Reports from {{.Reporters}} reporters</div></div>
+  <div class="kpi"><div class="v">{{.SourceIPs}}</div><div class="l">Source IPs</div></div>
+</div>
+{{else}}<p class="empty">No DMARC records found for the selected range.</p>{{end}}{{end}}
+
+{{if .Bars}}
+<h2>Volume by {{.S.Period}}</h2>
+<div class="legend"><span style="background:var(--pass)"></span>pass<span style="background:var(--fail)"></span>fail</div>
+<div class="scroll" style="padding:8px">
+<svg role="img" aria-label="DMARC pass and fail per period" width="{{.ChartW}}" height="{{.ChartH}}" viewBox="0 0 {{.ChartW}} {{.ChartH}}">
+{{range .Bars}}
+  <g transform="translate(0,{{.Y}})">
+    <text x="0" y="16">{{.Label}}</text>
+    <rect x="{{$.LabelW}}" y="4" width="{{.PassW}}" height="16" class="bp"><title>{{.Label}}: {{.Pass}} pass</title></rect>
+    <rect x="{{$.LabelW}}" y="4" width="{{.FailW}}" height="16" class="bf" transform="translate({{.PassW}},0)"><title>{{.Label}}: {{.Fail}} fail</title></rect>
+    <text x="{{.TextX}}" y="16">{{f2 .PassPct}}%</text>
+  </g>
+{{end}}
+</svg>
+</div>
+{{end}}
+
+{{range .Tables}}{{if .Rows}}
+<h2>{{.Title}}</h2>
+<div class="scroll"><table>
+<thead><tr>{{range .Header}}<th>{{.}}</th>{{end}}</tr></thead>
+<tbody>{{range .Rows}}<tr>{{range .}}<td>{{.}}</td>{{end}}</tr>{{end}}</tbody>
+</table></div>
+{{end}}{{end}}
+</main>
+</body>
+</html>

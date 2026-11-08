@@ -7,10 +7,14 @@
 #   .\build-all.ps1 -Protocols "smtp imap pop3"
 # Valid protocol tags: smtp, imap, pop3, jmap, ews, gmail, msgraph
 # The output binary will be named gomailtest-<protocol1>-<protocol2>...exe
+#
+# Pass -Dmarc to also build the DMARC analyzer (apps/DMARCanalyzer) as
+# bin\dmarcanalyzer.exe.
 
 param(
     [switch]$Verbose,
-    [string]$Protocols = ""
+    [string]$Protocols = "",
+    [switch]$Dmarc
 )
 
 $ErrorActionPreference = "Stop"
@@ -70,6 +74,21 @@ if ($LASTEXITCODE -ne 0) {
 
 $relPath = $outputFile.Replace($PSScriptRoot + [System.IO.Path]::DirectorySeparatorChar, "")
 Write-ColorOutput "  Built $relPath — version $version" "Green"
+
+# Build dmarcanalyzer
+if ($Dmarc) {
+    $dmarcOut = Join-Path $binDir "dmarcanalyzer.exe"
+    $dmarcArgs = @("-ldflags=-s -w", "-trimpath", "-o", $dmarcOut, "./apps/DMARCanalyzer/cmd/dmarcanalyzer")
+    if ($Verbose) {
+        $dmarcArgs = @("-v") + $dmarcArgs
+    }
+    & go build @dmarcArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorOutput "  ✗ dmarcanalyzer build failed" "Red"
+        exit 1
+    }
+    Write-ColorOutput "  Built bin\dmarcanalyzer.exe — version $version" "Green"
+}
 
 # Summary
 Write-ColorOutput "`n═══════════════════════════════════════════════════════════" "Cyan"
