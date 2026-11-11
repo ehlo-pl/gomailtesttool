@@ -1,8 +1,10 @@
 BINARY := bin/gomailtest
 DMARC_BINARY := bin/dmarcanalyzer
+TMF_BINARY := bin/testmailflow
 ifeq ($(OS),Windows_NT)
   BINARY := bin/gomailtest.exe
   DMARC_BINARY := bin/dmarcanalyzer.exe
+  TMF_BINARY := bin/testmailflow.exe
 endif
 
 VERSION := $(shell grep -oP 'Version = "\K[^"]+' internal/common/version/version.go 2>/dev/null || echo unknown)
@@ -20,7 +22,7 @@ else
   BINARY_CUSTOM := bin/gomailtest-$(PROTO_SUFFIX)
 endif
 
-.PHONY: build build-all build-dmarc build-verbose build-custom build-smtp-only build-msgraph-only build-standard-only test integration-test clean help
+.PHONY: build build-all build-dmarc build-tmf build-verbose build-custom build-smtp-only build-msgraph-only build-standard-only test integration-test clean help
 
 build: ## Build the gomailtest binary with all protocols (optimized for size & reproducibility)
 	go build -ldflags="-s -w" -trimpath -o $(BINARY) ./cmd/gomailtest
@@ -30,7 +32,11 @@ build-dmarc: ## Build the dmarcanalyzer binary (apps/DMARCanalyzer)
 	go build -ldflags="-s -w" -trimpath -o $(DMARC_BINARY) ./apps/DMARCanalyzer/cmd/dmarcanalyzer
 	@echo "Built $(DMARC_BINARY) — version $(VERSION)"
 
-build-all: build build-dmarc ## Build gomailtest and dmarcanalyzer
+build-tmf: ## Build the testmailflow binary (apps/TestMailFlow)
+	go build -ldflags="-s -w" -trimpath -o $(TMF_BINARY) ./apps/TestMailFlow/cmd/testmailflow
+	@echo "Built $(TMF_BINARY) — version $(VERSION)"
+
+build-all: build build-dmarc build-tmf ## Build gomailtest, dmarcanalyzer and testmailflow
 
 build-verbose: ## Build the gomailtest binary with verbose output
 	go build -v -ldflags="-s -w" -trimpath -o $(BINARY) ./cmd/gomailtest
@@ -57,7 +63,7 @@ integration-test: build ## Run MS Graph integration tests (requires MSGRAPH* env
 	go test -tags integration -v -timeout 120s ./tests/integration/
 
 clean: ## Remove build artifacts
-	rm -f $(BINARY) $(DMARC_BINARY) bin/gomailtest-*
+	rm -f $(BINARY) $(DMARC_BINARY) $(TMF_BINARY) bin/gomailtest-*
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*##"}; {printf "  %-20s %s\n", $$1, $$2}'

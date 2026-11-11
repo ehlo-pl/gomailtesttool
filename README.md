@@ -267,6 +267,22 @@ Replace legacy `*tool` invocations with `gomailtest <protocol> <action> --flag`:
 
 ## Documentation
 
+### Rules for Applications Built on gomailtesttool
+
+Companion applications such as `dmarcanalyzer` and `testmailflow` add workflows on top of the shared protocol code. Follow these rules when adding or extending an application:
+
+1. **Keep application logic separate.** Place the application under `apps/<AppName>`, with a small `cmd/<binary>` entry point and application-specific `internal` packages for configuration, workflows, storage and reports. Use the repository's root Go module, not a separate `go.mod`. Go's `internal` import rules mean these shared packages are for applications in this repository, not a public SDK for external modules.
+2. **Reuse protocol implementations.** Use `internal/common/fetch.Session` for mailbox access and `internal/common/send.Sender` for sending, backed by `internal/protocols`. Do not copy authentication, TLS or protocol code, or parse human-readable CLI output. Put reusable protocol capabilities in the shared layer and keep domain-specific processing in the application. External applications can instead invoke canonical `gomailtest` commands with a documented machine-readable output format, where supported.
+3. **Follow the existing CLI and configuration conventions.** Use Cobra, Viper and the shared bootstrap, logger and version helpers. Give application settings their own YAML section and environment prefix (for example, `dmarc:` / `DMARC*` or `testmailflow:` / `TMF*`). Preserve protocol flag names and, when using protocol environment bindings, their existing prefixes. Apply precedence consistently: CLI flags > environment variables > configuration file > defaults. Validate configuration before starting work.
+4. **Keep output automation-friendly.** Reserve stdout for requested results; send progress and diagnostics to stderr or the configured service log. Shared fetch/send implementations must stay quiet. Document output formats and exit codes, and distinguish operational failures from workflow results, such as a mailbox access failure versus a missing message.
+5. **Respect protocol semantics and resource lifetimes.** Pass contexts through network and database operations, use bounded timeouts and retries, and close sessions, senders and stores on every exit path. Serialize access to each `send.Sender`. Treat message keys as protocol-specific and persist them with their mailbox/source identity; IMAP keys include UIDVALIDITY, while POP3 uses UIDL and commits deletions when the session closes.
+6. **Make stateful work restart-safe and deletion opt-in.** Persist progress and deduplication keys so retries and restarts do not silently lose work or repeatedly process the same message. Delete only explicitly selected messages after successful processing, with documented confirmation and provider-specific behavior. Use read-only mailbox permissions unless deletion is enabled.
+7. **Protect credentials and untrusted content.** Never commit real credentials or expose them in logs, reports or metrics. Protect configuration, message files and databases with owner-only permissions or Windows ACLs. Treat downloaded MIME, XML and archives as untrusted: bound parsing/decompression and escape content for each output format. Services must use non-interactive authentication; network endpoints need an explicit trust boundary and restricted exposure. Follow [SECURITY.md](SECURITY.md).
+8. **Preserve portable deployment.** Prefer a standalone, pure-Go binary without CGO or external runtime dependencies, as the existing applications do. Keep platform-specific service and logging code behind build tags, with appropriate implementations for other platforms. Store writable state in an application data directory, not the source tree or binary directory.
+9. **Ship documentation, tests and build integration together.** Add an application README covering build commands, configuration, permissions, output, state and platform limitations, and link it here. Add focused tests using synthetic messages or fake fetch/send implementations; keep credential-dependent integration tests opt-in. Run affected tests and the repository's formatter/linter, and check supported platform builds. Register the binary in `Makefile`, `build-all.ps1` and `.github/workflows/build.yml`, including release packaging.
+
+Use [DMARCanalyzer](apps/DMARCanalyzer/README.md) as a collection/reporting example and [TestMailFlow](apps/TestMailFlow/README.md) as a scheduled-service example.
+
 ### Protocol Docs
 - [docs/protocols/smtp.md](docs/protocols/smtp.md) — SMTP tool
 - [docs/protocols/imap.md](docs/protocols/imap.md) — IMAP tool
@@ -279,6 +295,7 @@ Replace legacy `*tool` invocations with `gomailtest <protocol> <action> --flag`:
 
 ### Companion Tools
 - [apps/DMARCanalyzer/README.md](apps/DMARCanalyzer/README.md) — `dmarcanalyzer`: collect DMARC aggregate reports (Graph, Gmail, IMAP, POP3) as .eml, store them in SQLite and summarize by period (text, Markdown, CSV, JSON, HTML)
+- [apps/TestMailFlow/README.md](apps/TestMailFlow/README.md) — `testmailflow`: mail flow probe service — send over SMTP / Graph, verify arrival over Graph, Gmail, IMAP or POP3; Windows service, Event Log, `/healthz` and `/metrics`
 
 ### General Docs
 - [docs/config-file.md](docs/config-file.md) — `--config` YAML config file (defaults for any protocol/action)

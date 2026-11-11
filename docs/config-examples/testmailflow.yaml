@@ -1,0 +1,57 @@
+# testmailflow.yaml — testmailflow run --config testmailflow.yaml
+# See apps/TestMailFlow/README.md.
+
+testmailflow:
+  http: 127.0.0.1:9925          # /healthz and /metrics; remove to disable
+  retention: 90d
+
+# Named connections. Keys are the flag names of "gomailtest <protocol>".
+# ${NAME} is replaced by the environment variable NAME.
+endpoints:
+  relay:
+    protocol: smtp
+    host: smtp.contoso.com
+    port: 25
+
+  submission:
+    protocol: smtp
+    host: smtp.example.net
+    port: 587
+    starttls: true
+    username: probe@example.net
+    password: ${TMF_SUBMISSION_PASSWORD}
+
+  exo:
+    protocol: msgraph
+    tenantid: 00000000-0000-0000-0000-000000000000
+    clientid: 00000000-0000-0000-0000-000000000000
+    thumbprint: 0123456789ABCDEF0123456789ABCDEF01234567   # or: secret: ${TMF_GRAPH_SECRET}
+    mailbox: probe@contoso.com
+
+  imapbox:
+    protocol: imap
+    host: imap.example.net
+    imaps: true
+    username: probe@example.net
+    password: ${TMF_IMAP_PASSWORD}
+
+flows:
+  # On-premises relay -> Exchange Online, verified over Graph.
+  - name: onprem-to-exo
+    send:  { endpoint: relay, from: probe@onprem.contoso.com, to: probe@contoso.com }
+    check: { endpoint: exo, folder: inbox, delete: true }
+    interval: 15m
+    checks: [5m, 2m30s, 5m, 10m, 15m]   # look after 5 min, then +2.5, +5, +10, +15 min; then "lost"
+    warn_after: 5m                        # slower than this is "late"
+
+  # Exchange Online -> Internet mailbox, verified over IMAP.
+  - name: exo-to-internet
+    send:  { endpoint: exo, to: probe@example.net }
+    check: { endpoint: imapbox, folder: INBOX, delete: true }
+    interval: 30m
+
+  # Internet -> Exchange Online (inbound through MX / filtering), verified over Graph.
+  - name: internet-to-exo
+    send:  { endpoint: submission, from: probe@example.net, to: probe@contoso.com }
+    check: { endpoint: exo, delete: true }
+    interval: 30m

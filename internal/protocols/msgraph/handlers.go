@@ -263,6 +263,11 @@ func buildMIMERequest(adapter abstractions.RequestAdapter, senderMailbox, path s
 	if err != nil {
 		return nil, fmt.Errorf("failed to read MIME message file: %w", err)
 	}
+	return buildMIMERequestFromBytes(adapter, senderMailbox, message)
+}
+
+// buildMIMERequestFromBytes builds the base64 MIME POST /users/{mailbox}/sendMail request.
+func buildMIMERequestFromBytes(adapter abstractions.RequestAdapter, senderMailbox string, message []byte) (*abstractions.RequestInformation, error) {
 	endpoint := strings.TrimRight(adapter.GetBaseUrl(), "/") + "/users/" + url.PathEscape(senderMailbox) + "/sendMail"
 	requestURL, err := url.Parse(endpoint)
 	if err != nil {

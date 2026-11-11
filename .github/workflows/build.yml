@@ -55,15 +55,23 @@ jobs:
       run: |
         go build -ldflags="-s -w" -o bin/dmarcanalyzer.exe ./apps/DMARCanalyzer/cmd/dmarcanalyzer
 
-    - name: Test dmarcanalyzer and fetch layer
+    - name: Build testmailflow
+      shell: bash
+      env:
+        GOARCH: amd64
+      run: |
+        go build -ldflags="-s -w" -o bin/testmailflow.exe ./apps/TestMailFlow/cmd/testmailflow
+        GOOS=linux go vet ./apps/TestMailFlow/...   # type-check the non-Windows build tags
+
+    - name: Test dmarcanalyzer, testmailflow and fetch/send layers
       shell: bash
       run: |
-        go test ./apps/DMARCanalyzer/... ./internal/protocols/imap/... ./internal/protocols/pop3/... ./internal/protocols/gmail/... ./internal/protocols/msgraph/...
+        go test ./apps/DMARCanalyzer/... ./apps/TestMailFlow/... ./internal/common/send/... ./internal/protocols/smtp/... ./internal/protocols/imap/... ./internal/protocols/pop3/... ./internal/protocols/gmail/... ./internal/protocols/msgraph/...
 
     - name: Verify build outputs
       shell: bash
       run: |
-        for binary in bin/gomailtest.exe bin/gomailtest-exchange.exe bin/gomailtest-gmail.exe bin/dmarcanalyzer.exe; do
+        for binary in bin/gomailtest.exe bin/gomailtest-exchange.exe bin/gomailtest-gmail.exe bin/dmarcanalyzer.exe bin/testmailflow.exe; do
           if [ -f "$binary" ]; then
             echo "✓ ${binary} build successful"
             ls -lh "$binary"
@@ -148,6 +156,12 @@ jobs:
       run: |
         go build -ldflags="-s -w" -o bin/dmarcanalyzer${{ matrix.ext }} ./apps/DMARCanalyzer/cmd/dmarcanalyzer
 
+    - name: Build testmailflow
+      env:
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        go build -ldflags="-s -w" -o bin/testmailflow${{ matrix.ext }} ./apps/TestMailFlow/cmd/testmailflow
+
     - name: Set ZIP name
       shell: bash
       env:
@@ -157,7 +171,7 @@ jobs:
     - name: Verify build outputs (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        foreach ($binary in @("bin\gomailtest${{ matrix.ext }}", "bin\gomailtest-exchange${{ matrix.ext }}", "bin\gomailtest-gmail${{ matrix.ext }}", "bin\dmarcanalyzer${{ matrix.ext }}")) {
+        foreach ($binary in @("bin\gomailtest${{ matrix.ext }}", "bin\gomailtest-exchange${{ matrix.ext }}", "bin\gomailtest-gmail${{ matrix.ext }}", "bin\dmarcanalyzer${{ matrix.ext }}", "bin\testmailflow${{ matrix.ext }}")) {
           if (Test-Path $binary) {
             Write-Host "✓ $binary build successful"
             Get-Item $binary | Select-Object Name, Length
@@ -170,7 +184,7 @@ jobs:
     - name: Verify build outputs (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        for binary in bin/gomailtest bin/gomailtest-exchange bin/gomailtest-gmail bin/dmarcanalyzer; do
+        for binary in bin/gomailtest bin/gomailtest-exchange bin/gomailtest-gmail bin/dmarcanalyzer bin/testmailflow; do
           if [ -f "${binary}${{ matrix.ext }}" ]; then
             echo "✓ ${binary} build successful"
             ls -lh "${binary}${{ matrix.ext }}"
@@ -183,14 +197,14 @@ jobs:
     - name: Create ZIP archive (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        Compress-Archive -Path bin\gomailtest${{ matrix.ext }},bin\gomailtest-exchange${{ matrix.ext }},bin\gomailtest-gmail${{ matrix.ext }},bin\dmarcanalyzer${{ matrix.ext }},README.md,LICENSE -DestinationPath $env:ZIP_NAME
+        Compress-Archive -Path bin\gomailtest${{ matrix.ext }},bin\gomailtest-exchange${{ matrix.ext }},bin\gomailtest-gmail${{ matrix.ext }},bin\dmarcanalyzer${{ matrix.ext }},bin\testmailflow${{ matrix.ext }},README.md,LICENSE -DestinationPath $env:ZIP_NAME
         Write-Host "Created ZIP archive: $env:ZIP_NAME"
         Get-Item $env:ZIP_NAME | Select-Object Name, Length
 
     - name: Create ZIP archive (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        zip $ZIP_NAME bin/gomailtest bin/gomailtest-exchange bin/gomailtest-gmail bin/dmarcanalyzer README.md LICENSE
+        zip $ZIP_NAME bin/gomailtest bin/gomailtest-exchange bin/gomailtest-gmail bin/dmarcanalyzer bin/testmailflow README.md LICENSE
         echo "Created ZIP archive: $ZIP_NAME"
         ls -lh $ZIP_NAME
 
@@ -224,11 +238,12 @@ jobs:
 
           ### What's Included
 
-          Each ZIP archive contains four separate binaries:
+          Each ZIP archive contains five separate binaries:
           - **gomailtest** - Standard protocols (smtp, imap, pop3, jmap)
           - **gomailtest-exchange** - Microsoft/Exchange protocols (ews, msgraph)
           - **gomailtest-gmail** - Gmail / Google Workspace
           - **dmarcanalyzer** - Collect DMARC aggregate reports (Graph, Gmail, IMAP, POP3) and summarize them by period
+          - **testmailflow** - Mail flow probe service: send over SMTP / Graph, verify arrival over Graph, Gmail, IMAP or POP3
 
           Plus documentation:
           - **README.md** - Main documentation
@@ -244,18 +259,18 @@ jobs:
           **Linux (amd64):**
           1. Download `gomailtesttool-linux-amd64-${{ github.ref_name }}.zip`
           2. Extract: `unzip gomailtesttool-linux-amd64-${{ github.ref_name }}.zip`
-          3. Make executables: `chmod +x gomailtest gomailtest-exchange gomailtest-gmail dmarcanalyzer`
+          3. Make executables: `chmod +x gomailtest gomailtest-exchange gomailtest-gmail dmarcanalyzer testmailflow`
           4. Run e.g.: `./gomailtest --help`
 
           **macOS (Apple Silicon/arm64):**
           1. Download `gomailtesttool-macos-arm64-${{ github.ref_name }}.zip`
           2. Extract: `unzip gomailtesttool-macos-arm64-${{ github.ref_name }}.zip`
-          3. Make executables: `chmod +x gomailtest gomailtest-exchange gomailtest-gmail dmarcanalyzer`
+          3. Make executables: `chmod +x gomailtest gomailtest-exchange gomailtest-gmail dmarcanalyzer testmailflow`
           4. Run e.g.: `./gomailtest --help`
 
           **Note for macOS:** If you see "cannot be opened because the developer cannot be verified":
           - Right-click the binary and select "Open", or
-          - Run: `xattr -d com.apple.quarantine gomailtest gomailtest-exchange gomailtest-gmail dmarcanalyzer`
+          - Run: `xattr -d com.apple.quarantine gomailtest gomailtest-exchange gomailtest-gmail dmarcanalyzer testmailflow`
 
           ### Quick Start Examples
 
