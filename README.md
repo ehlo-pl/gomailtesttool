@@ -279,6 +279,7 @@ Replace legacy `*tool` invocations with `gomailtest <protocol> <action> --flag`:
 
 ### Companion Tools
 - [apps/DMARCanalyzer/README.md](apps/DMARCanalyzer/README.md) — `dmarcanalyzer`: collect DMARC aggregate reports (Graph, Gmail, IMAP, POP3) as .eml, store them in SQLite and summarize by period (text, Markdown, CSV, JSON, HTML)
+- [apps/TestMailFlow/README.md](apps/TestMailFlow/README.md) — `testmailflow`: mail flow probe service — send over SMTP / Graph, verify arrival over Graph, Gmail, IMAP or POP3; Windows service, Event Log, `/healthz` and `/metrics`
 
 ### General Docs
 - [docs/config-file.md](docs/config-file.md) — `--config` YAML config file (defaults for any protocol/action)

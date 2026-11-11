@@ -10,11 +10,15 @@
 #
 # Pass -Dmarc to also build the DMARC analyzer (apps/DMARCanalyzer) as
 # bin\dmarcanalyzer.exe.
+#
+# Pass -MailFlow to also build the mail flow probe service (apps/TestMailFlow)
+# as bin\testmailflow.exe.
 
 param(
     [switch]$Verbose,
     [string]$Protocols = "",
-    [switch]$Dmarc
+    [switch]$Dmarc,
+    [switch]$MailFlow
 )
 
 $ErrorActionPreference = "Stop"
@@ -88,6 +92,21 @@ if ($Dmarc) {
         exit 1
     }
     Write-ColorOutput "  Built bin\dmarcanalyzer.exe — version $version" "Green"
+}
+
+# Build testmailflow
+if ($MailFlow) {
+    $tmfOut = Join-Path $binDir "testmailflow.exe"
+    $tmfArgs = @("-ldflags=-s -w", "-trimpath", "-o", $tmfOut, "./apps/TestMailFlow/cmd/testmailflow")
+    if ($Verbose) {
+        $tmfArgs = @("-v") + $tmfArgs
+    }
+    & go build @tmfArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorOutput "  ✗ testmailflow build failed" "Red"
+        exit 1
+    }
+    Write-ColorOutput "  Built bin\testmailflow.exe — version $version" "Green"
 }
 
 # Summary

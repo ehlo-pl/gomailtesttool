@@ -259,6 +259,21 @@ dmarcanalyzer report --period week --last 90d --format html --out dmarc.html
 
 ---
 
+## Companion tool: TestMailFlow
+
+`testmailflow` (built from `apps/TestMailFlow`, `make build-tmf`) sends probe messages over SMTP or Microsoft Graph
+and verifies over Graph, Gmail, IMAP or POP3 that they arrive, as a Windows service or foreground process.
+See [apps/TestMailFlow/README.md](apps/TestMailFlow/README.md).
+
+```bash
+testmailflow validate --config tmf.yaml --connect
+testmailflow once --config tmf.yaml
+testmailflow service install --config C:/tmf/tmf.yaml
+testmailflow status --config tmf.yaml
+```
+
+---
+
 ## Choosing the Right Protocol
 
 | Scenario | Recommended Subcommand |
