@@ -193,24 +193,32 @@ func newDBCmd(v *viper.Viper) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(out, "Database: %s\n", e.cfg.DBPath)
+			if _, err := fmt.Fprintf(out, "Database: %s\n", e.cfg.DBPath); err != nil {
+				return err
+			}
 			tables := make([]string, 0, len(counts))
 			for t := range counts {
 				tables = append(tables, t)
 			}
 			sort.Strings(tables)
 			for _, t := range tables {
-				fmt.Fprintf(out, "  %-10s %d\n", t, counts[t])
+				if _, err := fmt.Fprintf(out, "  %-10s %d\n", t, counts[t]); err != nil {
+					return err
+				}
 			}
 			events, err := e.store.RecentEvents(ctx, 10)
 			if err != nil {
 				return err
 			}
 			if len(events) > 0 {
-				fmt.Fprintln(out, "Latest events:")
+				if _, err := fmt.Fprintln(out, "Latest events:"); err != nil {
+					return err
+				}
 				for _, ev := range events {
-					fmt.Fprintf(out, "  %s  %-18s %-20s %s\n", ev.At.Format("2006-01-02 15:04:05Z"), ev.Kind, ev.Flow,
-						strings.Join(strings.Fields(ev.Detail), " "))
+					if _, err := fmt.Fprintf(out, "  %s  %-18s %-20s %s\n", ev.At.Format("2006-01-02 15:04:05Z"), ev.Kind, ev.Flow,
+						strings.Join(strings.Fields(ev.Detail), " ")); err != nil {
+						return err
+					}
 				}
 			}
 			return nil
@@ -222,8 +230,8 @@ func newDBCmd(v *viper.Viper) *cobra.Command {
 			if err := e.store.Vacuum(ctx); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "Database compacted.")
-			return nil
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), "Database compacted.")
+			return err
 		}),
 	}
 	prune := &cobra.Command{
@@ -237,8 +245,8 @@ func newDBCmd(v *viper.Viper) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Deleted %d probes older than %s.\n", n, v.GetString("older-than"))
-			return nil
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Deleted %d probes older than %s.\n", n, v.GetString("older-than"))
+			return err
 		}),
 	}
 	prune.Flags().String("older-than", "90d", "Age threshold, e.g. 30d")

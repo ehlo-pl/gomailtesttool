@@ -88,11 +88,17 @@ The account needs read access to the config file and write access to the data di
 			}
 			out := cmd.OutOrStdout()
 			if err := eventlog.Install(config.AppName); err != nil {
-				fmt.Fprintf(out, "Warning: %v\n", err)
+				if _, writeErr := fmt.Fprintf(out, "Warning: %v\n", err); writeErr != nil {
+					return writeErr
+				}
 			}
-			fmt.Fprintf(out, "Service %s installed.\n  executable: %s\n  config:     %s\n  data dir:   %s\n  flows:      %d\n",
-				config.AppName, exe, cfgPath, dataDir, len(plan.Flows))
-			fmt.Fprintf(out, "Start it with: %s service start\n", config.AppName)
+			if _, err := fmt.Fprintf(out, "Service %s installed.\n  executable: %s\n  config:     %s\n  data dir:   %s\n  flows:      %d\n",
+				config.AppName, exe, cfgPath, dataDir, len(plan.Flows)); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(out, "Start it with: %s service start\n", config.AppName); err != nil {
+				return err
+			}
 			return nil
 		},
 	}
@@ -106,8 +112,8 @@ The account needs read access to the config file and write access to the data di
 				if err != nil {
 					return err
 				}
-				fmt.Fprintln(cmd.OutOrStdout(), msg)
-				return nil
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), msg)
+				return err
 			},
 		}
 	}

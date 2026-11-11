@@ -73,7 +73,9 @@ func RenderStatus(w io.Writer, statuses []FlowStatus, format string) error {
 		return cw.Error()
 	}
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "FLOW\tHEALTH\tLAST RESULT\tLATENCY\tLAST SENT\tLAST SUCCESS\tPENDING\tDETAIL")
+	if _, err := fmt.Fprintln(tw, "FLOW\tHEALTH\tLAST RESULT\tLATENCY\tLAST SENT\tLAST SUCCESS\tPENDING\tDETAIL"); err != nil {
+		return err
+	}
 	for _, s := range statuses {
 		lat, state := "-", s.LastState
 		if s.LatencySec != nil {
@@ -82,8 +84,10 @@ func RenderStatus(w io.Writer, statuses []FlowStatus, format string) error {
 		if state == "" {
 			state = "-"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n", clean(s.Flow), strings.ToUpper(s.Health), state, lat,
-			ts(s.LastSent), ts(s.LastSuccess), s.Pending, clean(s.Detail))
+		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n", clean(s.Flow), strings.ToUpper(s.Health), state, lat,
+			ts(s.LastSent), ts(s.LastSuccess), s.Pending, clean(s.Detail)); err != nil {
+			return err
+		}
 	}
 	return tw.Flush()
 }
@@ -109,29 +113,41 @@ func RenderSummary(w io.Writer, s *Summary, format string) error {
 	}
 
 	if s.From != nil || s.To != nil {
-		fmt.Fprintf(w, "Period: %s .. %s\n\n", ts(s.From), ts(s.To))
+		if _, err := fmt.Fprintf(w, "Period: %s .. %s\n\n", ts(s.From), ts(s.To)); err != nil {
+			return err
+		}
 	}
 	if len(s.Flows) == 0 {
 		_, err := fmt.Fprintln(w, "No probes in the selected period.")
 		return err
 	}
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "FLOW\tSENT\tDELIVERED\tLATE\tLOST\tSEND FAILED\tPENDING\tSUCCESS\tLATENCY min/avg/p95/max (s)")
+	if _, err := fmt.Fprintln(tw, "FLOW\tSENT\tDELIVERED\tLATE\tLOST\tSEND FAILED\tPENDING\tSUCCESS\tLATENCY min/avg/p95/max (s)"); err != nil {
+		return err
+	}
 	for _, f := range s.Flows {
-		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%.1f%%\t%s / %s / %s / %s\n", clean(f.Flow), f.Sent, f.Delivered,
+		if _, err := fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%.1f%%\t%s / %s / %s / %s\n", clean(f.Flow), f.Sent, f.Delivered,
 			f.Late, f.Lost, f.SendFailed, f.Pending, f.SuccessPct,
-			secs(f.LatencyMin), secs(f.LatencyAvg), secs(f.LatencyP95), secs(f.LatencyMax))
+			secs(f.LatencyMin), secs(f.LatencyAvg), secs(f.LatencyP95), secs(f.LatencyMax)); err != nil {
+			return err
+		}
 	}
 	if err := tw.Flush(); err != nil {
 		return err
 	}
 	if len(s.Failures) > 0 {
-		fmt.Fprintf(w, "\nLatest problems (%d):\n", len(s.Failures))
+		if _, err := fmt.Fprintf(w, "\nLatest problems (%d):\n", len(s.Failures)); err != nil {
+			return err
+		}
 		tw = tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(tw, "TIME\tFLOW\tSTATE\tDETAIL")
+		if _, err := fmt.Fprintln(tw, "TIME\tFLOW\tSTATE\tDETAIL"); err != nil {
+			return err
+		}
 		for _, f := range s.Failures {
 			at := f.At
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", ts(&at), clean(f.Flow), f.State, clean(f.Detail))
+			if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", ts(&at), clean(f.Flow), f.State, clean(f.Detail)); err != nil {
+				return err
+			}
 		}
 		return tw.Flush()
 	}

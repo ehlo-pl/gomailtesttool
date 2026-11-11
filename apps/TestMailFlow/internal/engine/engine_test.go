@@ -101,12 +101,12 @@ func (fakeSession) Close() error { return nil }
 
 type fakeOpener struct{ w *world }
 
-func (o fakeOpener) Sender(context.Context, string) (send.Sender, error) { return fakeSender{o.w}, nil }
+func (o fakeOpener) Sender(context.Context, string) (send.Sender, error) { return fakeSender(o), nil }
 func (o fakeOpener) Fetcher(context.Context, string, bool) (fetch.Session, error) {
 	if o.w.fetchErr != nil {
 		return nil, o.w.fetchErr
 	}
-	return fakeSession{o.w}, nil
+	return fakeSession(o), nil
 }
 
 func testPlan() *config.Plan {

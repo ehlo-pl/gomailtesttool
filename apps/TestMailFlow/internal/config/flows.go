@@ -211,7 +211,7 @@ func flowFromMap(m map[string]any, p *Plan) (*Flow, error) {
 	f.SendEndpoint = strings.ToLower(str(snd["endpoint"]))
 	sep, ok := p.Endpoints[f.SendEndpoint]
 	if !ok {
-		return nil, fmt.Errorf("send.endpoint %q is not defined under endpoints:", f.SendEndpoint)
+		return nil, fmt.Errorf("send.endpoint %q is not defined under endpoints", f.SendEndpoint)
 	}
 	if !contains(SendProtocols, sep.Protocol) {
 		return nil, fmt.Errorf("send.endpoint %q uses %s; sending supports: %s", f.SendEndpoint, sep.Protocol, strings.Join(SendProtocols, ", "))
@@ -239,7 +239,7 @@ func flowFromMap(m map[string]any, p *Plan) (*Flow, error) {
 	f.CheckEndpoint = strings.ToLower(str(chk["endpoint"]))
 	cep, ok := p.Endpoints[f.CheckEndpoint]
 	if !ok {
-		return nil, fmt.Errorf("check.endpoint %q is not defined under endpoints:", f.CheckEndpoint)
+		return nil, fmt.Errorf("check.endpoint %q is not defined under endpoints", f.CheckEndpoint)
 	}
 	if !contains(CheckProtocols, cep.Protocol) {
 		return nil, fmt.Errorf("check.endpoint %q uses %s; checking supports: %s", f.CheckEndpoint, cep.Protocol, strings.Join(CheckProtocols, ", "))

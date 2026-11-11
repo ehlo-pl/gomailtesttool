@@ -33,32 +33,51 @@ Microsoft Graph senders) to verify credentials and permissions.`,
 				return err
 			}
 			out := cmd.OutOrStdout()
-			fmt.Fprintf(out, "Config:    %s\nData dir:  %s\nDatabase:  %s\nHTTP:      %s\nRetention: %s\n\n",
-				e.cfg.ConfigFile, e.cfg.DataDir, e.cfg.DBPath, orDash(e.cfg.HTTPAddr), e.cfg.Retention)
+			if _, err := fmt.Fprintf(out, "Config:    %s\nData dir:  %s\nDatabase:  %s\nHTTP:      %s\nRetention: %s\n\n",
+				e.cfg.ConfigFile, e.cfg.DataDir, e.cfg.DBPath, orDash(e.cfg.HTTPAddr), e.cfg.Retention); err != nil {
+				return err
+			}
 
-			fmt.Fprintln(out, "Endpoints:")
+			if _, err := fmt.Fprintln(out, "Endpoints:"); err != nil {
+				return err
+			}
 			for _, name := range plan.EndpointNames() {
 				ep := plan.Endpoints[name]
-				fmt.Fprintf(out, "  %-16s %-8s %s\n", name, ep.Protocol, strings.Join(ep.MaskedSettings(), " "))
+				if _, err := fmt.Fprintf(out, "  %-16s %-8s %s\n", name, ep.Protocol, strings.Join(ep.MaskedSettings(), " ")); err != nil {
+					return err
+				}
 			}
-			fmt.Fprintln(out, "\nFlows:")
+			if _, err := fmt.Fprintln(out, "\nFlows:"); err != nil {
+				return err
+			}
 			for _, f := range plan.Flows {
 				to := make([]string, len(f.To))
 				for i, a := range f.To {
 					to[i] = security.MaskEmail(a)
 				}
-				fmt.Fprintf(out, "  %s\n", f.Name)
-				fmt.Fprintf(out, "    send   via %s  from %s  to %s\n", f.SendEndpoint, security.MaskEmail(f.From), strings.Join(to, ", "))
-				fmt.Fprintf(out, "    check  via %s  folder %s  delete=%t\n", f.CheckEndpoint, orDash(f.Folder), f.Delete)
-				fmt.Fprintf(out, "    every %s; checks after %s; late after %s; lost after %s\n",
-					f.Interval, offsets(f), f.WarnAfter, f.Deadline())
+				if _, err := fmt.Fprintf(out, "  %s\n", f.Name); err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintf(out, "    send   via %s  from %s  to %s\n", f.SendEndpoint, security.MaskEmail(f.From), strings.Join(to, ", ")); err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintf(out, "    check  via %s  folder %s  delete=%t\n", f.CheckEndpoint, orDash(f.Folder), f.Delete); err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintf(out, "    every %s; checks after %s; late after %s; lost after %s\n",
+					f.Interval, offsets(f), f.WarnAfter, f.Deadline()); err != nil {
+					return err
+				}
 			}
-
 			if !v.GetBool("connect") {
-				fmt.Fprintln(out, "\nConfiguration is valid. (Use --connect to test the connections.)")
+				if _, err := fmt.Fprintln(out, "\nConfiguration is valid. (Use --connect to test the connections.)"); err != nil {
+					return err
+				}
 				return nil
 			}
-			fmt.Fprintln(out, "\nConnections:")
+			if _, err := fmt.Fprintln(out, "\nConnections:"); err != nil {
+				return err
+			}
 			op := &opener{plan: plan, log: e.log}
 			failed := 0
 			checked := map[string]bool{}
@@ -69,19 +88,29 @@ Microsoft Graph senders) to verify credentials and permissions.`,
 					if err == nil {
 						err = sess.Close()
 					}
-					failed += printConn(cmd, "check", f.CheckEndpoint, err)
+					n, err := printConn(cmd, "check", f.CheckEndpoint, err)
+					if err != nil {
+						return err
+					}
+					failed += n
 				}
 				if !checked["s:"+f.SendEndpoint] {
 					checked["s:"+f.SendEndpoint] = true
 					if plan.Endpoints[f.SendEndpoint].Protocol == "smtp" {
-						fmt.Fprintf(out, "  send   %-16s skipped (SMTP connects when a probe is sent; use 'once')\n", f.SendEndpoint)
+						if _, err := fmt.Fprintf(out, "  send   %-16s skipped (SMTP connects when a probe is sent; use 'once')\n", f.SendEndpoint); err != nil {
+							return err
+						}
 						continue
 					}
 					s, err := op.Sender(ctx, f.SendEndpoint)
 					if err == nil {
 						err = s.Close()
 					}
-					failed += printConn(cmd, "send", f.SendEndpoint, err)
+					n, err := printConn(cmd, "send", f.SendEndpoint, err)
+					if err != nil {
+						return err
+					}
+					failed += n
 				}
 			}
 			if failed > 0 {
@@ -94,13 +123,13 @@ Microsoft Graph senders) to verify credentials and permissions.`,
 	return cmd
 }
 
-func printConn(cmd *cobra.Command, role, name string, err error) int {
+func printConn(cmd *cobra.Command, role, name string, err error) (int, error) {
 	if err != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "  %-6s %-16s FAILED: %v\n", role, name, err)
-		return 1
+		_, writeErr := fmt.Fprintf(cmd.OutOrStdout(), "  %-6s %-16s FAILED: %v\n", role, name, err)
+		return 1, writeErr
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "  %-6s %-16s ok\n", role, name)
-	return 0
+	_, writeErr := fmt.Fprintf(cmd.OutOrStdout(), "  %-6s %-16s ok\n", role, name)
+	return 0, writeErr
 }
 
 func orDash(s string) string {

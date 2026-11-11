@@ -149,17 +149,23 @@ was lost or could not be sent.`,
 			for _, f := range flows {
 				p, err := eng.SendProbe(ctx, f)
 				if err != nil {
-					fmt.Fprintf(out, "%-24s SEND FAILED  %v\n", f.Name, err)
+					if _, writeErr := fmt.Fprintf(out, "%-24s SEND FAILED  %v\n", f.Name, err); writeErr != nil {
+						return writeErr
+					}
 					worst = 2
 					continue
 				}
-				fmt.Fprintf(out, "%-24s sent         first check at %s\n", f.Name, p.NextCheckAt.Local().Format("15:04:05"))
+				if _, err := fmt.Fprintf(out, "%-24s sent         first check at %s\n", f.Name, p.NextCheckAt.Local().Format("15:04:05")); err != nil {
+					return err
+				}
 				ids = append(ids, p.ID)
 			}
 			if !v.GetBool("wait") || len(ids) == 0 {
 				return exitCode(worst)
 			}
-			fmt.Fprintln(out, "Waiting for the probes to arrive (Ctrl+C to stop; pending probes stay in the database)...")
+			if _, err := fmt.Fprintln(out, "Waiting for the probes to arrive (Ctrl+C to stop; pending probes stay in the database)..."); err != nil {
+				return err
+			}
 			probes, err := eng.Follow(ctx, ids)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				return err
@@ -167,15 +173,23 @@ was lost or could not be sent.`,
 			for _, p := range probes {
 				switch p.State {
 				case store.StateDelivered:
-					fmt.Fprintf(out, "%-24s DELIVERED    in %s  hops=%d  %s\n", p.Flow, p.Latency.Round(time.Second), p.Hops, p.AuthResults)
+					if _, err := fmt.Fprintf(out, "%-24s DELIVERED    in %s  hops=%d  %s\n", p.Flow, p.Latency.Round(time.Second), p.Hops, p.AuthResults); err != nil {
+						return err
+					}
 				case store.StateLate:
-					fmt.Fprintf(out, "%-24s LATE         in %s  hops=%d  %s\n", p.Flow, p.Latency.Round(time.Second), p.Hops, p.AuthResults)
+					if _, err := fmt.Fprintf(out, "%-24s LATE         in %s  hops=%d  %s\n", p.Flow, p.Latency.Round(time.Second), p.Hops, p.AuthResults); err != nil {
+						return err
+					}
 					worst = max(worst, 1)
 				case store.StateLost:
-					fmt.Fprintf(out, "%-24s LOST         not found after %d checks\n", p.Flow, p.Attempts)
+					if _, err := fmt.Fprintf(out, "%-24s LOST         not found after %d checks\n", p.Flow, p.Attempts); err != nil {
+						return err
+					}
 					worst = 2
 				default:
-					fmt.Fprintf(out, "%-24s %s  %s\n", p.Flow, strings.ToUpper(p.State), p.CheckError)
+					if _, err := fmt.Fprintf(out, "%-24s %s  %s\n", p.Flow, strings.ToUpper(p.State), p.CheckError); err != nil {
+						return err
+					}
 					worst = max(worst, 1)
 				}
 			}
