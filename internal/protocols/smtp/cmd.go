@@ -237,7 +237,7 @@ upgrades to TLS automatically, and logs the result (including TLS details) to CS
 	cmd.Flags().String("bcc", "", "Comma-separated BCC recipient email addresses; included in the SMTP envelope only, never in message headers (env: SMTPBCC)")
 	cmd.Flags().String("subject", "SMTP Test", "Email subject (env: SMTPSUBJECT)")
 	cmd.Flags().String("body", "This is a test message from smtptool", "Email body text (env: SMTPBODY)")
-	cmd.Flags().String("body-source", wikicontent.BodySourceWikipedia, "Body used when no --body, --bodyhtml or --template is given: \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; title appended to the default subject) or \"static\" (built-in placeholder text) (env: SMTPBODYSOURCE)")
+	cmd.Flags().String("body-source", wikicontent.BodySourceStatic, "Body used when no --body, --bodyhtml or --template is given: \"static\" (built-in placeholder text, default) or \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; title appended to the default subject) (env: SMTPBODYSOURCE)")
 	cmd.Flags().String("body-categories", "", "Comma-separated Wikipedia categories for --body-source wikipedia (\"Category:\" prefix optional); empty uses the built-in list of FA-Class technology and science categories (env: SMTPBODYCATEGORIES)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content; combine with --body for multipart/alternative (env: SMTPBODYHTML)")
 	cmd.Flags().String("messageid", "", "Complete Message-ID value to use (env: SMTPMESSAGEID)")

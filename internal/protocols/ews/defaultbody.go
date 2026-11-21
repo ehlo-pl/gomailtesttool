@@ -9,12 +9,13 @@ import (
 
 // applyDefaultBody fills a sendmail message configured without any body (no
 // --body, --bodyhtml or --template, by flag, env var or config file) with a
-// random featured Wikipedia article, unless --body-source is "static".
+// random featured Wikipedia article when --body-source is "wikipedia". The
+// default, "static", keeps the placeholder body without contacting Wikipedia.
 // Articles already named in this action's default log files are skipped. A
 // failed fetch is logged and the static body is kept.
 func applyDefaultBody(ctx context.Context, config *Config, slogLogger *slog.Logger) {
 	if config.BodySource == "" {
-		config.BodySource = wikicontent.BodySourceWikipedia
+		config.BodySource = wikicontent.BodySourceStatic
 	}
 	if !wikicontent.NoBodyGiven(config.Body, defaultSendMailBody, config.BodyHTML, config.Template) {
 		return

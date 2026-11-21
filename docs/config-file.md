@@ -44,7 +44,7 @@ to: recipient@example.com
 subject: "Test Email"
 body: "This is a test message"
 bodyhtml: "<p>This is a <strong>test</strong> message</p>"
-body-source: wikipedia   # or "static"; only used when no body/bodyhtml/template is set
+body-source: static      # default; "wikipedia" fills a body-less sendmail with a Wikipedia article
 body-categories: "FA-Class Computing articles,FA-Class Internet articles"   # optional; default: built-in list
 attachments: ./report.pdf,./data.csv
 inline-attachments: ./logo.png

@@ -421,7 +421,7 @@ gomailtest ews exportmessages --host mail.example.com --username "CORP\user" \
 | `--subject` | `Automated Tool Notification` (empty for exportmessages) | Email subject (sendmail); subject substring to search for (exportmessages) |
 | `--body` | test message | Email body text (sendmail) |
 | `--bodyhtml` | | HTML body content, overrides `--body` (sendmail) |
-| `--body-source` | `wikipedia` | Body used when no `--body`, `--bodyhtml` or `--template` is given (by flag, env var or config file): `wikipedia` fetches a random featured article from en.wikipedia.org (see the README section "sendmail default body"), skipping articles already in this action's default log, and appends its title to the default subject; `static` keeps the built-in placeholder text (sendmail) |
+| `--body-source` | `static` | Body used when no `--body`, `--bodyhtml` or `--template` is given (by flag, env var or config file): `static` (default) keeps the built-in placeholder text; `wikipedia` fetches a random featured article from en.wikipedia.org (see the README section "sendmail default body"), skipping articles already in this action's default log, and appends its title to the default subject (sendmail) |
 | `--body-categories` | | Comma-separated Wikipedia categories for `--body-source wikipedia` (`Category:` prefix optional); empty uses the built-in list of FA-Class technology and science categories (sendmail) |
 | `--messageid` | | Complete value for the `X-Message-ID` custom header (sendmail/draft) |
 | `--messageidsuffix` | | Domain suffix for the generated `X-Message-ID` (sendmail/draft) |

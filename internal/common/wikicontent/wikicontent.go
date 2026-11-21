@@ -28,9 +28,9 @@ import (
 // Body sources selectable with the sendmail --body-source flag.
 const (
 	// BodySourceWikipedia fills a message without any body with a random
-	// featured Wikipedia article (the default).
+	// featured Wikipedia article (opt-in with --body-source wikipedia).
 	BodySourceWikipedia = "wikipedia"
-	// BodySourceStatic keeps the built-in one-line placeholder body.
+	// BodySourceStatic keeps the built-in one-line placeholder body (the default).
 	BodySourceStatic = "static"
 )
 

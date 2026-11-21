@@ -254,7 +254,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("bcc", "", "Comma-separated BCC recipients (env: JMAPBCC)")
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: JMAPSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: JMAPBODY)")
-	cmd.Flags().String("body-source", wikicontent.BodySourceWikipedia, "Body used when no --body, --bodyhtml or --template is given: \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; title appended to the default subject) or \"static\" (built-in placeholder text) (env: JMAPBODYSOURCE)")
+	cmd.Flags().String("body-source", wikicontent.BodySourceStatic, "Body used when no --body, --bodyhtml or --template is given: \"static\" (built-in placeholder text, default) or \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; title appended to the default subject) (env: JMAPBODYSOURCE)")
 	cmd.Flags().String("body-categories", "", "Comma-separated Wikipedia categories for --body-source wikipedia (\"Category:\" prefix optional); empty uses the built-in list of FA-Class technology and science categories (env: JMAPBODYCATEGORIES)")
 	cmd.Flags().String("messageid", "", "Complete Message-ID value to use in the imported RFC 5322 message (env: JMAPMESSAGEID)")
 	cmd.Flags().String("messageidsuffix", "", "Domain suffix for the generated Message-ID (env: JMAPMESSAGEIDSUFFIX)")
