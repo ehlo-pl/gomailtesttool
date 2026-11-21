@@ -11,6 +11,7 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/wikicontent"
 )
 
 // NewCmd returns the "gmail" cobra.Command with all action subcommands. Each
@@ -119,6 +120,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 				return fmt.Errorf("template failed: %w", err)
 			}
 
+			applyDefaultBody(ctx, config, slogger)
 			// Default To to the mailbox if no recipients were specified.
 			// An .eml template carries its own recipients in the raw message.
 			if config.RawEML == nil && len(config.To) == 0 && len(config.Cc) == 0 && len(config.Bcc) == 0 {
@@ -137,6 +139,8 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("bcc", "", "Comma-separated BCC recipients (env: GMAILBCC)")
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: GMAILSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: GMAILBODY)")
+	cmd.Flags().String("body-source", wikicontent.BodySourceStatic, "Body used when no --body, --bodyhtml or --template is given: \"static\" (built-in placeholder text, default) or \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; title appended to the default subject) (env: GMAILBODYSOURCE)")
+	cmd.Flags().String("body-categories", "", "Comma-separated Wikipedia categories for --body-source wikipedia (\"Category:\" prefix optional); empty uses the built-in list of FA-Class technology and science categories (env: GMAILBODYCATEGORIES)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: GMAILBODYHTML)")
 	cmd.Flags().String("template", "", "Message template file with Go text/template variables: a .eml file is sent as the complete RFC 822 message; any other extension is used as the HTML body (env: GMAILTEMPLATE)")
 	cmd.Flags().StringArray("template-vars", nil, "Template variable in 'key=value' form, referenced as {{.key}} in --template (repeatable) (env: GMAILTEMPLATEVARS)")

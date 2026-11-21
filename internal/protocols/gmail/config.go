@@ -11,6 +11,7 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/email"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/wikicontent"
 )
 
 // Config holds all configuration for the gmail provider: command-line flags,
@@ -38,12 +39,14 @@ type Config struct {
 	Headers               []string
 
 	// Email content
-	Subject      string
-	Body         string
-	BodyHTML     string
-	Priority     string
-	Template     string   // Path to a message template: .eml (full RFC 822 message) or HTML body file
-	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
+	Subject        string
+	Body           string
+	BodySource     string   // Body used when none is given: "wikipedia" (random article) or "static"
+	BodyCategories []string // Wikipedia categories for the "wikipedia" body source; empty means the defaults
+	BodyHTML       string
+	Priority       string
+	Template       string   // Path to a message template: .eml (full RFC 822 message) or HTML body file
+	TemplateVars   []string // Template variables in "key=value" form, referenced as {{.key}}
 
 	SaveToSent bool // Declared for CLI consistency; Gmail API always saves to Sent Mail automatically
 
@@ -156,6 +159,8 @@ func BindEnvs(v *viper.Viper) {
 		"subject":            "GMAILSUBJECT",
 		"body":               "GMAILBODY",
 		"bodyhtml":           "GMAILBODYHTML",
+		"body-source":        "GMAILBODYSOURCE",
+		"body-categories":    "GMAILBODYCATEGORIES",
 		"priority":           "GMAILPRIORITY",
 		"template":           "GMAILTEMPLATE",
 		"template-vars":      "GMAILTEMPLATEVARS",
@@ -255,6 +260,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:               subject,
 		Body:                  body,
 		BodyHTML:              v.GetString("bodyhtml"),
+		BodySource:            strings.ToLower(v.GetString("body-source")),
+		BodyCategories:        wikicontent.ParseCategories(v.GetString("body-categories")),
 		Priority:              priority,
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
@@ -305,6 +312,12 @@ func (c *Config) authMethodCount() int {
 
 // validateConfiguration validates all required configuration fields.
 func validateConfiguration(config *Config) error {
+	if config.BodySource != "" {
+		if err := wikicontent.ValidateBodySource(config.BodySource); err != nil {
+			return err
+		}
+	}
+
 	// Exactly one authentication method.
 	switch config.authMethodCount() {
 	case 0:

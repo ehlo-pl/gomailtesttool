@@ -192,7 +192,7 @@ func TestNewEmailQueryRequest(t *testing.T) {
 }
 
 func TestNewEmailImportAndSubmitRequest(t *testing.T) {
-	req := NewEmailImportAndSubmitRequest("account", "blob", map[Id]bool{"sent": true}, "from@example.com", []EmailAddress{{Email: "to@example.com"}})
+	req := NewEmailImportAndSubmitRequest("account", "blob", map[Id]bool{"sent": true}, "ident", "from@example.com", []EmailAddress{{Email: "to@example.com"}}, "")
 	if len(req.MethodCalls) != 2 || req.MethodCalls[0].Name != MethodEmailImport || req.MethodCalls[1].Name != MethodEmailSubmissionSet {
 		t.Fatalf("unexpected method calls: %+v", req.MethodCalls)
 	}
@@ -200,7 +200,7 @@ func TestNewEmailImportAndSubmitRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
-	for _, want := range []string{`"blobId":"blob"`, `"path":"/created/imported/id"`, `"email":"to@example.com"`} {
+	for _, want := range []string{`"blobId":"blob"`, `"path":"/created/imported/id"`, `"email":"to@example.com"`, `"onSuccessDestroyEmail":["#submission1"]`} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("request %s missing %q", data, want)
 		}
@@ -311,5 +311,84 @@ func TestConstants(t *testing.T) {
 	}
 	if MethodEmailQuery != "Email/query" {
 		t.Errorf("MethodEmailQuery = %q, want %q", MethodEmailQuery, "Email/query")
+	}
+}
+
+func TestNewEmailSetAndSubmitRequest_OnSuccess(t *testing.T) {
+	draft := EmailCreate{MailboxIds: map[Id]bool{"drafts": true}, Subject: "s"}
+	rcpts := []EmailAddress{{Email: "to@example.com"}, {Email: "bcc@example.com"}}
+
+	tests := []struct {
+		name        string
+		sentMailbox Id
+		want        []string
+		notWant     []string
+	}{
+		{
+			name:    "no sent mailbox destroys draft after submission",
+			want:    []string{`"onSuccessDestroyEmail":["#submission1"]`},
+			notWant: []string{`onSuccessUpdateEmail`},
+		},
+		{
+			name:        "sent mailbox moves message and clears draft keyword",
+			sentMailbox: "sentbox",
+			want: []string{
+				`"onSuccessUpdateEmail":{"#submission1":{`,
+				`"mailboxIds":{"sentbox":true}`,
+				`"keywords/$draft":null`,
+			},
+			notWant: []string{`onSuccessDestroyEmail`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := NewEmailSetAndSubmitRequest("account", draft, "ident", "from@example.com", rcpts, tt.sentMailbox)
+			data, err := json.Marshal(req)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			body := string(data)
+			common := []string{
+				`"create":{"draft":{"mailboxIds":{"drafts":true}`,
+				`"emailId":"#draft"`,
+				`"email":"bcc@example.com"`,
+			}
+			for _, w := range append(common, tt.want...) {
+				if !strings.Contains(body, w) {
+					t.Errorf("request %s missing %q", body, w)
+				}
+			}
+			for _, nw := range tt.notWant {
+				if strings.Contains(body, nw) {
+					t.Errorf("request %s unexpectedly contains %q", body, nw)
+				}
+			}
+		})
+	}
+}
+
+func TestParseNotCreated(t *testing.T) {
+	mr := &MethodResponse{
+		Name: MethodEmailSet,
+		Arguments: json.RawMessage(`{"accountId":"a","created":null,"notCreated":{"draft":` +
+			`{"type":"invalidProperties","properties":["mailboxIds"],"description":"Message has to belong to at least one mailbox."}}}`),
+		CallId: "c1",
+	}
+	notCreated, err := ParseNotCreated(mr)
+	if err != nil {
+		t.Fatalf("ParseNotCreated() error = %v", err)
+	}
+	got, ok := notCreated["draft"]
+	if !ok {
+		t.Fatalf("notCreated = %v, want entry for draft", notCreated)
+	}
+	want := "invalidProperties (mailboxIds): Message has to belong to at least one mailbox."
+	if got.String() != want {
+		t.Errorf("SetError.String() = %q, want %q", got.String(), want)
+	}
+
+	empty, err := ParseNotCreated(&MethodResponse{Arguments: json.RawMessage(`{"created":{"draft":{"id":"x"}}}`)})
+	if err != nil || len(empty) != 0 {
+		t.Errorf("ParseNotCreated(success) = %v, %v; want empty, nil", empty, err)
 	}
 }

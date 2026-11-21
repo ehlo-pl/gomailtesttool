@@ -8,6 +8,7 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/wikicontent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -39,6 +40,8 @@ type Config struct {
 	Bcc                   []string
 	Subject               string
 	Body                  string
+	BodySource            string   // Body used when none is given: "wikipedia" (random article) or "static"
+	BodyCategories        []string // Wikipedia categories for the "wikipedia" body source; empty means the defaults
 	BodyHTML              string
 	From                  string   // Sender override; filled from an .eml --template's From header (no flag)
 	Template              string   // Path to a message template: .eml (fields mapped to Email/set) or HTML body file
@@ -133,6 +136,8 @@ func BindEnvs(v *viper.Viper) {
 		"subject":            "JMAPSUBJECT",
 		"body":               "JMAPBODY",
 		"bodyhtml":           "JMAPBODYHTML",
+		"body-source":        "JMAPBODYSOURCE",
+		"body-categories":    "JMAPBODYCATEGORIES",
 		"template":           "JMAPTEMPLATE",
 		"template-vars":      "JMAPTEMPLATEVARS",
 		"attachments":        "JMAPATTACHMENTS",
@@ -209,6 +214,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:               subject,
 		Body:                  body,
 		BodyHTML:              v.GetString("bodyhtml"),
+		BodySource:            strings.ToLower(v.GetString("body-source")),
+		BodyCategories:        wikicontent.ParseCategories(v.GetString("body-categories")),
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
 		AttachmentFiles:       parseStringSlice(v.GetString("attachments")),
@@ -242,6 +249,12 @@ func parseStringSlice(s string) []string {
 
 // validateConfiguration validates the configuration.
 func validateConfiguration(config *Config) error {
+	if config.BodySource != "" {
+		if err := wikicontent.ValidateBodySource(config.BodySource); err != nil {
+			return err
+		}
+	}
+
 	// Validate action
 	validActions := []string{
 		ActionTestConnect, ActionTestAuth,

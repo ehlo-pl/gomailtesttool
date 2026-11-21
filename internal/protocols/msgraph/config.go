@@ -11,6 +11,7 @@ import (
 	mimebuilder "github.com/ehlo-pl/gomailtesttool/internal/common/mime"
 	tmpl "github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/wikicontent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -45,14 +46,16 @@ type Config struct {
 	Headers               []string    // Custom headers in "Name: Value" form
 
 	// Email content
-	Subject      string   // Email subject line
-	Body         string   // Email body text content
-	BodyHTML     string   // Email body HTML content (future use)
-	Priority     string   // Email priority: high, normal, low (maps to Graph Importance)
-	Template     string   // Path to a message template: .eml (fields mapped to the Graph API) or HTML body file
-	TemplateVars []string // Template variables in "key=value" form, referenced as {{.key}}
-	MIMEBase64   string   // Path to a complete .eml file sent as base64-encoded MIME
-	SaveToSent   bool     // Save a copy in Sent Items (Graph API saveToSentItems)
+	Subject        string   // Email subject line
+	Body           string   // Email body text content
+	BodySource     string   // Body used when none is given: "wikipedia" (random article) or "static"
+	BodyCategories []string // Wikipedia categories for the "wikipedia" body source; empty means the defaults
+	BodyHTML       string   // Email body HTML content (future use)
+	Priority       string   // Email priority: high, normal, low (maps to Graph Importance)
+	Template       string   // Path to a message template: .eml (fields mapped to the Graph API) or HTML body file
+	TemplateVars   []string // Template variables in "key=value" form, referenced as {{.key}}
+	MIMEBase64     string   // Path to a complete .eml file sent as base64-encoded MIME
+	SaveToSent     bool     // Save a copy in Sent Items (Graph API saveToSentItems)
 
 	// Calendar invite configuration
 	InviteSubject string // Subject of calendar meeting invitation
@@ -209,6 +212,8 @@ func BindEnvs(v *viper.Viper) {
 		"subject":            "MSGRAPHSUBJECT",
 		"body":               "MSGRAPHBODY",
 		"bodyhtml":           "MSGRAPHBODYHTML",
+		"body-source":        "MSGRAPHBODYSOURCE",
+		"body-categories":    "MSGRAPHBODYCATEGORIES",
 		"priority":           "MSGRAPHPRIORITY",
 		"template":           "MSGRAPHTEMPLATE",
 		"template-vars":      "MSGRAPHTEMPLATEVARS",
@@ -328,6 +333,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:               subject,
 		Body:                  body,
 		BodyHTML:              v.GetString("bodyhtml"),
+		BodySource:            strings.ToLower(v.GetString("body-source")),
+		BodyCategories:        wikicontent.ParseCategories(v.GetString("body-categories")),
 		Priority:              priority,
 		Template:              v.GetString("template"),
 		TemplateVars:          v.GetStringSlice("template-vars"),
@@ -376,6 +383,12 @@ func parseStringSlice(s string) stringSlice {
 
 // validateConfiguration validates all required configuration fields
 func validateConfiguration(config *Config) error {
+	if config.BodySource != "" {
+		if err := wikicontent.ValidateBodySource(config.BodySource); err != nil {
+			return err
+		}
+	}
+
 	if err := validateGUID(config.TenantID, "Tenant ID"); err != nil {
 		return err
 	}

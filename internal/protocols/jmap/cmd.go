@@ -5,6 +5,7 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/wikicontent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -244,6 +245,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 				return fmt.Errorf("template failed: %w", err)
 			}
 
+			applyDefaultBody(ctx, config, slogger)
 			return sendMail(ctx, config, csvLogger, slogger)
 		},
 	}
@@ -252,6 +254,8 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("bcc", "", "Comma-separated BCC recipients (env: JMAPBCC)")
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: JMAPSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: JMAPBODY)")
+	cmd.Flags().String("body-source", wikicontent.BodySourceStatic, "Body used when no --body, --bodyhtml or --template is given: \"static\" (built-in placeholder text, default) or \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; title appended to the default subject) (env: JMAPBODYSOURCE)")
+	cmd.Flags().String("body-categories", "", "Comma-separated Wikipedia categories for --body-source wikipedia (\"Category:\" prefix optional); empty uses the built-in list of FA-Class technology and science categories (env: JMAPBODYCATEGORIES)")
 	cmd.Flags().String("messageid", "", "Complete Message-ID value to use in the imported RFC 5322 message (env: JMAPMESSAGEID)")
 	cmd.Flags().String("messageidsuffix", "", "Domain suffix for the generated Message-ID (env: JMAPMESSAGEIDSUFFIX)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (env: JMAPBODYHTML)")

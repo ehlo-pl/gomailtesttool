@@ -10,6 +10,7 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/internal/common/network"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/template"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/wikicontent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -41,6 +42,8 @@ type Config struct {
 	Bcc               []string // BCC recipients: added to the SMTP envelope (RCPT TO) only, never to message headers
 	Subject           string
 	Body              string
+	BodySource        string   // Body used when none is given: "wikipedia" (random article) or "static"
+	BodyCategories    []string // Wikipedia categories for the "wikipedia" body source; empty means the defaults
 	BodyHTML          string   // HTML body content; if set alongside Body, a multipart/alternative message is sent
 	Attachments       []string // File paths to attach to email
 	InlineAttachments []string // File paths to embed inline via cid: (referenced from BodyHTML)
@@ -172,6 +175,9 @@ func BindEnvs(v *viper.Viper) {
 		"bcc":               "SMTPBCC",
 		"priority":          "SMTPPRIORITY",
 		"bodyhtml":          "SMTPBODYHTML",
+		"body-source":       "SMTPBODYSOURCE",
+		"body-categories":   "SMTPBODYCATEGORIES",
+		"body":              "SMTPBODY",
 		"attachments":       "SMTPATTACHMENTS",
 		"inlineattachments": "SMTPINLINEATTACHMENTS",
 		"template":          "SMTPTEMPLATE",
@@ -293,6 +299,8 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		Subject:           subject,
 		Body:              body,
 		BodyHTML:          v.GetString("bodyhtml"),
+		BodySource:        strings.ToLower(v.GetString("body-source")),
+		BodyCategories:    wikicontent.ParseCategories(v.GetString("body-categories")),
 		Attachments:       attachments,
 		InlineAttachments: inlineAttachments,
 		Headers:           v.GetStringSlice("header"),
@@ -348,6 +356,12 @@ func parseBoolEnv(value string) bool {
 
 // validateConfiguration validates the configuration.
 func validateConfiguration(config *Config) error {
+	if config.BodySource != "" {
+		if err := wikicontent.ValidateBodySource(config.BodySource); err != nil {
+			return err
+		}
+	}
+
 	// Validate action
 	validActions := []string{ActionTestConnect, ActionTestStartTLS, ActionTestAuth, ActionSendMail}
 	valid := false
