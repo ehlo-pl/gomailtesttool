@@ -71,6 +71,17 @@ Defaults: 30-minute slots (`--duration`), window = now → +5 working days (`--s
 
 JMAP is not supported: JMAP (RFC 8620) has no availability/free-busy API, and the JMAP Calendars extension is still a draft without server support.
 
+## sendmail default body
+
+When `sendmail` (smtp, jmap, ews, msgraph, gmail) is run without any body, the message is filled with a random featured article from English Wikipedia. "Without any body" means no `--body`, `--bodyhtml` or `--template`, whether set by flag, env var or config file.
+
+- **Categories.** By default articles come from these FA-Class WikiProject categories: Computer science, Computing, Technology, Engineering, Systems, Internet, Telecommunications, Cryptography, Robotics, Statistics, Chemistry and Astronomy (about 230 articles). A category is picked at random, then an article within it. `--body-categories` (env `<PROTOCOL>BODYCATEGORIES`, config key `body-categories`) replaces the list with your own comma-separated categories; the `Category:` prefix is optional.
+- **A new article on every run.** Before picking, the tool reads the action's default result logs (`_<tool>_sendmail_*.csv` and `.jsonl` in the temp directory, all dates). It skips every article whose title already appears in a logged subject. When every article in the categories has been used, one is repeated and a warning is logged. This only works while the subject is left at the protocol default, because that is where the title is recorded. With your own `--subject` the title is not logged, so repeats can happen.
+- **Message content.** The message gets a plain-text and an HTML part, each with a source link and the CC BY-SA 4.0 attribution. The article title is appended to the protocol's default subject, for example `Automated Tool Notification: Caesar cipher`, or `SMTP Test: Caesar cipher` for SMTP. A subject you set yourself is kept.
+- **Fetch failures.** If the fetch fails, for example with no Internet access, a warning is logged and the static placeholder body is sent instead. The request uses `HTTP(S)_PROXY`, and with msgraph also `--proxy`.
+
+Use `--body-source static` (env `<PROTOCOL>BODYSOURCE`, config key `body-source`) to restore the previous behaviour, which sends the built-in placeholder text.
+
 ## freebusy (EWS only)
 
 An EWS-only Free/Busy smoke test: queries `GetUserAvailability` for one or more mailboxes and returns a deterministic **PASS/FAIL** result with per-mailbox event counts and a status breakdown. Requires `--mailbox`, `--start`, and `--end`; additional mailboxes go in `--to` (comma-separated). Times are interpreted in `--timezone` (default UTC) and merged at `--interval` minutes (5–60, default 30). Useful for verifying a service account can read free/busy data and diagnosing permission errors (`ErrorCalendarNoFreeBusyAccess`). See [docs/protocols/ews.md](docs/protocols/ews.md#freebusy--freebusy-availability-test) for full documentation.

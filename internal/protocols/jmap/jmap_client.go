@@ -503,10 +503,46 @@ func (c *JMAPClient) DeleteEmails(ctx context.Context, accountId protocol.Id, id
 	return nil
 }
 
+// GetIdentities fetches the sending identities (Identity/get) of the primary
+// mail account. Requires the urn:ietf:params:jmap:submission capability.
+func (c *JMAPClient) GetIdentities(ctx context.Context) ([]protocol.Identity, error) {
+	if c.session == nil {
+		if _, err := c.Discover(ctx); err != nil {
+			return nil, fmt.Errorf("failed to discover session: %w", err)
+		}
+	}
+	if !c.session.HasCapability(protocol.SubmissionCapability) {
+		return nil, fmt.Errorf("JMAP server does not support %s capability — cannot send mail", protocol.SubmissionCapability)
+	}
+	accountId, ok := c.session.GetPrimaryMailAccountId()
+	if !ok {
+		return nil, fmt.Errorf("no primary mail account found")
+	}
+
+	response, err := c.makeAPIRequest(ctx, *protocol.NewIdentityGetRequest(accountId))
+	if err != nil {
+		return nil, err
+	}
+	if len(response.MethodResponses) == 0 {
+		return nil, fmt.Errorf("no method responses")
+	}
+	mr := response.MethodResponses[0]
+	if protocol.IsErrorResponse(mr.Name) {
+		return nil, fmt.Errorf("JMAP error in Identity/get: %s", string(mr.Arguments))
+	}
+	identities, err := protocol.ParseIdentityGetResponse(&mr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Identity/get response: %w", err)
+	}
+	return identities, nil
+}
+
 // SendEmail creates a draft via Email/set and submits it via EmailSubmission/set.
-// Falls back to Email/set only (without submission) when the server lacks the
+// rcptTo is the SMTP envelope and must include Cc and Bcc recipients. When
+// sentMailboxId is set the sent message is moved there; otherwise the draft is
+// destroyed after submission. Returns an error when the server lacks the
 // urn:ietf:params:jmap:submission capability.
-func (c *JMAPClient) SendEmail(ctx context.Context, draft protocol.EmailCreate, mailFrom string, rcptTo []protocol.EmailAddress) error {
+func (c *JMAPClient) SendEmail(ctx context.Context, draft protocol.EmailCreate, identityId protocol.Id, mailFrom string, rcptTo []protocol.EmailAddress, sentMailboxId protocol.Id) error {
 	if c.session == nil {
 		if _, err := c.Discover(ctx); err != nil {
 			return fmt.Errorf("failed to discover session: %w", err)
@@ -522,15 +558,45 @@ func (c *JMAPClient) SendEmail(ctx context.Context, draft protocol.EmailCreate, 
 		return fmt.Errorf("no primary mail account found")
 	}
 
-	req := protocol.NewEmailSetAndSubmitRequest(accountId, draft, mailFrom, rcptTo)
+	req := protocol.NewEmailSetAndSubmitRequest(accountId, draft, identityId, mailFrom, rcptTo, sentMailboxId)
 	resp, err := c.makeAPIRequest(ctx, *req)
 	if err != nil {
 		return err
 	}
+	return checkSendResponse(resp, protocol.MethodEmailSet, protocol.SendDraftCreationId)
+}
 
-	for _, mr := range resp.MethodResponses {
+// checkSendResponse validates the response to a create-and-submit request.
+// Responses are checked in order, so a failure to create the email (c1) is
+// reported before the submission error it causes (an invalidResultReference
+// on c2), which would otherwise hide the real reason. Per-object rejections
+// arrive in notCreated rather than as method errors and are checked too, so a
+// rejected submission is not reported as success. The implicit Email/set
+// response produced by onSuccessUpdateEmail/onSuccessDestroyEmail (call ID c2)
+// is post-send cleanup and is not treated as a send failure.
+func checkSendResponse(resp *protocol.Response, createMethod, emailCreationId string) error {
+	for i := range resp.MethodResponses {
+		mr := &resp.MethodResponses[i]
 		if protocol.IsErrorResponse(mr.Name) {
 			return fmt.Errorf("JMAP error in %s: %s", mr.CallId, string(mr.Arguments))
+		}
+
+		var creationId, step string
+		switch {
+		case mr.CallId == "c1" && mr.Name == createMethod:
+			creationId, step = emailCreationId, "create the message"
+		case mr.CallId == "c2" && mr.Name == protocol.MethodEmailSubmissionSet:
+			creationId, step = protocol.SendSubmissionCreationId, "submit the message"
+		default:
+			continue
+		}
+
+		notCreated, err := protocol.ParseNotCreated(mr)
+		if err != nil {
+			return fmt.Errorf("failed to parse %s response: %w", mr.Name, err)
+		}
+		if setErr, failed := notCreated[creationId]; failed {
+			return fmt.Errorf("%s did not %s: %s", mr.Name, step, setErr)
 		}
 	}
 	return nil
@@ -538,7 +604,8 @@ func (c *JMAPClient) SendEmail(ctx context.Context, draft protocol.EmailCreate, 
 
 // SendRawEmail imports a complete RFC 5322 message and submits it. The import
 // path is used when caller-controlled headers must be preserved by the server.
-func (c *JMAPClient) SendRawEmail(ctx context.Context, rawMessage []byte, mailboxIds map[protocol.Id]bool, mailFrom string, rcptTo []protocol.EmailAddress) error {
+// See SendEmail for rcptTo and sentMailboxId.
+func (c *JMAPClient) SendRawEmail(ctx context.Context, rawMessage []byte, mailboxIds map[protocol.Id]bool, identityId protocol.Id, mailFrom string, rcptTo []protocol.EmailAddress, sentMailboxId protocol.Id) error {
 	if c.session == nil {
 		if _, err := c.Discover(ctx); err != nil {
 			return fmt.Errorf("failed to discover session: %w", err)
@@ -556,17 +623,12 @@ func (c *JMAPClient) SendRawEmail(ctx context.Context, rawMessage []byte, mailbo
 		return fmt.Errorf("failed to upload raw message: %w", err)
 	}
 
-	request := protocol.NewEmailImportAndSubmitRequest(accountId, blobId, mailboxIds, mailFrom, rcptTo)
+	request := protocol.NewEmailImportAndSubmitRequest(accountId, blobId, mailboxIds, identityId, mailFrom, rcptTo, sentMailboxId)
 	response, err := c.makeAPIRequest(ctx, *request)
 	if err != nil {
 		return err
 	}
-	for _, methodResponse := range response.MethodResponses {
-		if protocol.IsErrorResponse(methodResponse.Name) {
-			return fmt.Errorf("JMAP error in %s: %s", methodResponse.CallId, string(methodResponse.Arguments))
-		}
-	}
-	return nil
+	return checkSendResponse(response, protocol.MethodEmailImport, protocol.SendImportCreationId)
 }
 
 // GetAuthMethod returns the authentication method that will be used.

@@ -410,6 +410,8 @@ gomailtest msgraph testauth --tenantid "..." --clientid "..." --secret "..." --o
 | `--bcc` | Comma-separated BCC recipients | `MSGRAPHBCC` |
 | `--subject` | Email subject | `MSGRAPHSUBJECT` |
 | `--body` | Email body text | `MSGRAPHBODY` |
+| `--body-source` | Body used when no `--body`, `--bodyhtml` or `--template` is given (by flag, env var or config file): `wikipedia` fetches a random featured article from en.wikipedia.org (see the README section "sendmail default body"), skipping articles already in this action's default log, and appends its title to the default subject; `static` keeps the built-in placeholder text (sendmail); default `wikipedia` | `MSGRAPHBODYSOURCE` |
+| `--body-categories` | Comma-separated Wikipedia categories for `--body-source wikipedia` (`Category:` prefix optional); empty uses the built-in list of FA-Class technology and science categories (sendmail) | `MSGRAPHBODYCATEGORIES` |
 | `--bodyHTML` | Email body HTML | `MSGRAPHBODYHTML` |
 | `--template` | Message template file with Go `text/template` variables: `.eml` fields are mapped to the Graph API, any other extension is used as the HTML body; mutually exclusive with `--body`/`--bodyHTML` | `MSGRAPHTEMPLATE` |
 | `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` in `--template` (repeatable) | `MSGRAPHTEMPLATEVARS` |

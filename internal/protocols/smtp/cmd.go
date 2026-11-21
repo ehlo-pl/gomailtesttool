@@ -5,6 +5,7 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/wikicontent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -219,6 +220,7 @@ upgrades to TLS automatically, and logs the result (including TLS details) to CS
 
 			logger.LogInfo(slogger, "SMTP Connectivity Testing Tool started", "action", config.Action, "host", config.Host, "port", config.Port)
 
+			applyDefaultBody(ctx, config, slogger)
 			if err := SendMail(ctx, config, csvLogger, slogger); err != nil {
 				logger.LogError(slogger, "Action failed", "error", err)
 				return err
@@ -235,6 +237,8 @@ upgrades to TLS automatically, and logs the result (including TLS details) to CS
 	cmd.Flags().String("bcc", "", "Comma-separated BCC recipient email addresses; included in the SMTP envelope only, never in message headers (env: SMTPBCC)")
 	cmd.Flags().String("subject", "SMTP Test", "Email subject (env: SMTPSUBJECT)")
 	cmd.Flags().String("body", "This is a test message from smtptool", "Email body text (env: SMTPBODY)")
+	cmd.Flags().String("body-source", wikicontent.BodySourceWikipedia, "Body used when no --body, --bodyhtml or --template is given: \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; title appended to the default subject) or \"static\" (built-in placeholder text) (env: SMTPBODYSOURCE)")
+	cmd.Flags().String("body-categories", "", "Comma-separated Wikipedia categories for --body-source wikipedia (\"Category:\" prefix optional); empty uses the built-in list of FA-Class technology and science categories (env: SMTPBODYCATEGORIES)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content; combine with --body for multipart/alternative (env: SMTPBODYHTML)")
 	cmd.Flags().String("messageid", "", "Complete Message-ID value to use (env: SMTPMESSAGEID)")
 	cmd.Flags().String("messageidsuffix", "", "Domain suffix for the generated Message-ID (env: SMTPMESSAGEIDSUFFIX)")

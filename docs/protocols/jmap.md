@@ -86,6 +86,19 @@ When a caller-selected Message-ID is requested, imports a complete RFC 5322
 message via `Email/import` before submitting it so the ID is included in the
 message bytes.
 
+The message is created in the account's Drafts mailbox (or Sent, if there is no
+Drafts mailbox), because RFC 8621 requires every email to belong to a mailbox.
+After a successful submission the draft is deleted. With `--save-to-sent`, the
+message is moved to the Sent mailbox and its `$draft` keyword is cleared
+instead. Cc and Bcc recipients are included in the SMTP envelope.
+
+The submission uses the account's sending identity (`Identity/get`) whose
+address matches the sender, then a `*@domain` wildcard identity. If the account
+has only one identity, that one is used. If several exist and none match, the
+command fails and lists the available identities. If the server
+rejects the message or the submission, the error shows the server's reason
+(for example `invalidProperties (mailboxIds)` or `forbiddenFrom`).
+
 ```powershell
 gomailtest jmap sendmail --host jmap.fastmail.com \
     --username user@example.com --accesstoken "your-api-token" \
@@ -166,6 +179,8 @@ gomailtest jmap exportmessages --host jmap.fastmail.com \
 | `--subject` | Email subject (sendmail); subject substring to search for (exportmessages) | `JMAPSUBJECT` | Automated Tool Notification (empty for exportmessages) |
 | `--body` | Email body text (sendmail) | `JMAPBODY` | test message |
 | `--bodyhtml` | HTML body content (sendmail) | `JMAPBODYHTML` | — |
+| `--body-source` | Body used when no `--body`, `--bodyhtml` or `--template` is given (by flag, env var or config file): `wikipedia` fetches a random featured article from en.wikipedia.org (see the README section "sendmail default body"), skipping articles already in this action's default log, and appends its title to the default subject; `static` keeps the built-in placeholder text (sendmail) | `JMAPBODYSOURCE` | `wikipedia` |
+| `--body-categories` | Comma-separated Wikipedia categories for `--body-source wikipedia` (`Category:` prefix optional); empty uses the built-in list of FA-Class technology and science categories (sendmail) | `JMAPBODYCATEGORIES` | built-in list |
 | `--template` | Message template file with Go `text/template` variables: `.eml` fields are mapped to `Email/set`, any other extension is used as the HTML body (sendmail) | `JMAPTEMPLATE` | — |
 | `--template-vars` | Template variable in `key=value` form, referenced as `{{.key}}` (repeatable, sendmail) | `JMAPTEMPLATEVARS` | — |
 | `--messageid` | Complete Message-ID value to use (sendmail); Internet Message-ID to search for (exportmessages) | `JMAPMESSAGEID` | — |

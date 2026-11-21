@@ -5,6 +5,7 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/logger"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/wikicontent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -591,6 +592,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 			if err := resolveTemplate(config, slogger); err != nil {
 				return fmt.Errorf("template failed: %w", err)
 			}
+			applyDefaultBody(ctx, config, slogger)
 			return sendMail(ctx, config, csvLogger, slogger)
 		},
 	}
@@ -598,6 +600,8 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("cc", "", "Comma-separated CC recipients (env: EWSCC)")
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: EWSSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: EWSBODY)")
+	cmd.Flags().String("body-source", wikicontent.BodySourceWikipedia, "Body used when no --body, --bodyhtml or --template is given: \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; title appended to the default subject) or \"static\" (built-in placeholder text) (env: EWSBODYSOURCE)")
+	cmd.Flags().String("body-categories", "", "Comma-separated Wikipedia categories for --body-source wikipedia (\"Category:\" prefix optional); empty uses the built-in list of FA-Class technology and science categories (env: EWSBODYCATEGORIES)")
 	cmd.Flags().String("messageid", "", "Value for the X-Message-ID custom header (env: EWSMESSAGEID)")
 	cmd.Flags().String("messageidsuffix", "", "Domain suffix for the generated X-Message-ID custom header (env: EWSMESSAGEIDSUFFIX)")
 	cmd.Flags().String("bodyhtml", "", "HTML body content (overrides --body if set) (env: EWSBODYHTML)")

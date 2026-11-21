@@ -115,19 +115,37 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		return fmt.Errorf("no sender address available: provide --username or a From header in the template")
 	}
 
-	// Optionally find and record the Sent mailbox in mailboxIds.
-	mailboxIds := map[protocol.Id]bool{}
-	if config.SaveToSent {
-		mailboxes, err := client.GetMailboxes(ctx)
-		if err != nil {
-			logger.LogError(slogLogger, "Failed to retrieve mailboxes", "error", err)
-			writeRow("FAILURE", err.Error())
-			return fmt.Errorf("failed to retrieve mailboxes: %w", err)
-		}
-		if sentMb := findMailboxByRole(mailboxes, "sent"); sentMb != nil {
-			mailboxIds[sentMb.Id] = true
-		}
+	// RFC 8621 requires every Email to belong to at least one Mailbox, so the
+	// message is always created in a real mailbox (servers such as Stalwart
+	// reject an empty mailboxIds). See selectSendMailboxes.
+	mailboxes, err := client.GetMailboxes(ctx)
+	if err != nil {
+		logger.LogError(slogLogger, "Failed to retrieve mailboxes", "error", err)
+		writeRow("FAILURE", err.Error())
+		return fmt.Errorf("failed to retrieve mailboxes: %w", err)
 	}
+	mailboxIds, sentMailboxId, err := selectSendMailboxes(mailboxes, config.SaveToSent)
+	if err != nil {
+		writeRow("FAILURE", err.Error())
+		return err
+	}
+	if config.SaveToSent && sentMailboxId == "" {
+		logger.LogWarn(slogLogger, "No mailbox with role 'sent' found; the sent message will not be saved")
+	}
+
+	// RFC 8621 requires every EmailSubmission to name the sending Identity.
+	identities, err := client.GetIdentities(ctx)
+	if err != nil {
+		logger.LogError(slogLogger, "Failed to retrieve identities", "error", err)
+		writeRow("FAILURE", err.Error())
+		return fmt.Errorf("failed to retrieve identities: %w", err)
+	}
+	identity, err := selectIdentity(identities, mailFrom)
+	if err != nil {
+		writeRow("FAILURE", err.Error())
+		return err
+	}
+	logger.LogDebug(slogLogger, "Using JMAP identity", "identity_id", identity.Id, "identity_email", identity.Email)
 
 	toAddrs := make([]protocol.EmailAddress, 0, len(config.To))
 	for _, addr := range config.To {
@@ -141,6 +159,12 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	for _, addr := range config.Bcc {
 		bccAddrs = append(bccAddrs, protocol.EmailAddress{Email: addr})
 	}
+
+	// The SMTP envelope must list every recipient, including Cc and Bcc.
+	envelopeRcpts := make([]protocol.EmailAddress, 0, len(toAddrs)+len(ccAddrs)+len(bccAddrs))
+	envelopeRcpts = append(envelopeRcpts, toAddrs...)
+	envelopeRcpts = append(envelopeRcpts, ccAddrs...)
+	envelopeRcpts = append(envelopeRcpts, bccAddrs...)
 
 	bodyValues := map[string]protocol.EmailBodyValue{
 		"textPart": {Value: config.Body, Charset: "utf-8"},
@@ -188,7 +212,7 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 			writeRow("FAILURE", buildErr.Error())
 			return fmt.Errorf("failed to build RFC 5322 message: %w", buildErr)
 		}
-		if err := client.SendRawEmail(ctx, rawMessage, mailboxIds, mailFrom, append(toAddrs, append(ccAddrs, bccAddrs...)...)); err != nil {
+		if err := client.SendRawEmail(ctx, rawMessage, mailboxIds, identity.Id, mailFrom, envelopeRcpts, sentMailboxId); err != nil {
 			logger.LogError(slogLogger, "Failed to send mail", "error", err)
 			writeRow("FAILURE", err.Error())
 			return fmt.Errorf("failed to send mail: %w", err)
@@ -241,7 +265,7 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 		"from", mailFrom, "to", strings.Join(config.To, ", "),
 		"subject", config.Subject, "session_api", session.APIURL)
 
-	if err := client.SendEmail(ctx, draft, mailFrom, toAddrs); err != nil {
+	if err := client.SendEmail(ctx, draft, identity.Id, mailFrom, envelopeRcpts, sentMailboxId); err != nil {
 		logger.LogError(slogLogger, "Failed to send mail", "error", err)
 		writeRow("FAILURE", err.Error())
 		return fmt.Errorf("failed to send mail: %w", err)
@@ -255,4 +279,57 @@ func sendMail(ctx context.Context, config *Config, csvLogger logger.Logger, slog
 	writeRow("SUCCESS", "")
 	logger.LogInfo(slogLogger, "sendmail completed", "to", strings.Join(config.To, ", "), "subject", config.Subject)
 	return nil
+}
+
+// selectSendMailboxes chooses where the outgoing message is created and where
+// it ends up after submission. The message is created in Drafts (falling back
+// to Sent) because RFC 8621 requires a non-empty mailboxIds. sentMailboxId is
+// returned only when saveToSent is set and a Sent mailbox exists; when empty,
+// the draft is destroyed after a successful submission.
+func selectSendMailboxes(mailboxes []protocol.Mailbox, saveToSent bool) (map[protocol.Id]bool, protocol.Id, error) {
+	var sentMailboxId protocol.Id
+	sentMb := findMailboxByRole(mailboxes, "sent")
+	if saveToSent && sentMb != nil {
+		sentMailboxId = sentMb.Id
+	}
+
+	createIn := findMailboxByRole(mailboxes, "drafts")
+	if createIn == nil {
+		createIn = sentMb
+	}
+	if createIn == nil {
+		return nil, "", fmt.Errorf("no mailbox with role 'drafts' or 'sent' found; JMAP requires the message to be created in a mailbox before submission")
+	}
+	return map[protocol.Id]bool{createIn.Id: true}, sentMailboxId, nil
+}
+
+// selectIdentity picks the Identity used to submit mail from mailFrom: an exact
+// (case-insensitive) email match first, then a wildcard "*@domain" identity.
+// When nothing matches and the account has a single identity, that one is
+// used and the server decides whether the From address is allowed.
+func selectIdentity(identities []protocol.Identity, mailFrom string) (*protocol.Identity, error) {
+	if len(identities) == 0 {
+		return nil, fmt.Errorf("no JMAP sending identities found for this account; create one on the server")
+	}
+	for i := range identities {
+		if strings.EqualFold(identities[i].Email, mailFrom) {
+			return &identities[i], nil
+		}
+	}
+	if at := strings.LastIndex(mailFrom, "@"); at >= 0 {
+		wildcard := "*" + mailFrom[at:]
+		for i := range identities {
+			if strings.EqualFold(identities[i].Email, wildcard) {
+				return &identities[i], nil
+			}
+		}
+	}
+	if len(identities) == 1 {
+		return &identities[0], nil
+	}
+	emails := make([]string, 0, len(identities))
+	for _, id := range identities {
+		emails = append(emails, id.Email)
+	}
+	return nil, fmt.Errorf("no JMAP identity matches sender %q; available identities: %s", mailFrom, strings.Join(emails, ", "))
 }
