@@ -225,7 +225,7 @@ vars). `teststarttls` requires either STARTTLS or `--smtps` to test, so
 | `--subject` | Email subject | `SMTPSUBJECT` |
 | `--body` | Email body text | `SMTPBODY` |
 | `--bodyhtml` | HTML body content; combine with `--body` for `multipart/alternative` | `SMTPBODYHTML` |
-| `--body-source` | Body used when no `--body`, `--bodyhtml` or `--template` is given (by flag, env var or config file): `static` (default) keeps the built-in placeholder text; `wikipedia` fetches a random featured article from en.wikipedia.org (see the README section "sendmail default body"), skipping articles already in this action's default log, and appends its title to the default subject (sendmail) | `SMTPBODYSOURCE` |
+| `--body-source` | Body used when no `--body`, `--bodyhtml` or `--template` is given (by flag, env var or config file): `static` (default) keeps the built-in placeholder text; `wikipedia` fetches a random featured article from en.wikipedia.org (see the README section "sendmail default body"), skipping articles already in this action's default log, and, unless `--subject` is given, sets the subject to `Wikipedia: <title>` (sendmail) | `SMTPBODYSOURCE` |
 | `--body-categories` | Comma-separated Wikipedia categories for `--body-source wikipedia` (`Category:` prefix optional); empty uses the built-in list of FA-Class technology and science categories (sendmail) | `SMTPBODYCATEGORIES` |
 | `--messageid` | Complete Message-ID value to use | `SMTPMESSAGEID` |
 | `--messageidsuffix` | Domain suffix for the generated Message-ID | `SMTPMESSAGEIDSUFFIX` |

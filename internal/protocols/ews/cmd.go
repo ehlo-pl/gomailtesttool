@@ -600,7 +600,7 @@ func newSendMailCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("cc", "", "Comma-separated CC recipients (env: EWSCC)")
 	cmd.Flags().String("subject", "Automated Tool Notification", "Email subject (env: EWSSUBJECT)")
 	cmd.Flags().String("body", "It's a test message, please ignore", "Email body text (env: EWSBODY)")
-	cmd.Flags().String("body-source", wikicontent.BodySourceStatic, "Body used when no --body, --bodyhtml or --template is given: \"static\" (built-in placeholder text, default) or \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; title appended to the default subject) (env: EWSBODYSOURCE)")
+	cmd.Flags().String("body-source", wikicontent.BodySourceStatic, "Body used when no --body, --bodyhtml or --template is given: \"static\" (built-in placeholder text, default) or \"wikipedia\" (random featured article from en.wikipedia.org, preferring ones not yet in this action's default log; subject \"Wikipedia: <title>\" unless --subject is given) (env: EWSBODYSOURCE)")
 	cmd.Flags().String("body-categories", "", "Comma-separated Wikipedia categories for --body-source wikipedia (\"Category:\" prefix optional); empty uses the built-in list of FA-Class technology and science categories (env: EWSBODYCATEGORIES)")
 	cmd.Flags().String("messageid", "", "Value for the X-Message-ID custom header (env: EWSMESSAGEID)")
 	cmd.Flags().String("messageidsuffix", "", "Domain suffix for the generated X-Message-ID custom header (env: EWSMESSAGEIDSUFFIX)")
