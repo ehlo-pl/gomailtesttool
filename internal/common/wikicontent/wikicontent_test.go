@@ -137,24 +137,24 @@ func TestHistory_UsedTitles(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "_jmaptool_sendmail_2026-11-20.csv"),
 		"Action,Status,Server,To,Subject,Error\n"+
-			"sendmail,SUCCESS,host,a@b,Automated Tool Notification: Binary search,\n"+
-			"sendmail,FAILURE,host,a@b,\"Automated Tool Notification: Comma, quoted\",boom\n"+
+			"sendmail,SUCCESS,host,a@b,Wikipedia: Binary search,\n"+
+			"sendmail,FAILURE,host,a@b,\"Wikipedia: Comma, quoted\",boom\n"+
 			"sendmail,SUCCESS,host,a@b,My own subject,\n"+
 			"sendmail,SUCCESS,host,a@b,Automated Tool Notification,\n")
 	writeFile(t, filepath.Join(dir, "_jmaptool_sendmail_2026-11-21.jsonl"),
-		`{"Action":"sendmail","Subject":"Automated Tool Notification: AT&T","timestamp":"x"}`+"\n"+
+		`{"Action":"sendmail","Subject":"Wikipedia: AT&T","timestamp":"x"}`+"\n"+
 			"not json\n")
 	// Other actions and tools are not this action's history.
-	writeFile(t, filepath.Join(dir, "_jmaptool_listmail_2026-11-21.csv"), "Subject\nAutomated Tool Notification: Listmail\n")
-	writeFile(t, filepath.Join(dir, "_smtptool_sendmail_2026-11-21.csv"), "Subject\nAutomated Tool Notification: Other tool\n")
+	writeFile(t, filepath.Join(dir, "_jmaptool_listmail_2026-11-21.csv"), "Subject\nWikipedia: Listmail\n")
+	writeFile(t, filepath.Join(dir, "_smtptool_sendmail_2026-11-21.csv"), "Subject\nWikipedia: Other tool\n")
 
-	got := History{Dir: dir, Tool: "jmaptool", Action: "sendmail"}.UsedTitles(testSubject)
+	got := History{Dir: dir, Tool: "jmaptool", Action: "sendmail"}.UsedTitles()
 	want := map[string]bool{"Binary search": true, "Comma, quoted": true, "AT&T": true}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("UsedTitles() = %v, want %v", got, want)
 	}
 
-	if got := (History{Dir: t.TempDir(), Tool: "jmaptool", Action: "sendmail"}).UsedTitles(testSubject); len(got) != 0 {
+	if got := (History{Dir: t.TempDir(), Tool: "jmaptool", Action: "sendmail"}).UsedTitles(); len(got) != 0 {
 		t.Errorf("UsedTitles() with no logs = %v, want empty", got)
 	}
 }
@@ -171,7 +171,7 @@ func TestFill(t *testing.T) {
 
 	// "Caesar cipher" was already sent, so Fill must pick "Binary search".
 	logDir := t.TempDir()
-	writeFile(t, filepath.Join(logDir, "_tool_sendmail_2026-11-21.csv"), "Subject\nAutomated Tool Notification: Caesar cipher\n")
+	writeFile(t, filepath.Join(logDir, "_tool_sendmail_2026-11-21.csv"), "Subject\nWikipedia: Caesar cipher\n")
 	history := History{Dir: logDir, Tool: "tool", Action: "sendmail"}
 
 	tests := []struct {
@@ -182,7 +182,7 @@ func TestFill(t *testing.T) {
 		wantSubject string
 		wantWiki    bool
 	}{
-		{name: "default subject gets unused title", url: srv.URL, source: BodySourceWikipedia, subject: testSubject, wantSubject: testSubject + ": Binary search", wantWiki: true},
+		{name: "default subject gets unused title", url: srv.URL, source: BodySourceWikipedia, subject: testSubject, wantSubject: "Wikipedia: Binary search", wantWiki: true},
 		{name: "explicit subject kept", url: srv.URL, source: BodySourceWikipedia, subject: "Mine", wantSubject: "Mine", wantWiki: true},
 		{name: "static source untouched", url: srv.URL, source: BodySourceStatic, subject: testSubject, wantSubject: testSubject},
 		{name: "fetch failure falls back", url: down.URL, source: BodySourceWikipedia, subject: testSubject, wantSubject: testSubject},

@@ -30,15 +30,15 @@ func (h History) pattern() string {
 }
 
 // UsedTitles returns the article titles found in subjects of the form
-// SubjectFor(defaultSubject, title) in all CSV and JSONL log files of the
+// SubjectFor(title) ("Wikipedia: <title>") in all CSV and JSONL log files of the
 // action, across all dates. Unreadable files are skipped: the history is a
 // best-effort hint, never a reason to fail a send.
-func (h History) UsedTitles(defaultSubject string) map[string]bool {
+func (h History) UsedTitles() map[string]bool {
 	used := map[string]bool{}
 	if h.Tool == "" || h.Action == "" {
 		return used
 	}
-	prefix := SubjectFor(defaultSubject, "")
+	prefix := SubjectFor("")
 	add := func(value string) {
 		if title, ok := strings.CutPrefix(value, prefix); ok && title != "" {
 			used[title] = true

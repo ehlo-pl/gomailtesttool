@@ -138,9 +138,9 @@ type Message struct {
 
 // Fill replaces the message body with a random article when source is
 // BodySourceWikipedia. Articles already named in the action's default log
-// files (see History) are skipped while unused ones remain. The subject gets
-// the article title appended only when it still equals defaultSubject; that
-// subject is what the log records, so it is what later runs skip. The
+// files (see History) are skipped while unused ones remain. When the subject
+// still equals defaultSubject (no subject was given) it becomes
+// "Wikipedia: <title>"; that subject is what the log records, so it is what later runs skip. The
 // original body is kept as the first line. Errors are logged as warnings and
 // leave the message unchanged.
 func Fill(ctx context.Context, f *Fetcher, source string, msg Message, defaultSubject string, history History, slogLogger *slog.Logger) {
@@ -150,7 +150,7 @@ func Fill(ctx context.Context, f *Fetcher, source string, msg Message, defaultSu
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
 
-	used := history.UsedTitles(defaultSubject)
+	used := history.UsedTitles()
 	logger.LogDebug(slogLogger, "Wikipedia articles already used in previous runs", "count", len(used), "log_pattern", history.pattern())
 
 	article, err := f.Random(ctx, used)
@@ -168,7 +168,7 @@ func Fill(ctx context.Context, f *Fetcher, source string, msg Message, defaultSu
 // Apply writes article into msg. See Fill.
 func Apply(article *Article, msg Message, defaultSubject string) {
 	if *msg.Subject == defaultSubject {
-		*msg.Subject = SubjectFor(defaultSubject, article.Title)
+		*msg.Subject = SubjectFor(article.Title)
 	}
 	intro := *msg.Body
 	attribution := fmt.Sprintf("Random featured Wikipedia article: %s\n%s\nText from Wikipedia, licensed under CC BY-SA 4.0.", article.Title, article.URL)
@@ -179,10 +179,13 @@ func Apply(article *Article, msg Message, defaultSubject string) {
 		html.EscapeString(article.Title), article.HTML)
 }
 
-// SubjectFor is the subject used for an article when the subject was left at
-// its default. History parses it back.
-func SubjectFor(defaultSubject, title string) string {
-	return defaultSubject + ": " + title
+// SubjectPrefix starts the subject of a message carrying a Wikipedia article.
+const SubjectPrefix = "Wikipedia: "
+
+// SubjectFor is the subject used for an article when no subject was given.
+// History parses it back.
+func SubjectFor(title string) string {
+	return SubjectPrefix + title
 }
 
 // Random picks a random article that is not in used. Categories are tried in
