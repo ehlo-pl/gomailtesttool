@@ -1,6 +1,7 @@
 // Package wikicontent fills an otherwise empty test message with a random
 // featured Wikipedia article, so sendmail tests carry realistic, varied
-// content instead of a one-line placeholder.
+// content instead of a one-line placeholder. It can use a random RFC from the
+// RFC Editor archive or a poem from PoetryDB instead.
 //
 // Articles are picked from a Wikipedia category through the MediaWiki API.
 // Fetching is best effort: callers fall back to their static body when it
@@ -30,6 +31,12 @@ const (
 	// BodySourceWikipedia fills a message without any body with a random
 	// featured Wikipedia article (opt-in with --body-source wikipedia).
 	BodySourceWikipedia = "wikipedia"
+	// BodySourceRFC fills a message without any body with a random RFC from
+	// the IETF's RFC archive (opt-in with --body-source rfc).
+	BodySourceRFC = "rfc"
+	// BodySourcePoetry fills a message without any body with a random public
+	// domain poem from PoetryDB (opt-in with --body-source poetry).
+	BodySourcePoetry = "poetry"
 	// BodySourceStatic keeps the built-in one-line placeholder body (the default).
 	BodySourceStatic = "static"
 )
@@ -90,9 +97,11 @@ type Article struct {
 	Reused   bool   // every candidate had been used before; this one repeats
 }
 
-// Fetcher retrieves random articles from Wikipedia categories.
+// Fetcher retrieves random articles from Wikipedia categories, random RFCs or random poems.
 type Fetcher struct {
 	APIURL     string
+	RFCURL     string // base URL of the RFC archive
+	PoetryURL  string // base URL of PoetryDB
 	Categories []string
 	Client     *http.Client
 }
@@ -105,6 +114,8 @@ func NewFetcher(categories []string) *Fetcher {
 	}
 	return &Fetcher{
 		APIURL:     DefaultAPIURL,
+		RFCURL:     DefaultRFCURL,
+		PoetryURL:  DefaultPoetryURL,
 		Categories: categories,
 		Client: &http.Client{
 			Timeout:   DefaultTimeout,
@@ -116,10 +127,10 @@ func NewFetcher(categories []string) *Fetcher {
 // ValidateBodySource checks a --body-source value.
 func ValidateBodySource(source string) error {
 	switch source {
-	case BodySourceWikipedia, BodySourceStatic:
+	case BodySourceWikipedia, BodySourceRFC, BodySourcePoetry, BodySourceStatic:
 		return nil
 	}
-	return fmt.Errorf("invalid body source %q: must be %q or %q", source, BodySourceWikipedia, BodySourceStatic)
+	return fmt.Errorf("invalid body source %q: must be %q, %q, %q or %q", source, BodySourceStatic, BodySourceWikipedia, BodySourceRFC, BodySourcePoetry)
 }
 
 // NoBodyGiven reports whether a message was configured without any body:
@@ -137,18 +148,31 @@ type Message struct {
 }
 
 // Fill replaces the message body with a random article when source is
-// BodySourceWikipedia. Articles already named in the action's default log
+// BodySourceWikipedia, or with a random RFC when it is BodySourceRFC (subject
+// "RFC <number>: <title>", logged RFC numbers are skipped), or with a random
+// poem when it is BodySourcePoetry (subject "Poem: <title> by <author>"). Articles already named in the action's default log
 // files (see History) are skipped while unused ones remain. When the subject
 // still equals defaultSubject (no subject was given) it becomes
 // "Wikipedia: <title>"; that subject is what the log records, so it is what later runs skip. The
 // original body is kept as the first line. Errors are logged as warnings and
 // leave the message unchanged.
 func Fill(ctx context.Context, f *Fetcher, source string, msg Message, defaultSubject string, history History, slogLogger *slog.Logger) {
-	if source != BodySourceWikipedia {
+	switch source {
+	case BodySourceWikipedia, BodySourceRFC, BodySourcePoetry:
+	default:
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
+
+	switch source {
+	case BodySourceRFC:
+		fillRFC(ctx, f, msg, defaultSubject, history, slogLogger)
+		return
+	case BodySourcePoetry:
+		fillPoem(ctx, f, msg, defaultSubject, history, slogLogger)
+		return
+	}
 
 	used := history.UsedTitles()
 	logger.LogDebug(slogLogger, "Wikipedia articles already used in previous runs", "count", len(used), "log_pattern", history.pattern())
@@ -337,27 +361,7 @@ func (f *Fetcher) extract(ctx context.Context, title string, plain bool) (*extra
 
 // get performs one MediaWiki API GET request and decodes the JSON response.
 func (f *Fetcher) get(ctx context.Context, params url.Values, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.APIURL+"?"+params.Encode(), nil)
-	if err != nil {
-		return err
-	}
-	// Wikimedia's API etiquette asks for a descriptive User-Agent.
-	req.Header.Set("User-Agent", "gomailtest/"+version.Get()+" (+https://github.com/ehlo-pl/gomailtesttool)")
-	req.Header.Set("Accept", "application/json")
-
-	client := f.Client
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, f.APIURL)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	body, err := f.getBytes(ctx, f.APIURL+"?"+params.Encode(), "application/json")
 	if err != nil {
 		return err
 	}
@@ -365,4 +369,38 @@ func (f *Fetcher) get(ctx context.Context, params url.Values, out any) error {
 		return fmt.Errorf("invalid JSON response: %w", err)
 	}
 	return nil
+}
+
+// statusError is a response other than 200 OK.
+type statusError struct {
+	code int
+	url  string
+}
+
+func (e *statusError) Error() string { return fmt.Sprintf("HTTP %d from %s", e.code, e.url) }
+
+// getBytes performs one GET request and returns the response body.
+func (f *Fetcher) getBytes(ctx context.Context, target, accept string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Wikimedia's API etiquette asks for a descriptive User-Agent.
+	req.Header.Set("User-Agent", "gomailtest/"+version.Get()+" (+https://github.com/ehlo-pl/gomailtesttool)")
+	req.Header.Set("Accept", accept)
+
+	client := f.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		base, _, _ := strings.Cut(target, "?")
+		return nil, &statusError{code: resp.StatusCode, url: base}
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 }

@@ -21,6 +21,7 @@ func TestConfigFromViper_BodySource(t *testing.T) {
 		{name: "defaults", wantSource: "", wantNoBody: true},
 		{name: "SMTPBODY env counts as a body", env: map[string]string{"SMTPBODY": "from env"}, wantNoBody: false},
 		{name: "SMTPBODYSOURCE env", env: map[string]string{"SMTPBODYSOURCE": "Static"}, wantSource: wikicontent.BodySourceStatic, wantNoBody: true},
+		{name: "SMTPBODYSOURCE rfc", env: map[string]string{"SMTPBODYSOURCE": "RFC"}, wantSource: wikicontent.BodySourceRFC, wantNoBody: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

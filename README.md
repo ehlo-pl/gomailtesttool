@@ -73,12 +73,24 @@ JMAP is not supported: JMAP (RFC 8620) has no availability/free-busy API, and th
 
 ## sendmail default body
 
-By default, `sendmail` (smtp, jmap, ews, msgraph, gmail) run without any body sends a one-line built-in placeholder text and does not contact Wikipedia. With `--body-source wikipedia` (env `<PROTOCOL>BODYSOURCE`, config key `body-source`) the message is instead filled with a random featured article from English Wikipedia. "Without any body" means no `--body`, `--bodyhtml` or `--template`, whether set by flag, env var or config file.
+By default, `sendmail` (smtp, jmap, ews, msgraph, gmail) run without any body sends a one-line built-in placeholder text and does not contact any content site. With `--body-source wikipedia` (env `<PROTOCOL>BODYSOURCE`, config key `body-source`) the message is instead filled with a random featured article from English Wikipedia. "Without any body" means no `--body`, `--bodyhtml` or `--template`, whether set by flag, env var or config file.
 
 - **Categories.** By default articles come from these FA-Class WikiProject categories: Computer science, Computing, Technology, Engineering, Systems, Internet, Telecommunications, Cryptography, Robotics, Statistics, Chemistry and Astronomy (about 230 articles). A category is picked at random, then an article within it. `--body-categories` (env `<PROTOCOL>BODYCATEGORIES`, config key `body-categories`) replaces the list with your own comma-separated categories; the `Category:` prefix is optional.
 - **A new article on every run.** Before picking, the tool reads the action's default result logs (`_<tool>_sendmail_*.csv` and `.jsonl` in the temp directory, all dates). It skips every article whose title already appears in a logged subject. When every article in the categories has been used, one is repeated and a warning is logged. This only works while no subject is given, because the subject is where the title is recorded. With your own `--subject` the title is not logged, so repeats can happen.
 - **Message content.** The message gets a plain-text and an HTML part, each with a source link and the CC BY-SA 4.0 attribution. When no subject is given, the subject is `Wikipedia: <article title>`, for example `Wikipedia: Caesar cipher`. A subject you set yourself (flag, env var or config file) is kept.
 - **Fetch failures.** If the fetch fails, for example with no Internet access, a warning is logged and the static placeholder body is sent instead. The request uses `HTTP(S)_PROXY`, and with msgraph also `--proxy`.
+
+With `--body-source rfc` the message is filled with a random RFC from the IETF's archive at [rfc-editor.org](https://www.rfc-editor.org) instead.
+
+- **Selection.** Any RFC listed with a plain-text version can be picked. RFCs whose number already appears in a logged subject of the action are skipped. `--body-categories` is ignored.
+- **Message content.** The full text goes into the plain-text part and, preformatted, into the HTML part, each with a source link and a copyright (BCP 78) note. Text over 1 MiB is cut, with a link to the rest. When no subject is given, the subject is `RFC <number>: <title>`, for example `RFC 5321: Simple Mail Transfer Protocol`.
+- **Fetch failures** are handled as for Wikipedia: a warning, then the static body. The 15 s timeout and proxy settings are the same.
+
+With `--body-source poetry` the message is filled with a random public domain poem from [PoetryDB](https://poetrydb.org) (about 3,000 classic poems).
+
+- **Selection.** Ten random poems are requested and the first one not already named in a logged subject of the action is used. If all ten were used, one is repeated and a warning is logged. `--body-categories` is ignored.
+- **Message content.** The poem goes into the plain-text part and, preformatted, into the HTML part, with the PoetryDB CC BY 4.0 attribution. When no subject is given, the subject is `Poem: <title> by <author>`.
+- **Fetch failures** are handled as for Wikipedia.
 
 ## freebusy (EWS only)
 
