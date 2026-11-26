@@ -48,7 +48,7 @@ type Config struct {
 	// Email content
 	Subject        string   // Email subject line
 	Body           string   // Email body text content
-	BodySource     string   // Body used when none is given: "wikipedia" (random article) or "static"
+	BodySource     string   // Body used when none is given: "wikipedia" (random article), "rfc", "poetry" or "static"
 	BodyCategories []string // Wikipedia categories for the "wikipedia" body source; empty means the defaults
 	BodyHTML       string   // Email body HTML content (future use)
 	Priority       string   // Email priority: high, normal, low (maps to Graph Importance)

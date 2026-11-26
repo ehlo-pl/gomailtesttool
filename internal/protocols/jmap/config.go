@@ -40,7 +40,7 @@ type Config struct {
 	Bcc                   []string
 	Subject               string
 	Body                  string
-	BodySource            string   // Body used when none is given: "wikipedia" (random article) or "static"
+	BodySource            string   // Body used when none is given: "wikipedia" (random article), "rfc", "poetry" or "static"
 	BodyCategories        []string // Wikipedia categories for the "wikipedia" body source; empty means the defaults
 	BodyHTML              string
 	From                  string   // Sender override; filled from an .eml --template's From header (no flag)

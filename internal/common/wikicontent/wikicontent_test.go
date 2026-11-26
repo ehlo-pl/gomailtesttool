@@ -260,7 +260,7 @@ func TestNoBodyGiven(t *testing.T) {
 }
 
 func TestValidateBodySource(t *testing.T) {
-	for _, ok := range []string{BodySourceWikipedia, BodySourceStatic} {
+	for _, ok := range []string{BodySourceWikipedia, BodySourceRFC, BodySourcePoetry, BodySourceStatic} {
 		if err := ValidateBodySource(ok); err != nil {
 			t.Errorf("ValidateBodySource(%q) error = %v", ok, err)
 		}

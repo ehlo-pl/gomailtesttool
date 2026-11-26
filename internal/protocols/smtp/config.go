@@ -42,7 +42,7 @@ type Config struct {
 	Bcc               []string // BCC recipients: added to the SMTP envelope (RCPT TO) only, never to message headers
 	Subject           string
 	Body              string
-	BodySource        string   // Body used when none is given: "wikipedia" (random article) or "static"
+	BodySource        string   // Body used when none is given: "wikipedia" (random article), "rfc", "poetry" or "static"
 	BodyCategories    []string // Wikipedia categories for the "wikipedia" body source; empty means the defaults
 	BodyHTML          string   // HTML body content; if set alongside Body, a multipart/alternative message is sent
 	Attachments       []string // File paths to attach to email

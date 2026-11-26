@@ -7,14 +7,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 // History locates the default result logs of one tool action, written by
 // internal/common/logger as <Dir>/_<Tool>_<Action>_<date>.csv or .jsonl.
 // Every logged sendmail row records the subject, and a subject left at its
-// default carries the article title (see SubjectFor), so the logs tell which
-// articles were already sent.
+// default carries the article title (see SubjectFor) or RFC number (see
+// RFCSubjectFor) or poem (PoemSubjectFor), so the logs tell which were already sent.
 type History struct {
 	Dir    string // directory with the logs; "" means os.TempDir()
 	Tool   string // tool name passed to the logger, e.g. "jmaptool"
@@ -34,17 +35,48 @@ func (h History) pattern() string {
 // action, across all dates. Unreadable files are skipped: the history is a
 // best-effort hint, never a reason to fail a send.
 func (h History) UsedTitles() map[string]bool {
+	return h.usedAfter(SubjectFor(""))
+}
+
+// UsedPoems is UsedTitles for the poem names in subjects of the form
+// PoemSubjectFor(name) ("Poem: <title> by <author>").
+func (h History) UsedPoems() map[string]bool {
+	return h.usedAfter(PoemSubjectFor(""))
+}
+
+// usedAfter returns what follows prefix in the logged values starting with it.
+func (h History) usedAfter(prefix string) map[string]bool {
 	used := map[string]bool{}
-	if h.Tool == "" || h.Action == "" {
-		return used
-	}
-	prefix := SubjectFor("")
-	add := func(value string) {
+	h.eachValue(func(value string) {
 		if title, ok := strings.CutPrefix(value, prefix); ok && title != "" {
 			used[title] = true
 		}
-	}
+	})
+	return used
+}
 
+// UsedRFCs is UsedTitles for the RFC numbers in subjects of the form
+// RFCSubjectFor(number, title) ("RFC <number>: <title>").
+func (h History) UsedRFCs() map[int]bool {
+	used := map[int]bool{}
+	h.eachValue(func(value string) {
+		rest, ok := strings.CutPrefix(value, RFCSubjectPrefix)
+		if !ok {
+			return
+		}
+		digits, _, found := strings.Cut(rest, ": ")
+		if n, err := strconv.Atoi(digits); found && err == nil {
+			used[n] = true
+		}
+	})
+	return used
+}
+
+// eachValue calls add for every value in the action's log files.
+func (h History) eachValue(add func(string)) {
+	if h.Tool == "" || h.Action == "" {
+		return
+	}
 	files, _ := filepath.Glob(h.pattern())
 	for _, path := range files {
 		switch strings.ToLower(filepath.Ext(path)) {
@@ -54,7 +86,6 @@ func (h History) UsedTitles() map[string]bool {
 			readJSONLValues(path, add)
 		}
 	}
-	return used
 }
 
 func readCSVValues(path string, add func(string)) {

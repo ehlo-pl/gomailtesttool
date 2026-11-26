@@ -421,7 +421,7 @@ gomailtest ews exportmessages --host mail.example.com --username "CORP\user" \
 | `--subject` | `Automated Tool Notification` (empty for exportmessages) | Email subject (sendmail); subject substring to search for (exportmessages) |
 | `--body` | test message | Email body text (sendmail) |
 | `--bodyhtml` | | HTML body content, overrides `--body` (sendmail) |
-| `--body-source` | `static` | Body used when no `--body`, `--bodyhtml` or `--template` is given (by flag, env var or config file): `static` (default) keeps the built-in placeholder text; `wikipedia` fetches a random featured article from en.wikipedia.org (see the README section "sendmail default body"), skipping articles already in this action's default log, and, unless `--subject` is given, sets the subject to `Wikipedia: <title>` (sendmail) |
+| `--body-source` | `static` | Body used when no `--body`, `--bodyhtml` or `--template` is given (by flag, env var or config file): `static` (default) keeps the built-in placeholder text; `wikipedia` fetches a random featured article from en.wikipedia.org (see the README section "sendmail default body"), skipping articles already in this action's default log, and, unless `--subject` is given, sets the subject to `Wikipedia: <title>`; `rfc` does the same with a random RFC from the IETF archive at rfc-editor.org, with subject `RFC <number>: <title>`; `poetry` does the same with a random public domain poem from poetrydb.org, with subject `Poem: <title> by <author>` (sendmail) |
 | `--body-categories` | | Comma-separated Wikipedia categories for `--body-source wikipedia` (`Category:` prefix optional); empty uses the built-in list of FA-Class technology and science categories (sendmail) |
 | `--messageid` | | Complete value for the `X-Message-ID` custom header (sendmail/draft) |
 | `--messageidsuffix` | | Domain suffix for the generated `X-Message-ID` (sendmail/draft) |
@@ -464,7 +464,7 @@ All flags can be set via environment variables using the `EWS` prefix:
 | `EWSSUBJECT` | `--subject` | Email subject (sendmail); subject substring to search for (exportmessages) |
 | `EWSBODY` | `--body` | Email body text (sendmail) |
 | `EWSBODYHTML` | `--bodyhtml` | HTML body content (sendmail) |
-| `EWSBODYSOURCE` | `--body-source` | `wikipedia` or `static` (sendmail) |
+| `EWSBODYSOURCE` | `--body-source` | `static`, `wikipedia`, `rfc` or `poetry` (sendmail) |
 | `EWSBODYCATEGORIES` | `--body-categories` | Wikipedia categories for the default body (sendmail) |
 | `EWSTEMPLATE` | `--template` | Message template file (sendmail) |
 | `EWSTEMPLATEVARS` | `--template-vars` | Template variables in `key=value` form (sendmail) |
