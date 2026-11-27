@@ -194,10 +194,7 @@ func (c *IMAPClient) authLogin(username, password string) error {
 
 // authXOAUTH2 performs XOAUTH2 authentication.
 func (c *IMAPClient) authXOAUTH2(username, accessToken string) error {
-	saslClient := sasl.NewOAuthBearerClient(&sasl.OAuthBearerOptions{
-		Username: username,
-		Token:    accessToken,
-	})
+	saslClient := &xoauth2Client{username: username, token: accessToken}
 	if err := c.client.Authenticate(saslClient); err != nil {
 		return fmt.Errorf("XOAUTH2 authentication failed: %w", err)
 	}

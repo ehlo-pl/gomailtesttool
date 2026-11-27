@@ -1,0 +1,23 @@
+[Unit]
+Description=Mail domain warm-up service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=warmingup
+Group=warmingup
+EnvironmentFile=-/etc/warmingup/warmingup.env
+ExecStart=/usr/local/bin/warmingup run --config /etc/warmingup/warmingup.yaml --datadir /var/lib/warmingup
+Restart=on-failure
+RestartSec=60
+StateDirectory=warmingup
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+
+[Install]
+WantedBy=multi-user.target

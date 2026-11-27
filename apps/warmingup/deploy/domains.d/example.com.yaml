@@ -1,0 +1,38 @@
+# /etc/warmingup/domains.d/example.com.yaml - one file per warmed domain
+domain: example.com
+enabled: true
+
+sender:
+  endpoint: site-mta
+  from: "Example News <news@example.com>"
+  ehloname: mail.example.com
+bounce:
+  endpoint: bounce-example
+  # address: bounces@example.com   # defaults to the endpoint's mailbox
+
+targets: [gmail1, yahoo1, outlook1, wp1, fastmail1]
+
+campaign:
+  start: 2026-12-01 08:00
+  end:   2027-01-15 17:00          # omit to stay at the peak until stopped
+timezone: Europe/Warsaw
+business_hours:                    # or: business_hours: none
+  start: "08:00"
+  end:   "17:00"
+  days:  [mon, tue, wed, thu, fri]
+holidays: ["2026-12-24", "2026-12-25", "2026-12-26", "2027-01-01", "2027-01-06"]
+
+speed:
+  ramp_days: 30
+  start_per_day: 1
+  curve: geometric
+  business_per_hour: 3
+  off_hours_per_day: [1, 2]
+  min_gap: 10m
+  # max_per_day: 29
+  # per_day: 20                    # peak when business_hours is none
+
+content:
+  sources: [wikipedia, poetry, rfc]
+
+dkim_selector: mail

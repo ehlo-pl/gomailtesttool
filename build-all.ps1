@@ -13,12 +13,16 @@
 #
 # Pass -MailFlow to also build the mail flow probe service (apps/TestMailFlow)
 # as bin\testmailflow.exe.
+#
+# Pass -Warmup to also build the domain warm-up service (apps/warmingup) as
+# bin\warmingup.exe.
 
 param(
     [switch]$Verbose,
     [string]$Protocols = "",
     [switch]$Dmarc,
-    [switch]$MailFlow
+    [switch]$MailFlow,
+    [switch]$Warmup
 )
 
 $ErrorActionPreference = "Stop"
@@ -107,6 +111,21 @@ if ($MailFlow) {
         exit 1
     }
     Write-ColorOutput "  Built bin\testmailflow.exe — version $version" "Green"
+}
+
+# Build warmingup
+if ($Warmup) {
+    $warmOut = Join-Path $binDir "warmingup.exe"
+    $warmArgs = @("-ldflags=-s -w", "-trimpath", "-o", $warmOut, "./apps/warmingup/cmd/warmingup")
+    if ($Verbose) {
+        $warmArgs = @("-v") + $warmArgs
+    }
+    & go build @warmArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorOutput "  ✗ warmingup build failed" "Red"
+        exit 1
+    }
+    Write-ColorOutput "  Built bin\warmingup.exe — version $version" "Green"
 }
 
 # Summary

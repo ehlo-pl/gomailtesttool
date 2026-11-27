@@ -71,6 +71,7 @@ type Config struct {
 	IPv4Only       bool   // Force resolving --host/--address to an IPv4 (A record) address
 	IPv6Only       bool   // Force resolving --host/--address to an IPv6 (AAAA record) address
 	UseMX          bool   // Treat --host as a domain and connect to its MX record instead
+	EHLOName       string // Name announced in EHLO by library callers (key "ehloname"); empty keeps the default
 	ProxyURL       string
 	MaxRetries     int
 	RetryDelay     time.Duration
@@ -319,6 +320,7 @@ func ConfigFromViper(v *viper.Viper) *Config {
 		IPv4Only:          v.GetBool("ipv4"),
 		IPv6Only:          v.GetBool("ipv6"),
 		UseMX:             v.GetBool("use-mx"),
+		EHLOName:          v.GetString("ehloname"),
 		ProxyURL:          v.GetString("proxy"),
 		MaxRetries:        maxRetries,
 		RetryDelay:        time.Duration(retryDelayMs) * time.Millisecond,

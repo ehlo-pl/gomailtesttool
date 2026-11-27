@@ -1,0 +1,59 @@
+# /etc/warmingup/warmingup.yaml
+# ${NAME} values come from /etc/warmingup/warmingup.env.
+warmingup:
+  datadir: /var/lib/warmingup
+  loglevel: INFO
+  # domains_dir: domains.d      # relative to this file
+
+endpoints:
+  site-mta:                     # your own mail server; it must DKIM sign
+    protocol: smtp
+    host: mail.example.com
+    port: 587
+    starttls: true
+    username: warmup@example.com
+    password: ${SITE_MTA_PASSWORD}
+
+  bounce-example:               # mailbox of the envelope sender
+    protocol: imap
+    host: imap.example.com
+    imaps: true
+    username: bounces@example.com
+    password: ${BOUNCE_PASSWORD}
+
+  gmail1:
+    protocol: imap
+    host: imap.gmail.com
+    imaps: true
+    username: you.seed@gmail.com
+    password: ${GMAIL1_APP_PASSWORD}
+    junk: "[Gmail]/Spam"
+
+  yahoo1:
+    protocol: imap
+    host: imap.mail.yahoo.com
+    imaps: true
+    username: you.seed@yahoo.com
+    password: ${YAHOO1_APP_PASSWORD}
+
+  outlook1:                     # sign in once: warmingup auth outlook1
+    protocol: imap
+    host: outlook.office365.com
+    imaps: true
+    username: you.seed@outlook.com
+    oauth: microsoft
+    clientid: 00000000-0000-0000-0000-000000000000
+
+  wp1:
+    protocol: imap
+    host: imap.wp.pl
+    imaps: true
+    username: you.seed@wp.pl
+    password: ${WP1_PASSWORD}
+    # junk: Spam                # set if "validate --connect" asks for it
+
+  fastmail1:
+    protocol: jmap
+    host: api.fastmail.com
+    accesstoken: ${FASTMAIL_API_TOKEN}
+    address: you.seed@fastmail.com
