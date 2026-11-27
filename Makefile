@@ -1,10 +1,12 @@
 BINARY := bin/gomailtest
 DMARC_BINARY := bin/dmarcanalyzer
 TMF_BINARY := bin/testmailflow
+WARMUP_BINARY := bin/warmingup
 ifeq ($(OS),Windows_NT)
   BINARY := bin/gomailtest.exe
   DMARC_BINARY := bin/dmarcanalyzer.exe
   TMF_BINARY := bin/testmailflow.exe
+  WARMUP_BINARY := bin/warmingup.exe
 endif
 
 VERSION := $(shell grep -oP 'Version = "\K[^"]+' internal/common/version/version.go 2>/dev/null || echo unknown)
@@ -22,7 +24,7 @@ else
   BINARY_CUSTOM := bin/gomailtest-$(PROTO_SUFFIX)
 endif
 
-.PHONY: build build-all build-dmarc build-tmf build-verbose build-custom build-smtp-only build-msgraph-only build-standard-only test integration-test clean help
+.PHONY: build build-all build-dmarc build-tmf build-warmup build-verbose build-custom build-smtp-only build-msgraph-only build-standard-only test integration-test clean help
 
 build: ## Build the gomailtest binary with all protocols (optimized for size & reproducibility)
 	go build -ldflags="-s -w" -trimpath -o $(BINARY) ./cmd/gomailtest
@@ -36,7 +38,11 @@ build-tmf: ## Build the testmailflow binary (apps/TestMailFlow)
 	go build -ldflags="-s -w" -trimpath -o $(TMF_BINARY) ./apps/TestMailFlow/cmd/testmailflow
 	@echo "Built $(TMF_BINARY) — version $(VERSION)"
 
-build-all: build build-dmarc build-tmf ## Build gomailtest, dmarcanalyzer and testmailflow
+build-warmup: ## Build the warmingup binary (apps/warmingup)
+	go build -ldflags="-s -w" -trimpath -o $(WARMUP_BINARY) ./apps/warmingup/cmd/warmingup
+	@echo "Built $(WARMUP_BINARY) — version $(VERSION)"
+
+build-all: build build-dmarc build-tmf build-warmup ## Build gomailtest, dmarcanalyzer, testmailflow and warmingup
 
 build-verbose: ## Build the gomailtest binary with verbose output
 	go build -v -ldflags="-s -w" -trimpath -o $(BINARY) ./cmd/gomailtest
@@ -63,7 +69,7 @@ integration-test: build ## Run MS Graph integration tests (requires MSGRAPH* env
 	go test -tags integration -v -timeout 120s ./tests/integration/
 
 clean: ## Remove build artifacts
-	rm -f $(BINARY) $(DMARC_BINARY) $(TMF_BINARY) bin/gomailtest-*
+	rm -f $(BINARY) $(DMARC_BINARY) $(TMF_BINARY) $(WARMUP_BINARY) bin/gomailtest-*
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*##"}; {printf "  %-20s %s\n", $$1, $$2}'

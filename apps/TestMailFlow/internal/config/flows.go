@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/ehlo-pl/gomailtesttool/internal/common/security"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/endpoint"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/validation"
 )
 
@@ -29,29 +29,8 @@ var DefaultChecks = []time.Duration{5 * time.Minute, 150 * time.Second, 5 * time
 // DefaultInterval is the default time between probes of one flow.
 const DefaultInterval = 15 * time.Minute
 
-// Endpoint is one named connection. Settings use the flag names of
-// "gomailtest <protocol>" (host, port, username, tenantid, mailbox, ...).
-type Endpoint struct {
-	Name     string
-	Protocol string
-	Settings map[string]any
-}
-
-// Viper returns a fresh viper holding the endpoint settings, suitable for
-// the protocol package's ConfigFromViper.
-func (e *Endpoint) Viper() *viper.Viper {
-	v := viper.New()
-	_ = v.MergeConfigMap(e.Settings)
-	return v
-}
-
-// String returns the setting as a string ("" when absent).
-func (e *Endpoint) String(key string) string {
-	if v, ok := e.Settings[key]; ok && v != nil {
-		return fmt.Sprint(v)
-	}
-	return ""
-}
+// Endpoint is one named connection; see package endpoint.
+type Endpoint = endpoint.Endpoint
 
 // Flow is one tested mail route.
 type Flow struct {
@@ -142,24 +121,9 @@ func planFromMaps(rawEndpoints, rawFlows any, lookupEnv func(string) (string, bo
 		if !ok {
 			return nil, fmt.Errorf("endpoint %q: must be a mapping", name)
 		}
-		ep := &Endpoint{Name: strings.ToLower(name), Settings: map[string]any{}}
-		for k, v := range settings {
-			k = strings.ToLower(k)
-			if s, isStr := v.(string); isStr {
-				expanded, err := expandEnv(s, lookupEnv)
-				if err != nil {
-					return nil, fmt.Errorf("endpoint %q, %s: %w", name, k, err)
-				}
-				v = expanded
-			}
-			if k == "protocol" {
-				ep.Protocol = strings.ToLower(strings.TrimSpace(fmt.Sprint(v)))
-				continue
-			}
-			ep.Settings[k] = v
-		}
-		if ep.Protocol == "" {
-			return nil, fmt.Errorf("endpoint %q: 'protocol' is required", name)
+		ep, err := endpoint.Parse(name, settings, lookupEnv)
+		if err != nil {
+			return nil, err
 		}
 		if !contains(SendProtocols, ep.Protocol) && !contains(CheckProtocols, ep.Protocol) {
 			return nil, fmt.Errorf("endpoint %q: unsupported protocol %q (send: %s; check: %s)", name, ep.Protocol,
@@ -288,80 +252,8 @@ func flowFromMap(m map[string]any, p *Plan) (*Flow, error) {
 	return f, nil
 }
 
-var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
-
-// expandEnv replaces ${NAME} with the environment value. Only the braced
-// form is expanded so passwords containing '$' are left alone. A reference
-// to an unset variable is an error rather than a silent empty secret.
-func expandEnv(s string, lookup func(string) (string, bool)) (string, error) {
-	var missing []string
-	out := envRef.ReplaceAllStringFunc(s, func(ref string) string {
-		name := envRef.FindStringSubmatch(ref)[1]
-		val, ok := lookup(name)
-		if !ok {
-			missing = append(missing, name)
-		}
-		return val
-	})
-	if len(missing) > 0 {
-		return "", fmt.Errorf("environment variable %s is not set", strings.Join(missing, ", "))
-	}
-	return out, nil
-}
-
-var relDuration = regexp.MustCompile(`^(\d+)([dw])$`)
-
-// ParseDuration accepts Go durations ("2m30s", "1h") plus whole days and
-// weeks ("90d", "2w").
-func ParseDuration(s string) (time.Duration, error) {
-	s = strings.TrimSpace(strings.ToLower(s))
-	if m := relDuration.FindStringSubmatch(s); m != nil {
-		n, err := strconv.Atoi(m[1])
-		if err != nil {
-			return 0, fmt.Errorf("invalid duration %q", s)
-		}
-		unit := 24 * time.Hour
-		if m[2] == "w" {
-			unit *= 7
-		}
-		return time.Duration(n) * unit, nil
-	}
-	d, err := time.ParseDuration(s)
-	if err != nil {
-		return 0, fmt.Errorf("invalid duration %q (examples: 30s, 2m30s, 1h, 90d)", s)
-	}
-	return d, nil
-}
-
-// secretKeys are endpoint settings never shown in clear text.
-var secretKeys = map[string]bool{
-	"password": true, "secret": true, "accesstoken": true, "bearertoken": true, "pfxpass": true,
-	"token": true, "clientsecret": true, "refreshtoken": true,
-}
-
-// MaskedSettings returns "key=value" pairs of an endpoint with secrets
-// masked, sorted by key, for display.
-func (e *Endpoint) MaskedSettings() []string {
-	keys := make([]string, 0, len(e.Settings))
-	for k := range e.Settings {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	out := make([]string, 0, len(keys))
-	for _, k := range keys {
-		val := fmt.Sprint(e.Settings[k])
-		switch {
-		case secretKeys[k]:
-			val = security.MaskSecret(val)
-		case k == "username":
-			val = security.MaskUsername(val)
-		case k == "tenantid" || k == "clientid":
-			val = security.MaskGUID(val)
-		}
-		out = append(out, k+"="+val)
-	}
-	return out
-}
+// ParseDuration accepts Go durations plus whole days and weeks.
+func ParseDuration(s string) (time.Duration, error) { return endpoint.ParseDuration(s) }
 
 func contains(list []string, s string) bool {
 	for _, x := range list {

@@ -33,6 +33,8 @@ type SMTPClient struct {
 	capabilities protocol.Capabilities
 	limiter      *ratelimit.Limiter
 	smtpClient   *smtp.Client         // Reusable stdlib client after STARTTLS or SMTPS
+	heloName     string               // name given to the last EHLO call
+	heloDone     bool                 // smtpClient has sent its own EHLO
 	tlsState     *tls.ConnectionState // Stored TLS state for SMTPS connections
 	ctx          context.Context      // Context for cancellation propagation
 }
@@ -194,6 +196,8 @@ func (c *SMTPClient) EHLO(hostname string) (protocol.Capabilities, error) {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return nil, fmt.Errorf("rate limit wait failed: %w", err)
 	}
+
+	c.heloName = hostname
 
 	// Send EHLO command
 	cmd := protocol.EHLO(hostname)
@@ -361,7 +365,12 @@ func (c *SMTPClient) Auth(username, password, accessToken string, mechanisms []s
 
 	// Call Hello to initialize the client state properly
 	// This sends EHLO again, which is required by smtp.Client.Auth()
-	if err := c.smtpClient.Hello(c.host); err != nil {
+	helo := c.host
+	if c.config.EHLOName != "" {
+		helo = c.config.EHLOName
+	}
+	c.heloDone = true
+	if err := c.smtpClient.Hello(helo); err != nil {
 		c.debugLogMessage("<<< EHLO for auth failed")
 		return fmt.Errorf("EHLO for auth failed: %w", err)
 	}
@@ -397,6 +406,15 @@ func (c *SMTPClient) SendMail(from string, to []string, data []byte) (string, er
 		c.smtpClient = &smtp.Client{Text: textproto.NewConn(wrapper)}
 	}
 	smtpClient := c.smtpClient
+
+	// Without this the stdlib client would greet with an empty name before
+	// MAIL FROM when no authentication took place.
+	if !c.heloDone && c.heloName != "" {
+		c.heloDone = true
+		if err := smtpClient.Hello(c.heloName); err != nil {
+			return "", fmt.Errorf("EHLO failed: %w", err)
+		}
+	}
 
 	// MAIL FROM
 	c.debugLogMessage(fmt.Sprintf(">>> MAIL FROM:<%s>", from))

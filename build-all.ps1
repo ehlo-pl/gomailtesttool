@@ -13,12 +13,16 @@
 #
 # Pass -MailFlow to also build the mail flow probe service (apps/TestMailFlow)
 # as bin\testmailflow.exe.
+#
+# Pass -Warmup to also build the domain warm-up service (apps/warmingup) as
+# bin\warmingup.exe.
 
 param(
     [switch]$Verbose,
     [string]$Protocols = "",
     [switch]$Dmarc,
-    [switch]$MailFlow
+    [switch]$MailFlow,
+    [switch]$Warmup
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,8 +44,36 @@ Write-ColorOutput "════════════════════�
 $binDir = Join-Path $PSScriptRoot "bin"
 New-Item -ItemType Directory -Path $binDir -Force | Out-Null
 
+$versionFile = Join-Path $PSScriptRoot "internal/common/version/version.go"
+
+# Validate version: on a release branch (b<major>.<minor>.<patch>) raise
+# version.go to the branch version. It is never lowered.
+$branch = ""
+if (Get-Command git -ErrorAction SilentlyContinue) {
+    $branch = "$(git -C $PSScriptRoot branch --show-current 2>$null)".Trim()
+}
+if ($branch -cmatch '^b(\d+\.\d+\.\d+)$') {
+    $branchVersion = $Matches[1]
+    $source = [System.IO.File]::ReadAllText($versionFile)
+    if ($source -notmatch 'const Version = "(\d+\.\d+\.\d+)"') {
+        Write-ColorOutput "ERROR: version.go has no semantic version to compare with branch $branch" "Red"
+        exit 1
+    }
+    $fileVersion = $Matches[1]
+    if ([version]$branchVersion -gt [version]$fileVersion) {
+        $source = $source -replace '(const Version = ")[^"]+(")', "`${1}$branchVersion`${2}"
+        [System.IO.File]::WriteAllText($versionFile, $source)
+        Write-ColorOutput "  Version raised $fileVersion -> $branchVersion (branch $branch); commit version.go" "Yellow"
+        if (-not (Test-Path (Join-Path $PSScriptRoot "ChangeLog/$branchVersion.md"))) {
+            Write-ColorOutput "  WARNING: ChangeLog/$branchVersion.md is missing" "Yellow"
+        }
+    } elseif ([version]$branchVersion -lt [version]$fileVersion) {
+        Write-ColorOutput "  WARNING: branch $branch is older than version.go ($fileVersion); not changed" "Yellow"
+    }
+}
+
 # Read version from version.go
-$match = Select-String -Path (Join-Path $PSScriptRoot "internal/common/version/version.go") -Pattern 'Version = "([^"]+)"'
+$match = Select-String -Path $versionFile -Pattern 'Version = "([^"]+)"'
 if (-not $match) {
     Write-ColorOutput "ERROR: Could not extract version from version.go" "Red"
     exit 1
@@ -107,6 +139,21 @@ if ($MailFlow) {
         exit 1
     }
     Write-ColorOutput "  Built bin\testmailflow.exe — version $version" "Green"
+}
+
+# Build warmingup
+if ($Warmup) {
+    $warmOut = Join-Path $binDir "warmingup.exe"
+    $warmArgs = @("-ldflags=-s -w", "-trimpath", "-o", $warmOut, "./apps/warmingup/cmd/warmingup")
+    if ($Verbose) {
+        $warmArgs = @("-v") + $warmArgs
+    }
+    & go build @warmArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorOutput "  ✗ warmingup build failed" "Red"
+        exit 1
+    }
+    Write-ColorOutput "  Built bin\warmingup.exe — version $version" "Green"
 }
 
 # Summary

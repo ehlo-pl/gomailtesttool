@@ -90,7 +90,11 @@ func (s *rawSender) Send(ctx context.Context, m send.Message) (send.Result, erro
 	defer func() { _ = client.Close() }()
 	res.RemoteHost = client.GetHost()
 
-	caps, err := client.EHLO(ehloName)
+	helo := cfg.EHLOName
+	if helo == "" {
+		helo = ehloName
+	}
+	caps, err := client.EHLO(helo)
 	if err != nil {
 		return res, err
 	}
@@ -107,7 +111,7 @@ func (s *rawSender) Send(ctx context.Context, m send.Message) (send.Result, erro
 			}); err != nil {
 				return res, fmt.Errorf("STARTTLS failed: %w", err)
 			}
-			if caps, err = client.EHLO(ehloName); err != nil {
+			if caps, err = client.EHLO(helo); err != nil {
 				return res, fmt.Errorf("EHLO on encrypted connection failed: %w", err)
 			}
 		case cfg.StartTLS:
