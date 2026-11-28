@@ -1,10 +1,10 @@
-// Package eventlog reports testmailflow state changes to the operating
-// system's event log (Windows Event Log; elsewhere a no-op, the same
-// information is always written to the slog log).
+// Package eventlog holds testmailflow's event IDs on top of the shared
+// system event log.
 package eventlog
 
-// Event IDs. They stay within 1..1000 because the event source is
-// registered with the generic EventCreate message file.
+import common "github.com/ehlo-pl/gomailtesttool/internal/common/eventlog"
+
+// Event IDs.
 const (
 	IDStarted          uint32 = 100
 	IDStopped          uint32 = 101
@@ -16,27 +16,23 @@ const (
 	IDCheckerFailing   uint32 = 302
 )
 
-// Level is the event severity.
-type Level int
+// Shared types.
+type (
+	Level = common.Level
+	Sink  = common.Sink
+	Nop   = common.Nop
+)
 
 // Severities.
 const (
-	Info Level = iota
-	Warning
-	Error
+	Info    = common.Info
+	Warning = common.Warning
+	Error   = common.Error
 )
 
-// Sink receives events.
-type Sink interface {
-	Report(level Level, id uint32, msg string)
-	Close() error
-}
-
-// Nop discards events.
-type Nop struct{}
-
-// Report implements Sink.
-func (Nop) Report(Level, uint32, string) {}
-
-// Close implements Sink.
-func (Nop) Close() error { return nil }
+// Event log access.
+var (
+	Open    = common.Open
+	Install = common.Install
+	Remove  = common.Remove
+)

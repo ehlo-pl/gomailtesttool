@@ -10,6 +10,7 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -40,7 +41,14 @@ const OAuthMicrosoft = "microsoft"
 
 // Config is the complete resolved configuration.
 type Config struct {
-	DataDir   string
+	DataDir string
+	// FileDataDir is the data directory named by the config file, if any.
+	FileDataDir string
+	// EnvFile is the file read for ${NAME} values, if any.
+	EnvFile string
+	// FromProcessEnv are the names that only the process environment supplied.
+	FromProcessEnv []string
+
 	LogLevel  string
 	Endpoints map[string]*endpoint.Endpoint
 	Domains   []*Domain
@@ -129,6 +137,7 @@ type globalFile struct {
 	Warmingup struct {
 		DataDir    string `yaml:"datadir"`
 		DomainsDir string `yaml:"domains_dir"`
+		EnvFile    string `yaml:"envfile"`
 		LogLevel   string `yaml:"loglevel"`
 	} `yaml:"warmingup"`
 	Endpoints map[string]map[string]any `yaml:"endpoints"`
@@ -201,8 +210,19 @@ func decodeStrict(data []byte, out any) error {
 }
 
 // Load reads the global file at path and every domain file, and validates
-// everything before any network work.
+// everything before any network work. ${NAME} comes from lookupEnv or else
+// from the configured envfile.
 func Load(path string, lookupEnv func(string) (string, bool)) (*Config, error) {
+	return loadFiles(path, lookupEnv, false)
+}
+
+// LoadWithoutSecrets is Load for commands that sign in nowhere: an unset name
+// becomes a placeholder and an unreadable envfile is ignored.
+func LoadWithoutSecrets(path string, lookupEnv func(string) (string, bool)) (*Config, error) {
+	return loadFiles(path, lookupEnv, true)
+}
+
+func loadFiles(path string, lookupEnv func(string) (string, bool), placeholder bool) (*Config, error) {
 	if path == "" {
 		return nil, errors.New("a config file is required (--config, env WARMUPCONFIG)")
 	}
@@ -215,12 +235,28 @@ func Load(path string, lookupEnv func(string) (string, bool)) (*Config, error) {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	c := &Config{
-		DataDir:   g.Warmingup.DataDir,
 		LogLevel:  g.Warmingup.LogLevel,
 		Endpoints: map[string]*endpoint.Endpoint{},
 	}
+	// Relative paths are relative to the config file, not to the working
+	// directory, which differs for a service.
+	beside := func(p string) string {
+		if p == "" || filepath.IsAbs(p) {
+			return p
+		}
+		return filepath.Join(filepath.Dir(path), p)
+	}
+	c.FileDataDir = beside(g.Warmingup.DataDir)
+	c.DataDir, c.EnvFile = c.FileDataDir, beside(g.Warmingup.EnvFile)
+	var envFile map[string]string
+	if c.EnvFile != "" {
+		if envFile, err = readEnvFile(c.EnvFile); err != nil && !placeholder {
+			return nil, fmt.Errorf("envfile: %w", err)
+		}
+	}
+	resolve := c.lookup(lookupEnv, envFile, placeholder)
 	for name, settings := range g.Endpoints {
-		ep, err := endpoint.Parse(name, settings, lookupEnv)
+		ep, err := endpoint.Parse(name, settings, resolve)
 		if err != nil {
 			return nil, err
 		}
@@ -237,9 +273,7 @@ func Load(path string, lookupEnv func(string) (string, bool)) (*Config, error) {
 	if dir == "" {
 		dir = "domains.d"
 	}
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(filepath.Dir(path), dir)
-	}
+	dir = beside(dir)
 	var files []string
 	for _, pattern := range []string{"*.yaml", "*.yml"} {
 		m, err := filepath.Glob(filepath.Join(dir, pattern))
@@ -594,13 +628,16 @@ func parseSpeed(d *Domain, f *domainFile) error {
 }
 
 // DefaultDataDir is used when neither the flag, the environment nor the
-// config file names a data directory.
+// config file names a data directory: /var/lib/warmingup, and on Windows
+// %ProgramData%\warmingup, so that the service and an administrator's shell
+// share the database and the sign-in tokens.
 func DefaultDataDir() string {
-	if os.PathSeparator == '/' {
+	if runtime.GOOS != "windows" {
 		return "/var/lib/" + AppName
 	}
-	if d, err := os.UserCacheDir(); err == nil {
-		return filepath.Join(d, AppName)
+	base := os.Getenv("ProgramData")
+	if base == "" {
+		base = `C:\ProgramData`
 	}
-	return AppName + "-data"
+	return filepath.Join(base, AppName)
 }

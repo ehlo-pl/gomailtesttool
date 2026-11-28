@@ -1,7 +1,7 @@
 //go:build !windows
 
-// Package svc hosts testmailflow as a native Windows service. On other
-// systems run "testmailflow run" under systemd or another supervisor.
+// Package svc hosts an application as a native Windows service. On other
+// systems run its "run" command under systemd or another supervisor.
 package svc
 
 import (
@@ -12,7 +12,7 @@ import (
 // Supported reports whether native service hosting is available.
 const Supported = false
 
-var errUnsupported = errors.New("native service management is available on Windows only; run 'testmailflow run' under systemd or another supervisor")
+var errUnsupported = errors.New("native service management is available on Windows only; run the 'run' command under systemd or another supervisor")
 
 // IsService always reports false outside Windows.
 func IsService() bool { return false }

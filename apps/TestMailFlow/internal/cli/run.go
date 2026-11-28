@@ -15,8 +15,8 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/apps/TestMailFlow/internal/eventlog"
 	"github.com/ehlo-pl/gomailtesttool/apps/TestMailFlow/internal/httpd"
 	"github.com/ehlo-pl/gomailtesttool/apps/TestMailFlow/internal/store"
-	"github.com/ehlo-pl/gomailtesttool/apps/TestMailFlow/internal/svc"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/bootstrap"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/svc"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/version"
 )
 

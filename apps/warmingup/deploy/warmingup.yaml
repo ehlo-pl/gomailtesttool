@@ -1,9 +1,13 @@
-# /etc/warmingup/warmingup.yaml
-# ${NAME} values come from /etc/warmingup/warmingup.env.
+# Linux:   /etc/warmingup/warmingup.yaml
+# Windows: C:\ProgramData\warmingup\warmingup.yaml
 warmingup:
-  datadir: /var/lib/warmingup
+  # datadir: default /var/lib/warmingup, on Windows %ProgramData%\warmingup
   loglevel: INFO
+  # ${NAME} values come from the environment or from this NAME=value file.
+  # Windows: remove the "#". Linux: systemd already loads warmingup.env.
+  # envfile: warmingup.env      # relative to this file
   # domains_dir: domains.d      # relative to this file
+  # Windows paths: write them without double quotes, e.g. D:\warmup\data
 
 endpoints:
   site-mta:                     # your own mail server; it must DKIM sign

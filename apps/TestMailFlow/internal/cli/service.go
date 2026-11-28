@@ -12,7 +12,7 @@ import (
 
 	"github.com/ehlo-pl/gomailtesttool/apps/TestMailFlow/internal/config"
 	"github.com/ehlo-pl/gomailtesttool/apps/TestMailFlow/internal/eventlog"
-	"github.com/ehlo-pl/gomailtesttool/apps/TestMailFlow/internal/svc"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/svc"
 )
 
 // servicePasswordEnv supplies the service account password to 'service

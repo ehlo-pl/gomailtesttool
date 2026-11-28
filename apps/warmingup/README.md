@@ -11,6 +11,11 @@ warmingup ───────────────────────�
     └────────────── bounce mailbox ◀───────────┘  delivery status notifications
 ```
 
+It runs on Linux (systemd) and on Windows (native service).
+
+**New here? Follow the walkthrough in [USAGE.md](USAGE.md)**: mailboxes to prepare, example
+configuration and example output.
+
 > Original requirement: *using methods from TestMailFlow build a simple Linux based warming service.*
 
 **What it does not do:** a handful of your own mailboxes with automated engagement mainly
@@ -26,6 +31,8 @@ GOOS=linux GOARCH=amd64 go build -o bin/warmingup ./apps/warmingup/cmd/warmingup
 ```
 
 ## Quick start
+
+Linux paths are shown; for Windows see [Windows service](#windows-service).
 
 ```bash
 warmingup validate --config /etc/warmingup/warmingup.yaml            # files and DNS records
@@ -45,7 +52,12 @@ One global file with the mailbox connections, and one file per warmed domain.
 Examples: [deploy/warmingup.yaml](deploy/warmingup.yaml),
 [deploy/domains.d/example.com.yaml](deploy/domains.d/example.com.yaml).
 Unknown keys are errors. `${NAME}` in endpoint settings is replaced by the environment
-variable `NAME`. Changes apply after a restart; the ramp state is kept.
+variable `NAME`, or else by `NAME` from the file named in `warmingup: envfile:`
+(`NAME=value` lines, `#` comments, UTF-8). Changes apply after a restart; the ramp state is kept.
+
+Global `warmingup:` keys: `datadir` (default `/var/lib/warmingup`, on Windows
+`%ProgramData%\warmingup`), `domains_dir` (default `domains.d`), `envfile`, `loglevel`.
+Relative paths are relative to the config file.
 
 ### Endpoints (global file)
 
@@ -70,12 +82,9 @@ You create the mailboxes.
 | Outlook.com | `outlook.office365.com` | Enable IMAP. Register an Entra application that accepts personal Microsoft accounts and allows public client flows. Set `oauth: microsoft`, `clientid:`, then run `warmingup auth <endpoint>`. |
 | Fastmail | `api.fastmail.com` (jmap) | API token (not offered on the Basic plan). Confirm it first with `gomailtest jmap testauth`. |
 
-The Outlook.com token is stored in `<datadir>/tokens/<endpoint>.json`. Run `auth` as the
-service user so that the service can refresh it:
-
-```bash
-sudo -u warmingup warmingup auth outlook1 --config /etc/warmingup/warmingup.yaml
-```
+The Outlook.com token is stored in `<datadir>/tokens/<endpoint>.json`, and the service must
+be able to rewrite it. On Linux run `auth` as the service user (see
+[Linux service](#linux-service)); on Windows run it from an elevated prompt.
 
 ### Domain file
 
@@ -145,9 +154,10 @@ mailbox their deferrals are invisible, and delay notifications arrive only if yo
 | `validate [--connect]` | Configuration, SPF / DKIM / DMARC, mailbox sign-in. |
 | `auth <endpoint>` | Outlook.com device code sign-in. |
 | `resume [target]` | Clear holds. |
+| `service install\|uninstall\|start\|stop\|status` | Windows service. |
 
-Global flags: `--config` (`WARMUPCONFIG`), `--datadir` (`WARMUPDATADIR`, default
-`/var/lib/warmingup`), `--loglevel` (`WARMUPLOGLEVEL`), `--domain`.
+Global flags: `--config` (`WARMUPCONFIG`), `--datadir` (`WARMUPDATADIR`, overrides the
+config file), `--loglevel` (`WARMUPLOGLEVEL`), `--domain`.
 
 ## Linux service
 
@@ -156,16 +166,61 @@ sudo useradd --system --home /var/lib/warmingup --shell /usr/sbin/nologin warmin
 sudo install -m 0755 bin/warmingup /usr/local/bin/
 sudo install -d -m 0750 -g warmingup /etc/warmingup /etc/warmingup/domains.d
 sudo install -m 0640 -g warmingup apps/warmingup/deploy/warmingup.yaml /etc/warmingup/
+sudo install -m 0640 -g warmingup apps/warmingup/deploy/domains.d/example.com.yaml /etc/warmingup/domains.d/
 sudo install -m 0600 /dev/null /etc/warmingup/warmingup.env     # NAME=value secrets
+# The data directory must exist before 'auth' or 'once' run ahead of the first service start.
+sudo install -d -m 0700 -o warmingup -g warmingup /var/lib/warmingup
 sudo install -m 0644 apps/warmingup/deploy/warmingup.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now warmingup
 journalctl -u warmingup -f
 ```
 
-`plan`, `status`, `report`, `resume` and `validate` (without `--connect`) work without the
-secrets. `once` and `validate --connect` need them; run those as the service user:
+Edit the copied files before starting the service. `plan`, `status`, `report`, `resume` and
+`validate` (without `--connect`) work without the secrets. `auth`, `once` and
+`validate --connect` need them; run those as the service user:
 
 ```bash
 sudo systemd-run --pty --uid=warmingup -p EnvironmentFile=/etc/warmingup/warmingup.env \
   /usr/local/bin/warmingup once --config /etc/warmingup/warmingup.yaml --target gmail1
 ```
+
+## Windows service
+
+From an **elevated** PowerShell in the repository, after `./build-all.ps1 -Warmup`:
+
+```powershell
+$app  = "$env:ProgramFiles\warmingup"      # only administrators can replace the program
+$conf = "$env:ProgramData\warmingup"       # configuration, secrets, database, tokens, logs
+New-Item -ItemType Directory -Force $app, "$conf\domains.d" | Out-Null
+# Before any secret is written: only SYSTEM and Administrators (by default all users can read).
+icacls $conf /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F"
+Copy-Item bin\warmingup.exe $app
+Copy-Item apps\warmingup\deploy\warmingup.yaml $conf
+Copy-Item apps\warmingup\deploy\domains.d\example.com.yaml "$conf\domains.d"
+notepad "$conf\warmingup.env"              # NAME=value, one per line
+notepad "$conf\warmingup.yaml"             # enable "envfile: warmingup.env", set your servers
+notepad "$conf\domains.d\example.com.yaml"
+
+$w = "$app\warmingup.exe"; $c = "$conf\warmingup.yaml"
+& $w validate --config $c
+& $w auth outlook1 --config $c             # Outlook.com only
+& $w validate --config $c --connect
+& $w once --config $c --target gmail1      # repeat for every target
+& $w service install --config $c
+& $w service start
+```
+
+* **Account.** The service runs as `LocalSystem`. For less privilege use
+  `--user "NT AUTHORITY\LocalService"`; for a domain account set its password in
+  `WARMUPSERVICEPASSWORD` before `service install`.
+* **Permissions.** `service install` limits the data directory to SYSTEM, Administrators and
+  the service account, so later commands (`status`, `report`, `once`, ...) need an elevated
+  prompt. A data directory outside `%ProgramData%` that already holds other files is left
+  unchanged, with a warning.
+* **Secrets.** The service does not see your user environment variables. Use `envfile`.
+* **Logs.** `<datadir>\logs\warmingup-YYYY-MM-DD.log` (dates in UTC; old files are not
+  removed). The Application event log, source `warmingup`: 100 started, 101 stopped,
+  200 target held, 300 domain held.
+* **Updates.** `service stop`, replace the program, `service start`. Restart the service after
+  configuration changes.
+* **Sleep.** Nothing is sent while the computer sleeps; use an always-on machine.
