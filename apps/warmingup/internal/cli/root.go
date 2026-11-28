@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -28,6 +29,7 @@ func (e *exitError) Error() string { return fmt.Sprintf("exit status %d", e.code
 
 type globals struct {
 	configFile, dataDir, logLevel, domain string
+	logToFile                             bool // service mode: daily files in <datadir>/logs
 }
 
 // NewRootCmd builds the warmingup command tree.
@@ -47,6 +49,10 @@ Typical use:
   warmingup once     --config /etc/warmingup/warmingup.yaml --target gmail1
   warmingup run      --config /etc/warmingup/warmingup.yaml     (the service)
 
+As a Windows service (elevated prompt):
+  warmingup service install --config C:\ProgramData\warmingup\warmingup.yaml
+  warmingup service start
+
 Environment: WARMUPCONFIG, WARMUPDATADIR, WARMUPLOGLEVEL.`,
 		Version:       version.Get(),
 		SilenceUsage:  true,
@@ -59,7 +65,7 @@ Environment: WARMUPCONFIG, WARMUPDATADIR, WARMUPLOGLEVEL.`,
 	f.StringVar(&g.domain, "domain", "", "limit to one warmed domain")
 
 	root.AddCommand(newRunCmd(g), newOnceCmd(g), newPlanCmd(g), newStatusCmd(g), newReportCmd(g),
-		newValidateCmd(g), newAuthCmd(g), newResumeCmd(g))
+		newValidateCmd(g), newAuthCmd(g), newResumeCmd(g), newServiceCmd(g))
 	return root
 }
 
@@ -85,11 +91,15 @@ type env struct {
 	log   *slog.Logger
 	store *store.Store
 	open  *opener
+	logs  io.Closer
 }
 
 func (e *env) Close() {
 	if e.store != nil {
 		_ = e.store.Close()
+	}
+	if e.logs != nil {
+		_ = e.logs.Close()
 	}
 }
 
@@ -104,23 +114,14 @@ const (
 	noSecrets   secrets = false
 )
 
-// lookup returns the environment lookup. Commands that open no session work
-// without the secrets: an unset variable becomes a placeholder.
-func (s secrets) lookup() func(string) (string, bool) {
-	if s == needSecrets {
-		return os.LookupEnv
-	}
-	return func(name string) (string, bool) {
-		if v, ok := os.LookupEnv(name); ok {
-			return v, true
-		}
-		return "unset", true
-	}
-}
-
 // loadConfig reads and validates the configuration without opening anything.
+// Commands that open no session work without the secrets.
 func loadConfig(g *globals, s secrets) (*env, error) {
-	cfg, err := config.Load(g.configFile, s.lookup())
+	load := config.Load
+	if s == noSecrets {
+		load = config.LoadWithoutSecrets
+	}
+	cfg, err := load(g.configFile, os.LookupEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -136,8 +137,16 @@ func loadConfig(g *globals, s secrets) (*env, error) {
 	if g.logLevel != "" {
 		cfg.LogLevel = g.logLevel
 	}
-	log := logger.SetupLogger(false, cfg.LogLevel)
-	return &env{cfg: cfg, log: log, open: &opener{cfg: cfg, log: log}}, nil
+	e := &env{cfg: cfg}
+	if g.logToFile {
+		w := logger.NewDailyWriter(filepath.Join(cfg.DataDir, "logs"), config.AppName)
+		e.log = slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: logger.ParseLogLevel(cfg.LogLevel)}))
+		e.logs = w
+	} else {
+		e.log = logger.SetupLogger(false, cfg.LogLevel)
+	}
+	e.open = &opener{cfg: cfg, log: e.log}
+	return e, nil
 }
 
 // setup also opens the database.
@@ -147,6 +156,8 @@ func setup(ctx context.Context, g *globals, s secrets) (*env, error) {
 		return nil, err
 	}
 	if e.store, err = store.Open(ctx, filepath.Join(e.cfg.DataDir, config.AppName+".db")); err != nil {
+		e.log.Error("cannot open the database", "error", err)
+		e.Close()
 		return nil, err
 	}
 	return e, nil

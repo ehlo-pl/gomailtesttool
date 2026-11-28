@@ -18,6 +18,7 @@ import (
 	"github.com/ehlo-pl/gomailtesttool/apps/warmingup/internal/inspect"
 	"github.com/ehlo-pl/gomailtesttool/apps/warmingup/internal/store"
 	"github.com/ehlo-pl/gomailtesttool/internal/common/endpoint"
+	"github.com/ehlo-pl/gomailtesttool/internal/common/svc"
 )
 
 // printer collects the first write error so commands can print freely.
@@ -41,18 +42,12 @@ func newRunCmd(g *globals) *cobra.Command {
 			if g.domain != "" {
 				return errors.New("run handles all domains; disable one with 'enabled: false'")
 			}
-			e, err := setup(cmd.Context(), g, needSecrets)
-			if err != nil {
-				return err
+			if svc.IsService() {
+				return svc.Run(config.AppName, func(ctx context.Context) error {
+					return runDaemon(ctx, g, true)
+				})
 			}
-			defer e.Close()
-			for _, d := range e.cfg.Domains {
-				e.log.Info("domain loaded", "domain", d.Name, "enabled", d.Enabled, "targets", len(d.Targets),
-					"start", d.Start.Format("2006-01-02 15:04"), "peak_per_day", d.Schedule.Peak())
-			}
-			err = e.engine().Run(cmd.Context())
-			e.log.Info("stopped")
-			return err
+			return runDaemon(cmd.Context(), g, false)
 		},
 	}
 }

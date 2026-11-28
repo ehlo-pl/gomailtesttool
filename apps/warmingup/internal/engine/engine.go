@@ -61,6 +61,8 @@ type Engine struct {
 	Log     *slog.Logger
 	Now     func() time.Time
 	Rand    *rand.Rand
+	// OnHold, when set, is told about new holds; target is "" for a domain.
+	OnHold func(domain, target, reason string)
 
 	contentWait map[string]time.Time // domain -> next content fetch
 	nextBounce  time.Time
@@ -559,6 +561,7 @@ func (e *Engine) EvaluateHolds(ctx context.Context, d *config.Domain) error {
 			if err := e.Store.SaveDomainRamp(ctx, d.Name, r); err != nil {
 				return err
 			}
+			e.held(d.Name, "", r.HeldReason)
 		}
 	}
 	for _, t := range d.Targets {
@@ -581,8 +584,15 @@ func (e *Engine) EvaluateHolds(ctx context.Context, d *config.Domain) error {
 		if err := e.Store.SaveTargetRamp(ctx, d.Name, t.Endpoint, tr); err != nil {
 			return err
 		}
+		e.held(d.Name, t.Endpoint, reason)
 	}
 	return nil
+}
+
+func (e *Engine) held(domain, target, reason string) {
+	if e.OnHold != nil {
+		e.OnHold(domain, target, reason)
+	}
 }
 
 func (e *Engine) holdReason(ctx context.Context, d *config.Domain, target string, since time.Time) (string, error) {

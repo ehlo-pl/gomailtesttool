@@ -8,9 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
-	"sync"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -114,7 +111,7 @@ func setup(ctx context.Context, cmd *cobra.Command, v *viper.Viper, o setupOpts)
 	}
 	e := &env{cfg: cfg}
 	if o.logToFile {
-		w := &dailyWriter{dir: cfg.LogDir(), prefix: config.AppName}
+		w := logger.NewDailyWriter(cfg.LogDir(), config.AppName)
 		level := logger.ParseLogLevel(cfg.LogLevel)
 		if cfg.Verbose {
 			level = slog.LevelDebug
@@ -156,46 +153,4 @@ func loadPlan(cfg *config.Config) (*config.Plan, error) {
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 	return plan, nil
-}
-
-// dailyWriter appends to <dir>/<prefix>-YYYY-MM-DD.log, switching files at
-// midnight UTC. Files are created with owner-only permissions.
-type dailyWriter struct {
-	dir, prefix string
-
-	mu   sync.Mutex
-	day  string
-	file *os.File
-}
-
-func (w *dailyWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	day := time.Now().UTC().Format("2006-01-02")
-	if w.file == nil || day != w.day {
-		if w.file != nil {
-			_ = w.file.Close()
-			w.file = nil
-		}
-		if err := os.MkdirAll(w.dir, 0o700); err != nil {
-			return 0, err
-		}
-		f, err := os.OpenFile(filepath.Join(w.dir, w.prefix+"-"+day+".log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-		if err != nil {
-			return 0, err
-		}
-		w.file, w.day = f, day
-	}
-	return w.file.Write(p)
-}
-
-func (w *dailyWriter) Close() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.file == nil {
-		return nil
-	}
-	err := w.file.Close()
-	w.file = nil
-	return err
 }

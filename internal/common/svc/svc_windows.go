@@ -1,6 +1,6 @@
 //go:build windows
 
-// Package svc hosts testmailflow as a native Windows service and manages
+// Package svc hosts an application as a native Windows service and manages
 // its installation through the service control manager.
 package svc
 
